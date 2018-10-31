@@ -28,10 +28,12 @@
 
 static unsigned long efi_nr_tables;
 static unsigned long efi_config_table;
+static unsigned long boot_memmap __initdata = EFI_INVALID_TABLE_ADDR;
 static unsigned long screen_info_table __initdata = EFI_INVALID_TABLE_ADDR;
 
 static efi_system_table_t *efi_systab;
 static efi_config_table_type_t arch_tables[] __initdata = {
+	{LINUX_EFI_BOOT_MEMMAP_GUID,	&boot_memmap,	"MEMMAP" },
 	{LINUX_EFI_ARM_SCREEN_INFO_TABLE_GUID, &screen_info_table, "SINFO"},
 	{},
 };
@@ -77,6 +79,7 @@ void __init efi_init(void)
 {
 	int size;
 	void *config_tables;
+	struct efi_boot_memmap *tbl;
 
 	if (!efi_system_table)
 		return;
@@ -86,6 +89,8 @@ void __init efi_init(void)
 		pr_err("Can't find EFI system table.\n");
 		return;
 	}
+
+	efi_systab_report_header(&efi_systab->hdr, efi_systab->fw_vendor);
 
 	set_bit(EFI_64BIT, &efi.flags);
 	efi_nr_tables	 = efi_systab->nr_tables;
@@ -97,4 +102,22 @@ void __init efi_init(void)
 	early_memunmap(config_tables, efi_nr_tables * size);
 
 	init_screen_info();
+
+	if (boot_memmap == EFI_INVALID_TABLE_ADDR)
+		return;
+
+	tbl = early_memremap_ro(boot_memmap, sizeof(*tbl));
+	if (tbl) {
+		struct efi_memory_map_data data;
+
+		data.phys_map		= boot_memmap + sizeof(*tbl);
+		data.size		= tbl->map_size;
+		data.desc_size		= tbl->desc_size;
+		data.desc_version	= tbl->desc_ver;
+
+		if (efi_memmap_init_early(&data) < 0)
+			panic("Unable to map EFI memory map.\n");
+
+		early_memunmap(tbl, sizeof(*tbl));
+	}
 }

@@ -32,6 +32,7 @@ static inline void efifb_setup_from_dmi(struct screen_info *si, const char *opt)
 })
 
 #define EFI_ALLOC_ALIGN		SZ_64K
+#define EFI_RT_VIRTUAL_OFFSET	CSR_DMW0_BASE
 
 struct screen_info *alloc_screen_info(void);
 void free_screen_info(struct screen_info *si);

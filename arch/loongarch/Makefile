@@ -36,6 +36,9 @@ endif
 
 all-y			:= vmlinux
 all-$(CONFIG_SYS_SUPPORTS_ZBOOT)+= vmlinuz
+all-$(CONFIG_EFI_STUB) 	+= vmlinuz.efi
+
+vmlinuz.efi: vmlinuz
 
 cflags-y			+= -G0 -pipe -msoft-float
 LDFLAGS_vmlinux			+= -G0 -static -n -nostdlib
@@ -136,6 +139,7 @@ boot-y			:= vmlinux.bin
 # compressed boot image targets (arch/loongarch/boot/compressed/)
 bootz-y			:= vmlinuz
 bootz-y			+= vmlinuz.bin
+bootz-$(CONFIG_EFI_STUB)+= vmlinuz.efi
 
 all:	$(all-y)
 

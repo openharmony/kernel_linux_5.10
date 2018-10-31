@@ -13,8 +13,12 @@ KBUILD_CFLAGS := $(filter-out $(CC_FLAGS_FTRACE), $(KBUILD_CFLAGS))
 
 KBUILD_CFLAGS := $(filter-out -fstack-protector, $(KBUILD_CFLAGS))
 
+KBUILD_CFLAGS += -fpie -include $(srctree)/include/linux/hidden.h
+
 KBUILD_CFLAGS := $(KBUILD_CFLAGS) -D__KERNEL__ \
-	-DBOOT_HEAP_SIZE=$(BOOT_HEAP_SIZE) -D"VMLINUX_LOAD_ADDRESS_ULL=$(VMLINUX_LOAD_ADDRESS)ull"
+	-DBOOT_HEAP_SIZE=$(BOOT_HEAP_SIZE) \
+	-D"VMLINUX_LOAD_ADDRESS_ULL=$(VMLINUX_LOAD_ADDRESS)ull" \
+	-D"KERNEL_ENTRY=$(VMLINUX_ENTRY_ADDRESS)ull" \
 
 KBUILD_AFLAGS := $(KBUILD_AFLAGS) -D__ASSEMBLY__ \
 	-DBOOT_HEAP_SIZE=$(BOOT_HEAP_SIZE) \
@@ -82,5 +86,24 @@ vmlinuz: $(src)/ld.script $(vmlinuzobjs-y) $(obj)/calc_vmlinuz_load_addr
 	$(call cmd,zld)
 	$(call cmd,strip)
 
+efiobjs-y := $(obj)/efi-header.o $(obj)/decompress.o $(obj)/piggy.o \
+		$(obj)/string.o $(objtree)/drivers/firmware/efi/libstub/lib.a
+
+efiobjs-$(CONFIG_DEBUG_ZBOOT)	+= $(obj)/dbg.o
+efiobjs-$(CONFIG_DEBUG_ZBOOT)	+= $(obj)/uart-16550.o
+
+targets += $(notdir $(efiobjs-y))
+
+quiet_cmd_efild = LD      $@
+      cmd_efild = $(LD) $(KBUILD_LDFLAGS) -T $< $(efiobjs-y) -o $@
+
+quiet_cmd_eficopy = OBJCOPY $@
+cmd_eficopy = $(OBJCOPY) $(OBJCOPYFLAGS) -O binary -R .comment -S $@ $@
+
+vmlinuz.efi: $(src)/ld.script $(efiobjs-y)
+	$(call cmd,efild)
+	$(call cmd,eficopy)
+
 clean-files += $(objtree)/vmlinuz
 clean-files += $(objtree)/vmlinuz.bin
+clean-files += $(objtree)/vmlinuz.efi

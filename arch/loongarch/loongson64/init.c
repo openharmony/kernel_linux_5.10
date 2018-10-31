@@ -74,16 +74,9 @@ static void __init parse_cpu_table(const struct dmi_header *dm)
 
 static void __init parse_bios_table(const struct dmi_header *dm)
 {
-	int bios_extern;
 	char *dmi_data = (char *)dm;
 
-	bios_extern = *(dmi_data + SMBIOS_BIOSEXTERN_OFFSET);
 	b_info.bios_size = (*(dmi_data + SMBIOS_BIOSSIZE_OFFSET) + 1) << 6;
-
-	if (bios_extern & LOONGSON_EFI_ENABLE)
-		set_bit(EFI_BOOT, &efi.flags);
-	else
-		clear_bit(EFI_BOOT, &efi.flags);
 }
 
 static void __init find_tokens(const struct dmi_header *dm, void *dummy)
@@ -97,6 +90,7 @@ static void __init find_tokens(const struct dmi_header *dm, void *dummy)
 		break;
 	}
 }
+
 static void __init smbios_parse(void)
 {
 	b_info.bios_vendor = (void *)dmi_get_system_info(DMI_BIOS_VENDOR);
@@ -110,12 +104,12 @@ static void __init smbios_parse(void)
 void __init early_init(void)
 {
 	init_environ();
+	efi_init();
 	memblock_init();
 }
 
 void __init platform_init(void)
 {
-	efi_init();
 	arch_reserve_vmcore();
 	arch_parse_crashkernel();
 

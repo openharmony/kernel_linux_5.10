@@ -31,21 +31,17 @@ static void __init register_addrs_set(u64 *registers, const u64 addr, int num)
 void __init init_environ(void)
 {
 	int efi_boot = fw_arg0;
-	struct efi_memory_map_data data;
-	void *fdt_ptr = early_memremap_ro(fw_arg1, SZ_64K);
+	char *cmdline = early_memremap_ro(fw_arg1, COMMAND_LINE_SIZE);
 
 	if (efi_boot)
 		set_bit(EFI_BOOT, &efi.flags);
 	else
 		clear_bit(EFI_BOOT, &efi.flags);
 
-	early_init_dt_scan(fdt_ptr);
-	early_init_fdt_reserve_self();
-	efi_system_table = efi_get_fdt_params(&data);
+	strscpy(boot_command_line, cmdline, COMMAND_LINE_SIZE);
+	early_memunmap(cmdline, COMMAND_LINE_SIZE);
 
-	efi_memmap_init_early(&data);
-	memblock_reserve(data.phys_map & PAGE_MASK,
-			 PAGE_ALIGN(data.size + (data.phys_map & ~PAGE_MASK)));
+	efi_system_table = fw_arg2;
 	register_addrs_set(smp_group, TO_UNCACHE(0x1fe01000), 16);
 }
 
