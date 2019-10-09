@@ -542,6 +542,7 @@ F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, gc_urgent, gc_mode);
 F2FS_RW_ATTR(SM_INFO, f2fs_sm_info, reclaim_segments, rec_prefree_segments);
 F2FS_RW_ATTR(DCC_INFO, discard_cmd_control, max_small_discards, max_discards);
 F2FS_RW_ATTR(DCC_INFO, discard_cmd_control, discard_granularity, discard_granularity);
+F2FS_RW_ATTR(DCC_INFO, discard_cmd_control, discard_type, discard_type);
 F2FS_RW_ATTR(RESERVED_BLOCKS, f2fs_sb_info, reserved_blocks, reserved_blocks);
 F2FS_RW_ATTR(SM_INFO, f2fs_sm_info, batched_trim_sections, trim_sections);
 F2FS_RW_ATTR(SM_INFO, f2fs_sm_info, ipu_policy, ipu_policy);
@@ -631,6 +632,7 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(main_blkaddr),
 	ATTR_LIST(max_small_discards),
 	ATTR_LIST(discard_granularity),
+	ATTR_LIST(discard_type),
 	ATTR_LIST(batched_trim_sections),
 	ATTR_LIST(ipu_policy),
 	ATTR_LIST(min_ipu_util),
@@ -908,6 +910,66 @@ static int __maybe_unused victim_bits_seq_show(struct seq_file *seq,
 	return 0;
 }
 
+static int undiscard_info_seq_show(struct seq_file *seq, void *offset)
+{
+	struct super_block *sb = seq->private;
+	struct f2fs_sb_info *sbi = F2FS_SB(sb);
+	struct dirty_seglist_info *dirty_i = DIRTY_I(sbi);
+	struct sit_info *sit_i = SIT_I(sbi);
+	unsigned int total_segs = le32_to_cpu(sbi->raw_super->segment_count_main);
+	unsigned int total = 0;
+	unsigned int i, j;
+
+	if (!f2fs_realtime_discard_enable(sbi))
+		goto out;
+
+	for (i = 0; i < total_segs; i++) {
+		struct seg_entry *se = get_seg_entry(sbi, i);
+		unsigned int entries = SIT_VBLOCK_MAP_SIZE /
+			sizeof(unsigned long);
+		unsigned int max_blocks = sbi->blocks_per_seg;
+		unsigned long *ckpt_map = (unsigned long *)se->ckpt_valid_map;
+		unsigned long *discard_map = (unsigned long *)se->discard_map;
+		unsigned long *dmap = SIT_I(sbi)->tmp_map;
+		int start = 0, end = -1;
+
+		down_write(&sit_i->sentry_lock);
+		if (se->valid_blocks == max_blocks) {
+			up_write(&sit_i->sentry_lock);
+			continue;
+		}
+
+		if (se->valid_blocks == 0) {
+			mutex_lock(&dirty_i->seglist_lock);
+			if (test_bit((int)i, dirty_i->dirty_segmap[PRE]))
+				total += 512;
+			mutex_unlock(&dirty_i->seglist_lock);
+		} else {
+			for (j = 0; j < entries; j++)
+				dmap[j] = ~ckpt_map[j] & ~discard_map[j];
+			while (1) {
+				start = (int)find_rev_next_bit(dmap,
+					(unsigned long)max_blocks,
+					(unsigned long)(end + 1));
+
+				if ((unsigned int)start >= max_blocks)
+					break;
+
+				end = (int)find_rev_next_zero_bit(dmap,
+					(unsigned long)max_blocks,
+					(unsigned long)(start + 1));
+				total += (unsigned int)(end - start);
+			}
+		}
+
+		up_write(&sit_i->sentry_lock);
+	}
+
+out:
+	seq_printf(seq, "total undiscard:%u K\n", total * 4);
+	return 0;
+}
+
 int __init f2fs_init_sysfs(void)
 {
 	int ret;
@@ -964,6 +1026,9 @@ int f2fs_register_sysfs(struct f2fs_sb_info *sbi)
 				iostat_info_seq_show, sb);
 		proc_create_single_data("victim_bits", S_IRUGO, sbi->s_proc,
 				victim_bits_seq_show, sb);
+		proc_create_single_data("undiscard_info", S_IRUGO, sbi->s_proc,
+				undiscard_info_seq_show, sb);
+
 	}
 	return 0;
 }
@@ -975,6 +1040,7 @@ void f2fs_unregister_sysfs(struct f2fs_sb_info *sbi)
 		remove_proc_entry("segment_info", sbi->s_proc);
 		remove_proc_entry("segment_bits", sbi->s_proc);
 		remove_proc_entry("victim_bits", sbi->s_proc);
+		remove_proc_entry("undiscard_info", sbi->s_proc);
 		remove_proc_entry(sbi->sb->s_id, f2fs_proc_root);
 	}
 	kobject_del(&sbi->s_kobj);
