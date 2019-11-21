@@ -201,6 +201,75 @@ bool f2fs_need_SSR(struct f2fs_sb_info *sbi)
 			SM_I(sbi)->min_ssr_sections + reserved_sections(sbi));
 }
 
+#ifdef CONFIG_F2FS_GRADING_SSR
+static bool need_ssr_by_type(struct f2fs_sb_info *sbi, int type, int contig_level)
+{
+	int node_secs = get_blocktype_secs(sbi, F2FS_DIRTY_NODES);
+	int dent_secs = get_blocktype_secs(sbi, F2FS_DIRTY_DENTS);
+	int imeta_secs = get_blocktype_secs(sbi, F2FS_DIRTY_IMETA);
+	u64 valid_blocks = sbi->total_valid_block_count;
+	u64 total_blocks = MAIN_SEGS(sbi) << sbi->log_blocks_per_seg;
+	u64 left_space = (total_blocks - valid_blocks) << 2;
+	unsigned int free_segs = free_segments(sbi);
+	unsigned int ovp_segments = overprovision_segments(sbi);
+	unsigned int lower_limit = 0;
+	unsigned int waterline = 0;
+	int dirty_sum = node_secs + 2 * dent_secs + imeta_secs;
+
+	if (sbi->hot_cold_params.enable == GRADING_SSR_OFF)
+		return f2fs_need_SSR(sbi);
+	if (f2fs_lfs_mode(sbi))
+		return false;
+	if (sbi->gc_mode == GC_URGENT_HIGH)
+		return true;
+	if (contig_level == SEQ_256BLKS && type == CURSEG_WARM_DATA &&
+	    free_sections(sbi) > dirty_sum + 3 * reserved_sections(sbi) / 2)
+		return false;
+	if (free_sections(sbi) <= (unsigned int)(dirty_sum + 2 * reserved_sections(sbi)))
+		return true;
+	if (contig_level >= SEQ_32BLKS || total_blocks <= SSR_MIN_BLKS_LIMIT)
+		return false;
+
+	left_space -= ovp_segments * KBS_PER_SEGMENT;
+	if (unlikely(left_space == 0))
+		return false;
+
+	switch (type) {
+	case CURSEG_HOT_DATA:
+		lower_limit = sbi->hot_cold_params.hot_data_lower_limit;
+		waterline = sbi->hot_cold_params.hot_data_waterline;
+		break;
+	case CURSEG_WARM_DATA:
+		lower_limit = sbi->hot_cold_params.warm_data_lower_limit;
+		waterline = sbi->hot_cold_params.warm_data_waterline;
+		break;
+	case CURSEG_HOT_NODE:
+		lower_limit = sbi->hot_cold_params.hot_node_lower_limit;
+		waterline = sbi->hot_cold_params.hot_node_waterline;
+		break;
+	case CURSEG_WARM_NODE:
+		lower_limit = sbi->hot_cold_params.warm_node_lower_limit;
+		waterline = sbi->hot_cold_params.warm_node_waterline;
+		break;
+	default:
+		return false;
+	}
+
+	if (left_space > lower_limit)
+		return false;
+
+	if (div_u64((free_segs - ovp_segments) * 100, (left_space / KBS_PER_SEGMENT))
+									<= waterline) {
+		trace_f2fs_grading_ssr_allocate(
+			(le64_to_cpu(sbi->raw_super->block_count) - sbi->total_valid_block_count),
+			free_segments(sbi), contig_level);
+		return true;
+	} else {
+		return false;
+	}
+}
+#endif
+
 void f2fs_register_inmem_page(struct inode *inode, struct page *page)
 {
 	struct inmem_pages *new;
@@ -2940,7 +3009,7 @@ static int get_ssr_segment(struct f2fs_sb_info *sbi, int type,
  * This function should be returned with success, otherwise BUG
  */
 static void allocate_segment_by_default(struct f2fs_sb_info *sbi,
-						int type, bool force)
+					int type, bool force, int contig_level)
 {
 	struct curseg_info *curseg = CURSEG_I(sbi, type);
 
@@ -2953,8 +3022,12 @@ static void allocate_segment_by_default(struct f2fs_sb_info *sbi,
 			is_next_segment_free(sbi, curseg, type) &&
 			likely(!is_sbi_flag_set(sbi, SBI_CP_DISABLED)))
 		new_curseg(sbi, type, false);
+#ifdef CONFIG_F2FS_GRADING_SSR
+	else if (need_ssr_by_type(sbi, type, contig_level) && get_ssr_segment(sbi, type, SSR, 0))
+#else
 	else if (f2fs_need_SSR(sbi) &&
 			get_ssr_segment(sbi, type, SSR, 0))
+#endif
 		change_curseg(sbi, type, true);
 	else
 		new_curseg(sbi, type, false);
@@ -3012,7 +3085,7 @@ static void __allocate_new_segment(struct f2fs_sb_info *sbi, int type,
 		return;
 alloc:
 	old_segno = curseg->segno;
-	SIT_I(sbi)->s_ops->allocate_segment(sbi, type, true);
+	SIT_I(sbi)->s_ops->allocate_segment(sbi, type, true, SEQ_NONE);
 	locate_dirty_segment(sbi, old_segno);
 }
 
@@ -3412,13 +3485,17 @@ static int __get_segment_type(struct f2fs_io_info *fio)
 void f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 		block_t old_blkaddr, block_t *new_blkaddr,
 		struct f2fs_summary *sum, int type,
-		struct f2fs_io_info *fio)
+		struct f2fs_io_info *fio, int contig_level)
 {
 	struct sit_info *sit_i = SIT_I(sbi);
 	struct curseg_info *curseg = CURSEG_I(sbi, type);
 	unsigned long long old_mtime;
 	bool from_gc = (type == CURSEG_ALL_DATA_ATGC);
 	struct seg_entry *se = NULL;
+#ifdef CONFIG_F2FS_GRADING_SSR
+	struct inode *inode = NULL;
+#endif
+	int contig = SEQ_NONE;
 
 	down_read(&SM_I(sbi)->curseg_lock);
 
@@ -3465,11 +3542,25 @@ void f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 		update_sit_entry(sbi, old_blkaddr, -1);
 
 	if (!__has_curseg_space(sbi, curseg)) {
-		if (from_gc)
+		if (from_gc) {
 			get_atssr_segment(sbi, type, se->type,
 						AT_SSR, se->mtime);
-		else
-			sit_i->s_ops->allocate_segment(sbi, type, false);
+		} else {
+#ifdef CONFIG_F2FS_GRADING_SSR
+			if (contig_level != SEQ_NONE) {
+				contig = contig_level;
+				goto allocate_label;
+			}
+
+			if (page && page->mapping && page->mapping != NODE_MAPPING(sbi) &&
+					page->mapping != META_MAPPING(sbi)) {
+				inode = page->mapping->host;
+				contig = check_io_seq(get_dirty_pages(inode));
+			}
+allocate_label:
+#endif
+			sit_i->s_ops->allocate_segment(sbi, type, false, contig);
+		}
 	}
 	/*
 	 * segment dirty status should be updated after segment allocation,
@@ -3536,7 +3627,7 @@ static void do_write_page(struct f2fs_summary *sum, struct f2fs_io_info *fio)
 		down_read(&fio->sbi->io_order_lock);
 reallocate:
 	f2fs_allocate_data_block(fio->sbi, fio->page, fio->old_blkaddr,
-			&fio->new_blkaddr, sum, type, fio);
+			&fio->new_blkaddr, sum, type, fio, SEQ_NONE);
 	if (GET_SEGNO(fio->sbi, fio->old_blkaddr) != NULL_SEGNO)
 		invalidate_mapping_pages(META_MAPPING(fio->sbi),
 					fio->old_blkaddr, fio->old_blkaddr);
@@ -4905,7 +4996,7 @@ static int fix_curseg_write_pointer(struct f2fs_sb_info *sbi, int type)
 
 	f2fs_notice(sbi, "Assign new section to curseg[%d]: "
 		    "curseg[0x%x,0x%x]", type, cs->segno, cs->next_blkoff);
-	allocate_segment_by_default(sbi, type, true);
+	allocate_segment_by_default(sbi, type, true, SEQ_NONE);
 
 	/* check consistency of the zone curseg pointed to */
 	if (check_zone_write_pointer(sbi, zbd, &zone))

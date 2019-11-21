@@ -34,6 +34,9 @@ enum {
 	FAULT_INFO_TYPE,	/* struct f2fs_fault_info */
 #endif
 	RESERVED_BLOCKS,	/* struct f2fs_sb_info */
+#ifdef CONFIG_F2FS_GRADING_SSR
+	F2FS_HOT_COLD_PARAMS,	/* struct f2fs_hot_cold_params */
+#endif
 };
 
 struct f2fs_attr {
@@ -61,6 +64,10 @@ static unsigned char *__struct_ptr(struct f2fs_sb_info *sbi, int struct_type)
 		return (unsigned char *)NM_I(sbi);
 	else if (struct_type == F2FS_SBI || struct_type == RESERVED_BLOCKS)
 		return (unsigned char *)sbi;
+#ifdef CONFIG_F2FS_GRADING_SSR
+	else if (struct_type == F2FS_HOT_COLD_PARAMS)
+		return (unsigned char *)&sbi->hot_cold_params;
+#endif
 #ifdef CONFIG_F2FS_FAULT_INJECTION
 	else if (struct_type == FAULT_INFO_RATE ||
 					struct_type == FAULT_INFO_TYPE)
@@ -569,6 +576,26 @@ F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, iostat_period_ms, iostat_period_ms);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, readdir_ra, readdir_ra);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_sb_info, gc_pin_file_thresh, gc_pin_file_threshold);
 F2FS_RW_ATTR(F2FS_SBI, f2fs_super_block, extension_list, extension_list);
+#ifdef CONFIG_F2FS_GRADING_SSR
+F2FS_RW_ATTR(F2FS_HOT_COLD_PARAMS, f2fs_hot_cold_params,
+		hc_hot_data_lower_limit, hot_data_lower_limit);
+F2FS_RW_ATTR(F2FS_HOT_COLD_PARAMS, f2fs_hot_cold_params,
+		hc_hot_data_waterline, hot_data_waterline);
+F2FS_RW_ATTR(F2FS_HOT_COLD_PARAMS, f2fs_hot_cold_params,
+		hc_warm_data_lower_limit, warm_data_lower_limit);
+F2FS_RW_ATTR(F2FS_HOT_COLD_PARAMS, f2fs_hot_cold_params,
+		hc_warm_data_waterline, warm_data_waterline);
+F2FS_RW_ATTR(F2FS_HOT_COLD_PARAMS, f2fs_hot_cold_params,
+		hc_hot_node_lower_limit, hot_node_lower_limit);
+F2FS_RW_ATTR(F2FS_HOT_COLD_PARAMS, f2fs_hot_cold_params,
+		hc_hot_node_waterline, hot_node_waterline);
+F2FS_RW_ATTR(F2FS_HOT_COLD_PARAMS, f2fs_hot_cold_params,
+		hc_warm_node_lower_limit, warm_node_lower_limit);
+F2FS_RW_ATTR(F2FS_HOT_COLD_PARAMS, f2fs_hot_cold_params,
+		hc_warm_node_waterline, warm_node_waterline);
+F2FS_RW_ATTR(F2FS_HOT_COLD_PARAMS, f2fs_hot_cold_params,
+		hc_enable, enable);
+#endif
 #ifdef CONFIG_F2FS_FAULT_INJECTION
 F2FS_RW_ATTR(FAULT_INFO_RATE, f2fs_fault_info, inject_rate, inject_rate);
 F2FS_RW_ATTR(FAULT_INFO_TYPE, f2fs_fault_info, inject_type, inject_type);
@@ -679,6 +706,17 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(moved_blocks_foreground),
 	ATTR_LIST(moved_blocks_background),
 	ATTR_LIST(avg_vblocks),
+#endif
+#ifdef CONFIG_F2FS_GRADING_SSR
+	ATTR_LIST(hc_hot_data_lower_limit),
+	ATTR_LIST(hc_hot_data_waterline),
+	ATTR_LIST(hc_warm_data_lower_limit),
+	ATTR_LIST(hc_warm_data_waterline),
+	ATTR_LIST(hc_hot_node_lower_limit),
+	ATTR_LIST(hc_hot_node_waterline),
+	ATTR_LIST(hc_warm_node_lower_limit),
+	ATTR_LIST(hc_warm_node_waterline),
+	ATTR_LIST(hc_enable),
 #endif
 	NULL,
 };
@@ -919,6 +957,8 @@ static int undiscard_info_seq_show(struct seq_file *seq, void *offset)
 	unsigned int total_segs = le32_to_cpu(sbi->raw_super->segment_count_main);
 	unsigned int total = 0;
 	unsigned int i, j;
+	unsigned int max_blocks = sbi->blocks_per_seg;
+	unsigned long *dmap = SIT_I(sbi)->tmp_map;
 
 	if (!f2fs_realtime_discard_enable(sbi))
 		goto out;
@@ -927,10 +967,8 @@ static int undiscard_info_seq_show(struct seq_file *seq, void *offset)
 		struct seg_entry *se = get_seg_entry(sbi, i);
 		unsigned int entries = SIT_VBLOCK_MAP_SIZE /
 			sizeof(unsigned long);
-		unsigned int max_blocks = sbi->blocks_per_seg;
 		unsigned long *ckpt_map = (unsigned long *)se->ckpt_valid_map;
 		unsigned long *discard_map = (unsigned long *)se->discard_map;
-		unsigned long *dmap = SIT_I(sbi)->tmp_map;
 		int start = 0, end = -1;
 
 		down_write(&sit_i->sentry_lock);

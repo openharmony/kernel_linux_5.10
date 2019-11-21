@@ -130,7 +130,18 @@ static inline void sanity_check_seg_type(struct f2fs_sb_info *sbi,
 	(((sector_t)blk_addr) << F2FS_LOG_SECTORS_PER_BLOCK)
 #define SECTOR_TO_BLOCK(sectors)					\
 	((sectors) >> F2FS_LOG_SECTORS_PER_BLOCK)
+#ifdef CONFIG_F2FS_GRADING_SSR
+#define KBS_PER_SEGMENT 2048
+#define SSR_MIN_BLKS_LIMIT (16 << 18)	/* 16G */
+#define SSR_CONTIG_DIRTY_NUMS	32	/* Dirty pages for LFS alloction in grading ssr. */
+#define SSR_CONTIG_LARGE	256	/* Larege files */
+#endif
 
+enum {
+	SEQ_NONE,
+	SEQ_32BLKS,
+	SEQ_256BLKS
+};
 /*
  * indicate a block allocation direction: RIGHT and LEFT.
  * RIGHT means allocating new sections towards the end of volume.
@@ -180,6 +191,13 @@ enum {
 	FORCE_FG_GC,
 };
 
+#ifdef CONFIG_F2FS_GRADING_SSR
+enum {
+	GRADING_SSR_OFF = 0,
+	GRADING_SSR_ON
+};
+#endif
+
 /* for a function parameter to select a victim segment */
 struct victim_sel_policy {
 	int alloc_mode;			/* LFS or SSR */
@@ -221,7 +239,7 @@ struct sec_entry {
 };
 
 struct segment_allocation {
-	void (*allocate_segment)(struct f2fs_sb_info *, int, bool);
+	void (*allocate_segment)(struct f2fs_sb_info *, int, bool, int);
 };
 
 #define MAX_SKIP_GC_COUNT			16
@@ -913,3 +931,14 @@ wake_up:
 	dcc->discard_wake = 1;
 	wake_up_interruptible_all(&dcc->discard_wait_queue);
 }
+
+#ifdef CONFIG_F2FS_GRADING_SSR
+static inline int check_io_seq(int blks)
+{
+	if (blks >= SSR_CONTIG_LARGE)
+		return SEQ_256BLKS;
+	if (blks >= SSR_CONTIG_DIRTY_NUMS)
+		return SEQ_32BLKS;
+	return SEQ_NONE;
+}
+#endif

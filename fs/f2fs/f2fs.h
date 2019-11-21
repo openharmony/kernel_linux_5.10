@@ -1363,6 +1363,20 @@ struct decompress_io_ctx {
 #define MAX_COMPRESS_LOG_SIZE		8
 #define MAX_COMPRESS_WINDOW_SIZE(log_size)	((PAGE_SIZE) << (log_size))
 
+#ifdef CONFIG_F2FS_GRADING_SSR
+struct f2fs_hot_cold_params {
+	unsigned int enable;
+	unsigned int hot_data_lower_limit;
+	unsigned int hot_data_waterline;
+	unsigned int warm_data_lower_limit;
+	unsigned int warm_data_waterline;
+	unsigned int hot_node_lower_limit;
+	unsigned int hot_node_waterline;
+	unsigned int warm_node_lower_limit;
+	unsigned int warm_node_waterline;
+};
+#endif
+
 struct f2fs_sb_info {
 	struct super_block *sb;			/* pointer to VFS super block */
 	struct proc_dir_entry *s_proc;		/* proc entry */
@@ -1568,6 +1582,10 @@ struct f2fs_sb_info {
 #ifdef CONFIG_F2FS_FS_COMPRESSION
 	struct kmem_cache *page_array_slab;	/* page array entry */
 	unsigned int page_array_slab_size;	/* default page array slab size */
+#endif
+
+#ifdef CONFIG_F2FS_GRADING_SSR
+	struct f2fs_hot_cold_params hot_cold_params;
 #endif
 };
 
@@ -3352,7 +3370,7 @@ void f2fs_replace_block(struct f2fs_sb_info *sbi, struct dnode_of_data *dn,
 void f2fs_allocate_data_block(struct f2fs_sb_info *sbi, struct page *page,
 			block_t old_blkaddr, block_t *new_blkaddr,
 			struct f2fs_summary *sum, int type,
-			struct f2fs_io_info *fio);
+			struct f2fs_io_info *fio, int contig_level);
 void f2fs_wait_on_page_writeback(struct page *page,
 			enum page_type type, bool ordered, bool locked);
 void f2fs_wait_on_block_writeback(struct inode *inode, block_t blkaddr);
