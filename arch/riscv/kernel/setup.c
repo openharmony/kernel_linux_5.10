@@ -99,16 +99,15 @@ void __init setup_arch(char **cmdline_p)
 	early_init_fdt_scan_reserved_mem();
 	misc_mem_init();
 
+	if (IS_ENABLED(CONFIG_RISCV_SBI))
+		sbi_init();
+
 #ifdef CONFIG_SWIOTLB
 	swiotlb_init(1);
 #endif
 
 #ifdef CONFIG_KASAN
 	kasan_init();
-#endif
-
-#if IS_ENABLED(CONFIG_RISCV_SBI)
-	sbi_init();
 #endif
 
 #ifdef CONFIG_SMP
