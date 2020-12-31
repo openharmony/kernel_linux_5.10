@@ -7,6 +7,8 @@ archscripts: scripts_basic
 	$(Q)$(MAKE) $(build)=arch/loongarch/tools elf-entry
 	$(Q)$(MAKE) $(build)=arch/loongarch/boot/tools relocs
 
+KBUILD_DEFCONFIG := loongson3_defconfig
+
 #
 # Select the object file format to substitute into the linker script.
 #
