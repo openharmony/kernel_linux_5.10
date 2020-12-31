@@ -79,6 +79,7 @@ config LOONGARCH
 	select HAVE_ARCH_AUDITSYSCALL
 	select HAVE_ARCH_JUMP_LABEL
 	select HAVE_ARCH_JUMP_LABEL_RELATIVE
+	select HAVE_ARCH_KASAN if 64BIT
 	select HAVE_ARCH_KGDB
 	select HAVE_ARCH_MMAP_RND_BITS if MMU
 	select HAVE_ARCH_SECCOMP
@@ -823,6 +824,11 @@ config ZONE_DMA
 
 config ZONE_DMA32
 	bool
+
+config KASAN_SHADOW_OFFSET
+	hex
+	default 0x0
+	depends on KASAN
 
 menu "Power management options"
 

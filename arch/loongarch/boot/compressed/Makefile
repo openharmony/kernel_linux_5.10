@@ -10,6 +10,10 @@ include $(srctree)/arch/loongarch/Kbuild.platforms
 # set the default size of the mallocing area for decompressing
 BOOT_HEAP_SIZE := 0x400000
 
+ifdef CONFIG_KASAN
+KASAN_SANITIZE := n
+endif
+
 # Disable Function Tracer
 KBUILD_CFLAGS := $(filter-out $(CC_FLAGS_FTRACE), $(KBUILD_CFLAGS))
 

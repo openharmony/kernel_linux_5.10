@@ -68,6 +68,10 @@ SYM_CODE_START(kernel_entry)			# kernel entry point
 	PTR_ADD		sp, sp, tp
 	set_saved_sp	sp, t0, t1
 
+#ifdef CONFIG_KASAN
+	bl		kasan_early_init
+#endif
+
 #ifdef CONFIG_RELOCATABLE
 #ifdef CONFIG_CRASH_DUMP
 	beqz		a3, 1f

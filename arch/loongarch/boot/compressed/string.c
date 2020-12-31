@@ -112,3 +112,9 @@ char * __weak strrchr(const char *s, int c)
 	} while (*s++);
 	return (char *)last;
 }
+
+#ifdef CONFIG_KASAN
+extern void *__memset(void *s, int c, size_t n) __alias(memset);
+extern void *__memcpy(void *dest, const void *src, size_t n) __alias(memcpy);
+extern void *__memmove(void *dest, const void *src, size_t n) __alias(memmove);
+#endif
