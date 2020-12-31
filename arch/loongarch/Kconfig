@@ -127,6 +127,7 @@ config MACH_LOONGSON64
 	select SPARSE_IRQ
 	select SYS_HAS_CPU_LOONGSON64
 	select SYS_SUPPORTS_SMP
+	select SYS_SUPPORTS_ZBOOT
 	select SYS_SUPPORTS_HOTPLUG_CPU
 	select SYS_SUPPORTS_NUMA
 	select SYS_SUPPORTS_64BIT_KERNEL
@@ -188,6 +189,16 @@ config CPU_LOONGSON64
 	  version of LoongArch) instruction set.
 
 endchoice
+
+config SYS_SUPPORTS_ZBOOT
+	bool
+	select HAVE_KERNEL_GZIP
+	select HAVE_KERNEL_BZIP2
+	select HAVE_KERNEL_LZ4
+	select HAVE_KERNEL_LZMA
+	select HAVE_KERNEL_LZO
+	select HAVE_KERNEL_XZ
+	select HAVE_KERNEL_ZSTD
 
 config SYS_HAS_CPU_LOONGSON64
 	bool

@@ -1,0 +1,51 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * ld.script for compressed kernel support of LoongArch
+ *
+ * Author: Huacai Chen <chenhuacai@loongson.cn>
+ * Copyright (C) 2020 Loongson Technology Corporation Limited
+ */
+
+OUTPUT_ARCH(loongarch)
+ENTRY(start)
+PHDRS {
+	text PT_LOAD FLAGS(7); /* RWX */
+}
+SECTIONS
+{
+	/* Text and read-only data */
+	/* . = VMLINUZ_LOAD_ADDRESS; */
+	.text : {
+		*(.text)
+		*(.rodata)
+	}: text
+	/* End of text section */
+
+	/* Writable data */
+	.data : {
+		*(.data)
+		/* Put the compressed image here */
+		__image_begin = .;
+		*(.image)
+		__image_end = .;
+		CONSTRUCTORS
+		. = ALIGN(16);
+	}
+
+	_edata = .;
+	/* End of data section */
+
+	/* BSS */
+	.bss : {
+		*(.bss)
+	}
+	. = ALIGN(16);
+	_end = .;
+
+	/* Sections to be discarded */
+	/DISCARD/ : {
+		*(.options)
+		*(.comment)
+		*(.note)
+	}
+}
