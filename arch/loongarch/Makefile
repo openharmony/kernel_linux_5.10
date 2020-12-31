@@ -123,6 +123,9 @@ libs-y += arch/loongarch/lib/
 # See arch/loongarch/Kbuild for content of core part of the kernel
 core-y += arch/loongarch/
 
+# suspend and hibernation support
+drivers-$(CONFIG_PM)	+= arch/loongarch/power/
+
 ifeq ($(KBUILD_EXTMOD),)
 prepare: vdso_prepare
 vdso_prepare: prepare0

@@ -45,6 +45,7 @@ config LOONGARCH
 	select ARCH_WANT_LD_ORPHAN_WARN
 	select BUILDTIME_TABLE_SORT
 	select COMMON_CLK
+	select CPU_PM
 	select GENERIC_ATOMIC64 if !64BIT
 	select GENERIC_CLOCKEVENTS
 	select GENERIC_CMOS_UPDATE
@@ -736,6 +737,15 @@ config ZONE_DMA32
 
 menu "Power management options"
 
+config ARCH_SUSPEND_POSSIBLE
+	def_bool y
+	depends on SYS_SUPPORTS_HOTPLUG_CPU || !SMP
+
+config ARCH_HIBERNATION_POSSIBLE
+	def_bool y
+	depends on SYS_SUPPORTS_HOTPLUG_CPU || !SMP
+
+source "kernel/power/Kconfig"
 source "drivers/acpi/Kconfig"
 
 endmenu
