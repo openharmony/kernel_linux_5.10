@@ -81,7 +81,18 @@ BUILD_FPR_ACCESS(64)
 struct loongarch_fpu {
 	unsigned int	fcsr;
 	uint64_t	fcc;	/* 8x8 */
+	uint64_t	ftop;
 	union fpureg	fpr[NUM_FPU_REGS];
+};
+
+struct loongarch_lbt {
+	/* Scratch registers */
+	unsigned long scr0;
+	unsigned long scr1;
+	unsigned long scr2;
+	unsigned long scr3;
+	/* Eflags register */
+	unsigned long eflags;
 };
 
 #define INIT_CPUMASK { \
@@ -120,15 +131,6 @@ struct thread_struct {
 	unsigned long csr_ecfg;
 	unsigned long csr_badvaddr;	/* Last user fault */
 
-	/* Scratch registers */
-	unsigned long scr0;
-	unsigned long scr1;
-	unsigned long scr2;
-	unsigned long scr3;
-
-	/* Eflags register */
-	unsigned long eflags;
-
 	/* Used by ptrace single_step */
 	unsigned long single_step;
 
@@ -138,6 +140,7 @@ struct thread_struct {
 	/* Other stuff associated with the thread. */
 	unsigned long trap_nr;
 	unsigned long error_code;
+	struct loongarch_lbt lbt;
 	struct loongarch_vdso_info *vdso;
 
 	/*

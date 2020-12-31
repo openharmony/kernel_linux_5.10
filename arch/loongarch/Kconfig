@@ -424,6 +424,9 @@ config CPU_HAS_LASX
 
 	  If unsure, say Y.
 
+config CPU_HAS_LBT
+	bool "Support for the Loongson Binary Tranlatition"
+
 #
 # - Highmem only makes sense for the 32-bit kernel.
 # - We use SYS_SUPPORTS_HIGHMEM to offer highmem only for systems where we

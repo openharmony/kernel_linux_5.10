@@ -27,6 +27,7 @@ struct extctx_layout {
 	struct _ctx_layout fpu;
 	struct _ctx_layout lsx;
 	struct _ctx_layout lasx;
+	struct _ctx_layout lbt;
 	struct _ctx_layout end;
 };
 
@@ -55,5 +56,11 @@ extern asmlinkage int
 _save_lasx_context(void __user *fpregs, void __user *fcc, void __user *fcsr);
 extern asmlinkage int
 _restore_lasx_context(void __user *fpregs, void __user *fcc, void __user *fcsr);
+#if defined(CONFIG_CPU_HAS_LBT)
+extern asmlinkage int
+_save_scr_context(void __user *scr, void __user *eflags);
+extern asmlinkage int
+_restore_scr_context(void __user *scr, void __user *eflags);
+#endif
 
 #endif	/* __SIGNAL_COMMON_H */

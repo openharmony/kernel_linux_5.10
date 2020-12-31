@@ -88,6 +88,8 @@ register unsigned long current_stack_pointer __asm__("$r3");
 #define TIF_LSX_CTX_LIVE	21	/* LSX context must be preserved */
 #define TIF_LASX_CTX_LIVE	22	/* LASX context must be preserved */
 #define TIF_PATCH_PENDING	23	/* pending live patching update */
+#define TIF_USEDLBT		24	/* LBT has been used */
+#define TIF_LBT_CTX_LIVE	25	/* LBT context */
 
 #define _TIF_SIGPENDING		(1<<TIF_SIGPENDING)
 #define _TIF_NEED_RESCHED	(1<<TIF_NEED_RESCHED)
@@ -109,6 +111,8 @@ register unsigned long current_stack_pointer __asm__("$r3");
 #define _TIF_SINGLESTEP		(1<<TIF_SINGLESTEP)
 #define _TIF_LSX_CTX_LIVE	(1<<TIF_LSX_CTX_LIVE)
 #define _TIF_LASX_CTX_LIVE	(1<<TIF_LASX_CTX_LIVE)
+#define _TIF_USEDLBT		(1<<TIF_USEDLBT)
+#define _TIF_LBT_CTX_LIVE	(1<<TIF_LBT_CTX_LIVE)
 
 #endif /* __KERNEL__ */
 #endif /* _ASM_THREAD_INFO_H */

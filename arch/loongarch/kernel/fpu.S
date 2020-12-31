@@ -161,6 +161,14 @@
 	.macro sc_save_fcsr base, tmp0
 	movfcsr2gr	\tmp0, fcsr0
 	EX	st.w \tmp0, \base, 0
+#if defined(CONFIG_CPU_HAS_LBT)
+	/* TM bit is always 0 if LBT not supported */
+	andi	\tmp0, \tmp0, FPU_CSR_TM
+	beqz	\tmp0, 1f
+	bstrins.d \tmp0, $r0, FPU_CSR_TM_SHIFT, FPU_CSR_TM_SHIFT
+	movgr2fcsr      fcsr0, \tmp0
+1:
+#endif
 	.endm
 
 	.macro sc_restore_fcsr base, tmp0
@@ -168,6 +176,29 @@
 	movgr2fcsr	fcsr0, \tmp0
 	.endm
 
+#if defined(CONFIG_CPU_HAS_LBT)
+	.macro sc_save_scr base, tmp0
+	movscr2gr	\tmp0, $scr0
+	EX	st.d \tmp0, \base, 0
+	movscr2gr	\tmp0, $scr1
+	EX	st.d \tmp0, \base, 8
+	movscr2gr	\tmp0, $scr2
+	EX	st.d \tmp0, \base, 16
+	movscr2gr	\tmp0, $scr3
+	EX	st.d \tmp0, \base, 24
+	.endm
+
+	.macro sc_restore_scr base, tmp0
+	EX	ld.d \tmp0, \base, 0
+	movgr2scr	$scr0, \tmp0
+	EX	ld.d \tmp0, \base, 8
+	movgr2scr	$scr1, \tmp0
+	EX	ld.d \tmp0, \base, 16
+	movgr2scr	$scr2, \tmp0
+	EX	ld.d \tmp0, \base, 24
+	movgr2scr	$scr3, \tmp0
+	.endm
+#endif
 	.macro sc_save_lsx base
 	EX_V 0xb1 $vr0,  \base,	(0 * LSX_REG_WIDTH)
 	EX_V 0xb1 $vr1,  \base,	(1 * LSX_REG_WIDTH)
@@ -312,6 +343,10 @@
  * Save a thread's fp context.
  */
 SYM_FUNC_START(_save_fp)
+	/*
+	 * since TM bit of FSCR may afftect fpr0-fp7
+	 * fcsr save need before FPR save
+	 */
 	fpu_save_csr	a0 t1
 	fpu_save_double a0 t1			# clobbers t1
 	fpu_save_cc	a0 t1 t2		# clobbers t1, t2
@@ -324,6 +359,10 @@ EXPORT_SYMBOL(_save_fp)
  */
 SYM_FUNC_START(_restore_fp)
 	fpu_restore_double a0 t1		# clobbers t1
+	/*
+	 * since TM bit of FSCR may afftect fpr0-fp7
+	 * fscr restore need be after FPR store
+	 */
 	fpu_restore_csr	a0 t1
 	fpu_restore_cc	a0 t1 t2		# clobbers t1, t2
 	jirl zero, ra, 0
@@ -502,6 +541,49 @@ SYM_FUNC_START(_restore_lsx_context)
 	li.w	a0, 0					# success
 	jirl zero, ra, 0
 SYM_FUNC_END(_restore_lsx_context)
+
+#if defined(CONFIG_CPU_HAS_LBT)
+/*
+ * Load scr/eflag with zero.
+ */
+SYM_FUNC_START(_init_lbt)
+	movgr2scr	$scr0, zero
+	movgr2scr	$scr1, zero
+	movgr2scr	$scr2, zero
+	movgr2scr	$scr3, zero
+
+	x86mtflag	zero, 0x3f
+	jr	ra
+SYM_FUNC_END(_init_lbt)
+
+/*
+ * a0: scr
+ */
+SYM_FUNC_START(_save_scr_context)
+	/* eflags */
+	x86mfflag t0, 0x3f
+	EX st.w	t0, a1, 0
+
+	sc_save_scr a0, t0
+
+	li.w	a0, 0					# success
+	jirl zero, ra, 0
+SYM_FUNC_END(_save_scr_context)
+
+/*
+ * a0: scr
+ */
+SYM_FUNC_START(_restore_scr_context)
+	/* eflags */
+	EX ld.w	t0, a1, 0
+	x86mtflag t0, 0x3f
+
+	sc_restore_scr a0, t1
+
+	li.w	a0, 0					# success
+	jirl zero, ra, 0
+SYM_FUNC_END(_restore_scr_context)
+#endif
 
 /*
  * a0: fpregs

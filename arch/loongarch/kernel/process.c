@@ -38,6 +38,7 @@
 #include <asm/elf.h>
 #include <asm/exec.h>
 #include <asm/inst.h>
+#include <asm/lbt.h>
 #include <asm/stacktrace.h>
 #include <asm/irq_regs.h>
 #include <asm/unwind.h>
@@ -71,10 +72,12 @@ void start_thread(struct pt_regs * regs, unsigned long pc, unsigned long sp)
 	euen = regs->csr_euen & ~(CSR_EUEN_FPEN);
 	regs->csr_euen = euen;
 	lose_fpu(0);
+	lose_lbt(0);
 	current->thread.fpu.fcsr = boot_cpu_data.fpu_csr0;
 
 	clear_thread_flag(TIF_LSX_CTX_LIVE);
 	clear_thread_flag(TIF_LASX_CTX_LIVE);
+	clear_thread_flag(TIF_LBT_CTX_LIVE);
 	clear_used_math();
 	regs->csr_era = pc;
 	regs->regs[3] = sp;
@@ -171,8 +174,10 @@ int copy_thread(unsigned long clone_flags, unsigned long usp,
 out:
 	clear_tsk_thread_flag(p, TIF_USEDFPU);
 	clear_tsk_thread_flag(p, TIF_USEDSIMD);
+	clear_tsk_thread_flag(p, TIF_USEDLBT);
 	clear_tsk_thread_flag(p, TIF_LSX_CTX_LIVE);
 	clear_tsk_thread_flag(p, TIF_LASX_CTX_LIVE);
+	clear_tsk_thread_flag(p, TIF_LBT_CTX_LIVE);
 
 	return 0;
 }

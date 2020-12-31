@@ -1445,6 +1445,10 @@ __BUILD_CSR_OP(tlbidx)
 #define FPU_CSR_RU	0x200	/* towards +Infinity */
 #define FPU_CSR_RD	0x300	/* towards -Infinity */
 
+/* LBT extension */
+#define FPU_CSR_TM_SHIFT	0x6
+#define FPU_CSR_TM		0x40	/* float register in stack mode */
+
 #define write_fcsr(dest, val) \
 do {	\
 	__asm__ __volatile__(	\

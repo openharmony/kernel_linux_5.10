@@ -49,6 +49,7 @@
 #include <asm/types.h>
 #include <asm/stacktrace.h>
 #include <asm/unwind.h>
+#include <asm/lbt.h>
 
 #include "access-helper.h"
 
@@ -978,12 +979,38 @@ out:
 	irqentry_exit(regs, state);
 }
 
+static void init_restore_lbt(void)
+{
+	if (!thread_lbt_context_live()) {
+		/* First lbt context user */
+		init_lbt();
+		set_thread_flag(TIF_LBT_CTX_LIVE);
+	} else {
+		/* Enable and restore */
+		own_lbt_inatomic(1);
+	}
+}
+
 asmlinkage void noinstr do_lbt(struct pt_regs *regs)
 {
 	irqentry_state_t state = irqentry_enter(regs);
-	local_irq_enable();
-	force_sig(SIGILL);
-	local_irq_disable();
+
+	if (regs->csr_prmd & CSR_PRMD_PIE)
+		local_irq_enable();
+
+	if (!cpu_has_lbt) {
+		force_sig(SIGILL);
+		goto out;
+	}
+
+	preempt_disable();
+	init_restore_lbt();
+	preempt_enable();
+
+out:
+	if (regs->csr_prmd & CSR_PRMD_PIE)
+		local_irq_disable();
+
 	irqentry_exit(regs, state);
 }
 

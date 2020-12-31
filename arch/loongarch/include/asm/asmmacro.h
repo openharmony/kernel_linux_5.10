@@ -330,11 +330,50 @@
 	.macro fpu_save_csr thread tmp
 	movfcsr2gr	\tmp, fcsr0
 	stptr.w	\tmp, \thread, THREAD_FCSR
+#ifdef CONFIG_CPU_HAS_LBT
+	/* TM bit is always 0 if LBT not supported */
+	andi	\tmp, \tmp, FPU_CSR_TM
+	beqz	\tmp, 1f
+	bstrins.d \tmp, zero, FPU_CSR_TM_SHIFT, FPU_CSR_TM_SHIFT
+	movgr2fcsr      fcsr0, \tmp
+	x86mftop \tmp
+	stptr.d	\tmp, \thread, THREAD_FTOP
+1:
+#endif
 	.endm
 
 	.macro fpu_restore_csr thread tmp
 	ldptr.w	\tmp, \thread, THREAD_FCSR
 	movgr2fcsr	fcsr0, \tmp
+#ifdef CONFIG_CPU_HAS_LBT
+	/* TM bit is always 0 if LBT not supported */
+	andi	\tmp, \tmp, FPU_CSR_TM
+	beqz	\tmp, 1f
+	ldptr.d	\tmp, \thread, THREAD_FTOP
+	x86mttop 0x0
+	beq	\tmp, zero, 1f
+	addi.d	\tmp, \tmp, -1
+	x86mttop 0x1
+	beq	\tmp, zero, 1f
+	addi.d	\tmp, \tmp, -1
+	x86mttop 0x2
+	beq	\tmp, zero, 1f
+	addi.d	\tmp, \tmp, -1
+	x86mttop 0x3
+	beq	\tmp, zero, 1f
+	addi.d	\tmp, \tmp, -1
+	x86mttop 0x4
+	beq	\tmp, zero, 1f
+	addi.d	\tmp, \tmp, -1
+	x86mttop 0x5
+	beq	\tmp, zero, 1f
+	addi.d	\tmp, \tmp, -1
+	x86mttop 0x6
+	beq	\tmp, zero, 1f
+	addi.d	\tmp, \tmp, -1
+	x86mttop 0x7
+1:
+#endif
 	.endm
 
 	.macro fpu_save_cc thread tmp0 tmp1

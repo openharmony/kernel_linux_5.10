@@ -49,6 +49,8 @@ obj-$(CONFIG_CPU_HAS_FPU)	+= fpu.o kfpu.o
 
 obj-$(CONFIG_SMP)		+= smp.o
 
+obj-$(CONFIG_CPU_HAS_LBT)	+= scall-trans-mips64.o trans_mips_syscalls.o scall-trans-i386.o trans_i386_syscalls.o
+
 obj-$(CONFIG_PROC_FS)		+= proc.o
 obj-$(CONFIG_MAGIC_SYSRQ)	+= sysrq.o
 

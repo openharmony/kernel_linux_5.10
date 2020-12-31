@@ -56,6 +56,20 @@ struct user_lasx_state {
 	uint64_t vregs[32*4];
 };
 
+/*
+ * This structure definition saves the LBT data structure,
+ * the data comes from the task_struct structure, format is as follows:
+ * regs[0]: thread.lbt.scr0
+ * regs[1]: thread.lbt.scr1
+ * regs[2]: thread.lbt.scr2
+ * regs[3]: thread.lbt.scr3
+ * regs[4]: thread.lbt.eflags
+ * regs[5]: thread.fpu.ftop
+ */
+struct user_lbt_state {
+	uint64_t regs[6];
+};
+
 /* Read and write watchpoint registers.	 */
 #define NUM_WATCH_REGS 16
 

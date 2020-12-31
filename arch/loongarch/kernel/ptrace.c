@@ -244,6 +244,39 @@ static int cfg_set(struct task_struct *target,
 	return 0;
 }
 
+#ifdef CONFIG_CPU_HAS_LBT
+static int lbt_get(struct task_struct *target,
+		   const struct user_regset *regset,
+		   struct membuf to)
+{
+	int r;
+
+	r = membuf_write(&to, &target->thread.lbt.scr0, sizeof(target->thread.lbt.scr0));
+	r = membuf_write(&to, &target->thread.lbt.scr1, sizeof(target->thread.lbt.scr1));
+	r = membuf_write(&to, &target->thread.lbt.scr2, sizeof(target->thread.lbt.scr2));
+	r = membuf_write(&to, &target->thread.lbt.scr3, sizeof(target->thread.lbt.scr3));
+	r = membuf_write(&to, &target->thread.fpu.ftop, sizeof(target->thread.fpu.ftop));
+
+	return r;
+}
+
+static int lbt_set(struct task_struct *target,
+		   const struct user_regset *regset,
+		   unsigned int pos, unsigned int count,
+		   const void *kbuf, const void __user *ubuf)
+{
+	int err;
+	const int ftop_start = (regset->n - 1) * regset->size;
+
+	err = user_regset_copyin(&pos, &count, &kbuf, &ubuf,
+				 &target->thread.lbt.scr0, 0, ftop_start);
+	err |= user_regset_copyin(&pos, &count, &kbuf, &ubuf,
+				  &target->thread.fpu.ftop, ftop_start,
+				  ftop_start + sizeof(u64));
+	return err;
+}
+#endif
+
 #ifdef CONFIG_CPU_HAS_LSX
 
 static void copy_pad_fprs(struct task_struct *target,
@@ -402,6 +435,9 @@ enum loongarch_regset {
 	REGSET_GPR,
 	REGSET_FPR,
 	REGSET_CPUCFG,
+#ifdef CONFIG_CPU_HAS_LBT
+	REGSET_LBT,
+#endif
 #ifdef CONFIG_CPU_HAS_LSX
 	REGSET_LSX,
 #endif
@@ -435,6 +471,16 @@ static const struct user_regset loongarch64_regsets[] = {
 		.regset_get	= cfg_get,
 		.set		= cfg_set,
 	},
+#ifdef CONFIG_CPU_HAS_LBT
+	[REGSET_LBT] = {
+		.core_note_type	= NT_LOONGARCH_LBT,
+		.n		= 6,
+		.size		= sizeof(u64),
+		.align		= sizeof(u64),
+		.regset_get	= lbt_get,
+		.set		= lbt_set,
+	},
+#endif
 #ifdef CONFIG_CPU_HAS_LSX
 	[REGSET_LSX] = {
 		.core_note_type	= NT_LOONGARCH_LSX,
