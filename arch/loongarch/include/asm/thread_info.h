@@ -87,6 +87,7 @@ register unsigned long current_stack_pointer __asm__("$r3");
 #define TIF_SINGLESTEP		20	/* Single Step */
 #define TIF_LSX_CTX_LIVE	21	/* LSX context must be preserved */
 #define TIF_LASX_CTX_LIVE	22	/* LASX context must be preserved */
+#define TIF_PATCH_PENDING	23	/* pending live patching update */
 
 #define _TIF_SIGPENDING		(1<<TIF_SIGPENDING)
 #define _TIF_NEED_RESCHED	(1<<TIF_NEED_RESCHED)

@@ -109,6 +109,7 @@ config LOONGARCH
 	select HAVE_KPROBES
 	select HAVE_KPROBES_ON_FTRACE
 	select HAVE_KRETPROBES
+	select HAVE_LIVEPATCH
 	select HAVE_MEMBLOCK
 	select HAVE_MEMBLOCK_NODE_MAP
 	select HAVE_MOD_ARCH_SPECIFIC
@@ -764,6 +765,8 @@ config USE_OF
 
 config BUILTIN_DTB
 	bool
+
+source "kernel/livepatch/Kconfig"
 
 endmenu
 
