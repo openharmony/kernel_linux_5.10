@@ -10,8 +10,12 @@
  */
 #ifndef _ASM_INST_H
 #define _ASM_INST_H
+#include <linux/types.h>
 
 #include <asm/asm.h>
+#include <asm/errno.h>
+#include <asm/ptrace.h>
+
 #include <uapi/asm/inst.h>
 
 /* HACHACHAHCAHC ...  */
@@ -132,6 +136,46 @@ void emulate_load_store_insn(struct pt_regs *regs, void __user *addr, unsigned i
 unsigned long unaligned_read(void __user *addr, void *value, unsigned long n, bool sign);
 unsigned long unaligned_write(void __user *addr, unsigned long value, unsigned long n);
 
+static inline bool cond_beqz(struct pt_regs *regs, int rj)
+{
+	return regs->regs[rj] == 0;
+}
+
+static inline bool cond_bnez(struct pt_regs *regs, int rj)
+{
+	return regs->regs[rj] != 0;
+}
+
+static inline bool cond_beq(struct pt_regs *regs, int rj, int rd)
+{
+	return regs->regs[rj] == regs->regs[rd];
+}
+
+static inline bool cond_bne(struct pt_regs *regs, int rj, int rd)
+{
+	return regs->regs[rj] != regs->regs[rd];
+}
+
+static inline bool cond_blt(struct pt_regs *regs, int rj, int rd)
+{
+	return (long)regs->regs[rj] < (long)regs->regs[rd];
+}
+
+static inline bool cond_bge(struct pt_regs *regs, int rj, int rd)
+{
+	return (long)regs->regs[rj] >= (long)regs->regs[rd];
+}
+
+static inline bool cond_bltu(struct pt_regs *regs, int rj, int rd)
+{
+	return regs->regs[rj] < regs->regs[rd];
+}
+
+static inline bool cond_bgeu(struct pt_regs *regs, int rj, int rd)
+{
+	return regs->regs[rj] >= regs->regs[rd];
+}
+
 static inline bool is_branch_insn(union loongarch_instruction insn)
 {
 	return insn.reg1i21_format.opcode >= beqz_op &&
@@ -144,10 +188,30 @@ static inline bool is_pc_insn(union loongarch_instruction insn)
 			insn.reg1i20_format.opcode <= pcaddu18i_op;
 }
 
+unsigned long bs_dest_16(unsigned long now, unsigned int si);
+unsigned long bs_dest_21(unsigned long now, unsigned int h, unsigned int l);
+unsigned long bs_dest_26(unsigned long now, unsigned int h, unsigned int l);
+
+int simu_branch(struct pt_regs *regs, union loongarch_instruction insn);
+int simu_pc(struct pt_regs *regs, union loongarch_instruction insn);
+
+int larch_insn_read(void *addr, u32 *insnp);
+int larch_insn_write(void *addr, u32 insn);
+int larch_insn_patch_text(void *addr, u32 insn);
+
+u32 larch_insn_gen_nop(void);
+u32 larch_insn_gen_b(unsigned long pc, unsigned long dest);
+u32 larch_insn_gen_bl(unsigned long pc, unsigned long dest);
+
+u32 larch_insn_gen_addu16id(enum loongarch_gpr rd, enum loongarch_gpr rj, int imm);
 u32 larch_insn_gen_lu32id(enum loongarch_gpr rd, int imm);
 u32 larch_insn_gen_lu52id(enum loongarch_gpr rd, enum loongarch_gpr rj, int imm);
 
 u32 larch_insn_gen_jirl(enum loongarch_gpr rd, enum loongarch_gpr rj,
 			unsigned long pc, unsigned long dest);
+
+u32 larch_insn_gen_or(enum loongarch_gpr rd, enum loongarch_gpr rj,
+			enum loongarch_gpr rk);
+u32 larch_insn_gen_move(enum loongarch_gpr rd, enum loongarch_gpr rj);
 
 #endif /* _ASM_INST_H */

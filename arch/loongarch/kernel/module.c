@@ -10,6 +10,7 @@
 
 #include <linux/moduleloader.h>
 #include <linux/elf.h>
+#include <linux/ftrace.h>
 #include <linux/mm.h>
 #include <linux/numa.h>
 #include <linux/vmalloc.h>
@@ -18,7 +19,7 @@
 #include <linux/string.h>
 #include <linux/kernel.h>
 #include <asm/alternative.h>
-
+#include <asm/inst.h>
 #include <asm/unwind.h>
 
 static inline bool signed_imm_check(long val, unsigned int bit)
@@ -505,11 +506,29 @@ void *module_alloc(unsigned long size)
 			GFP_KERNEL, PAGE_KERNEL, 0, NUMA_NO_NODE, __builtin_return_address(0));
 }
 
+static int module_init_ftrace_plt(const Elf_Ehdr *hdr,
+				  const Elf_Shdr *sechdrs, struct module *mod)
+{
+#ifdef CONFIG_DYNAMIC_FTRACE
+	struct plt_entry *ftrace_plts;
+
+	ftrace_plts = (void *)sechdrs->sh_addr;
+
+	ftrace_plts[FTRACE_PLT_IDX] = emit_plt_entry(FTRACE_ADDR);
+
+	if (IS_ENABLED(CONFIG_DYNAMIC_FTRACE_WITH_REGS))
+		ftrace_plts[FTRACE_REGS_PLT_IDX] = emit_plt_entry(FTRACE_REGS_ADDR);
+
+	mod->arch.ftrace_trampolines = ftrace_plts;
+#endif
+	return 0;
+}
+
 int module_finalize(const Elf_Ehdr *hdr,
 		    const Elf_Shdr *sechdrs, struct module *mod)
 {
 	char *secstrings;
-	const Elf_Shdr *s, *orc = NULL, *orc_ip = NULL, *alt = NULL;
+	const Elf_Shdr *s, *orc = NULL, *orc_ip = NULL, *alt = NULL, *ftrace = NULL;
 
 	secstrings = (void *)hdr + sechdrs[hdr->e_shstrndx].sh_offset;
 
@@ -520,6 +539,8 @@ int module_finalize(const Elf_Ehdr *hdr,
 			orc = s;
 		if (!strcmp(".orc_unwind_ip", secstrings + s->sh_name))
 			orc_ip = s;
+		if (!strcmp(".ftrace_trampoline", secstrings + s->sh_name))
+			ftrace = s;
 	}
 
 	if (alt)
@@ -528,5 +549,5 @@ int module_finalize(const Elf_Ehdr *hdr,
 	if (orc && orc_ip)
 		unwind_module_init(mod, (void *)orc_ip->sh_addr, orc_ip->sh_size, (void *)orc->sh_addr, orc->sh_size);
 
-	return 0;
+	return module_init_ftrace_plt(hdr, ftrace, mod);
 }

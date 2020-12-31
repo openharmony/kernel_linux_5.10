@@ -135,6 +135,15 @@ static void __kprobes __do_page_fault(struct pt_regs *regs,
 	struct vm_area_struct *vma = NULL;
 	vm_fault_t fault;
 
+#ifdef CONFIG_KPROBES
+	/*
+	 * This is to notify the fault handler of the kprobes.
+	 */
+	if (notify_die(DIE_PAGE_FAULT, "page fault", regs, -1,
+		       current->thread.trap_nr, SIGSEGV) == NOTIFY_STOP)
+		return;
+#endif
+
 	/*
 	 * We fault-in kernel-space virtual memory on-demand. The
 	 * 'reference' page table is init_mm.pgd.

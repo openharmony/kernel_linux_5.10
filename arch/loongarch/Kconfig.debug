@@ -42,3 +42,9 @@ config DEBUG_ZBOOT
 	  After the compressed kernel support works, please disable this option
 	  to reduce the kernel image size and speed up the booting procedure a
 	  little.
+
+config SPINLOCK_TEST
+	tristate "Enable spinlock timing tests in debugfs"
+	default n
+	help
+	  Add several files to the debugfs to test spinlock speed.

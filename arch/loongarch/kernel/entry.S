@@ -58,6 +58,10 @@ SYM_CODE_START(handle_syscall)
 
 	SAVE_STATIC
 
+#ifdef CONFIG_KGDB
+	li.w	t1, CSR_CRMD_WE
+	csrxchg	t1, t1, LOONGARCH_CSR_CRMD
+#endif
 	UNWIND_HINT_REGS
 
 	move	u0, t0

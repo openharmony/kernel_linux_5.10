@@ -26,6 +26,9 @@ struct mod_arch_specific {
 	int *orc_unwind_ip;
 	struct orc_entry *orc_unwind;
 #endif
+
+	/* for CONFIG_DYNAMIC_FTRACE */
+	struct plt_entry *ftrace_trampolines;
 };
 
 struct got_entry {
@@ -33,7 +36,7 @@ struct got_entry {
 };
 
 struct plt_entry {
-	u32 inst_lu12iw;
+	u32 inst_addu16id;
 	u32 inst_lu32id;
 	u32 inst_lu52id;
 	u32 inst_jirl;
@@ -53,14 +56,14 @@ static inline struct got_entry emit_got_entry(Elf_Addr val)
 
 static inline struct plt_entry emit_plt_entry(unsigned long val)
 {
-	u32 lu12iw, lu32id, lu52id, jirl;
+	u32 addu16id, lu32id, lu52id, jirl;
 
-	lu12iw = (0x0000000a << 25 | (((val >> 12) & 0xfffff) << 5) | REG_T1);
+	addu16id = larch_insn_gen_addu16id(REG_T1, REG_ZERO, ADDR_IMM(val, ADDU16ID));
 	lu32id = larch_insn_gen_lu32id(REG_T1, ADDR_IMM(val, LU32ID));
 	lu52id = larch_insn_gen_lu52id(REG_T1, REG_T1, ADDR_IMM(val, LU52ID));
-	jirl = larch_insn_gen_jirl(0, REG_T1, 0, (val & 0xfff));
+	jirl = larch_insn_gen_jirl(0, REG_T1, 0, (val & 0xffff));
 
-	return (struct plt_entry) { lu12iw, lu32id, lu52id, jirl };
+	return (struct plt_entry) { addu16id, lu32id, lu52id, jirl };
 }
 
 static inline struct plt_idx_entry emit_plt_idx_entry(unsigned long val)

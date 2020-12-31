@@ -2,6 +2,7 @@
 /*
  * Copyright (C) 2020 Loongson Technology Co., Ltd.
  */
+#include <linux/ftrace.h>
 #include <linux/kallsyms.h>
 
 #include <asm/inst.h>
@@ -46,15 +47,40 @@ static inline bool is_branch_ins(union loongarch_instruction *ip)
 	return is_branch_insn(*ip);
 }
 
+static inline void unwind_state_fixup(struct unwind_state *state)
+{
+#ifdef CONFIG_DYNAMIC_FTRACE
+	static unsigned long ftrace_case = (unsigned long)ftrace_call + 4;
+
+	if (state->pc == ftrace_case)
+		state->is_ftrace = true;
+#endif
+}
+
 static bool unwind_by_prologue(struct unwind_state *state)
 {
 	struct stack_info *info = &state->stack_info;
 	union loongarch_instruction *ip, *ip_end;
 	unsigned long frame_size = 0, frame_ra = -1;
 	unsigned long size, offset, pc = state->pc;
+	struct pt_regs *regs;
 
 	if (state->sp >= info->end || state->sp < info->begin)
 		return false;
+
+	if (state->is_ftrace) {
+		/*
+		 * As we meet ftrace_regs_entry, reset first flag like first doing
+		 * tracing, Prologue analysis will stop soon because PC is at entry.
+		 */
+		regs = (struct pt_regs *)state->sp;
+		state->pc = regs->csr_era;
+		state->ra = regs->regs[1];
+		state->sp = regs->regs[3];
+		state->first = true;
+		state->is_ftrace = false;
+		return true;
+	}
 
 	if (!kallsyms_lookup_size_offset(pc, &size, &offset))
 		return false;
@@ -101,7 +127,7 @@ static bool unwind_by_prologue(struct unwind_state *state)
 
 	state->pc = *(unsigned long *)(state->sp + frame_ra);
 	state->sp = state->sp + frame_size;
-	return !!__kernel_text_address(state->pc);
+	goto out;
 
 first:
 	state->first = false;
@@ -110,7 +136,9 @@ first:
 
 	state->pc = state->ra;
 
-	return !!__kernel_text_address(state->ra);
+out:
+	unwind_state_fixup(state);
+	return !!__kernel_text_address(state->pc);
 }
 
 static bool unwind_by_guess(struct unwind_state *state)

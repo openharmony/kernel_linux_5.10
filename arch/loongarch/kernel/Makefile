@@ -22,6 +22,19 @@ CFLAGS_module.o		+= $(call cc-option,-Wno-override-init,)
 CFLAGS_syscall.o	+= $(call cc-option,-Wno-override-init,)
 CFLAGS_perf_event.o	+= $(call cc-option,-Wno-override-init,)
 
+ifdef CONFIG_FUNCTION_TRACER
+  ifndef CONFIG_DYNAMIC_FTRACE
+    obj-y += mcount.o ftrace.o
+    CFLAGS_REMOVE_ftrace.o = $(CC_FLAGS_FTRACE)
+  else
+    obj-y += mcount_dyn.o ftrace_dyn.o
+    CFLAGS_REMOVE_ftrace_dyn.o = $(CC_FLAGS_FTRACE)
+  endif
+  CFLAGS_REMOVE_inst.o = $(CC_FLAGS_FTRACE)
+  CFLAGS_REMOVE_time.o = $(CC_FLAGS_FTRACE)
+  CFLAGS_REMOVE_perf_event.o = $(CC_FLAGS_FTRACE)
+endif
+
 obj-$(CONFIG_MODULES)		+= module.o module-sections.o
 obj-$(CONFIG_STACKTRACE)	+= stacktrace.o
 
@@ -43,5 +56,11 @@ obj-$(CONFIG_UNWINDER_ORC)		+= unwind_orc.o
 
 obj-$(CONFIG_PERF_EVENTS)	+= perf_event.o perf_regs.o
 obj-$(CONFIG_HARDWARE_WATCHPOINTS)	+= watch.o
+
+obj-$(CONFIG_KGDB)		+= kgdb.o
+obj-$(CONFIG_KPROBES)		+= kprobes.o
+obj-$(CONFIG_UPROBES)		+= uprobes.o
+obj-$(CONFIG_JUMP_LABEL)	+= jump_label.o
+obj-$(CONFIG_SPINLOCK_TEST)	+= spinlock_test.o
 
 CPPFLAGS_vmlinux.lds		:= $(KBUILD_CFLAGS)

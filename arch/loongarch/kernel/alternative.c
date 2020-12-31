@@ -43,27 +43,6 @@ do {									\
 	}								\
 } while (0)
 
-#define __SIGNEX(X, SIDX) ((X) >= (1 << SIDX) ? ~((1 << SIDX) - 1) | (X) : (X))
-#define SIGNEX16(X) __SIGNEX(((unsigned long)(X)), 15)
-#define SIGNEX20(X) __SIGNEX(((unsigned long)(X)), 19)
-#define SIGNEX21(X) __SIGNEX(((unsigned long)(X)), 20)
-#define SIGNEX26(X) __SIGNEX(((unsigned long)(X)), 25)
-
-static inline unsigned long bs_dest_16(unsigned long now, unsigned int si)
-{
-	return now + (SIGNEX16(si) << 2);
-}
-
-static inline unsigned long bs_dest_21(unsigned long now, unsigned int h, unsigned int l)
-{
-	return now + (SIGNEX21(h << 16 | l) << 2);
-}
-
-static inline unsigned long bs_dest_26(unsigned long now, unsigned int h, unsigned int l)
-{
-	return now + (SIGNEX26(h << 16 | l) << 2);
-}
-
 /* Use this to add nops to a buffer, then text_poke the whole buffer. */
 static void __init_or_module add_nops(union loongarch_instruction *insn, int count)
 {

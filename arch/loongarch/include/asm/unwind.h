@@ -27,7 +27,7 @@ struct unwind_state {
 	unsigned long sp, pc;
 	bool first;
 #endif
-	bool error;
+	bool error, is_ftrace;
 };
 
 void unwind_start(struct unwind_state *state, struct task_struct *task,
