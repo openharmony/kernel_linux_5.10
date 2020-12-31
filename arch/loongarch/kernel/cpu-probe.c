@@ -19,6 +19,7 @@
 #include <asm/loongarchregs.h>
 #include <asm/pgtable-bits.h>
 #include <asm/setup.h>
+#include <asm/watch.h>
 
 /* Hardware capabilities */
 unsigned int elf_hwcap __read_mostly;
@@ -186,6 +187,8 @@ static void cpu_probe_common(struct cpuinfo_loongarch *c)
 	default:
 		pr_warn("Warning: unknown TLB type\n");
 	}
+
+	loongarch_probe_watch_registers(c);
 }
 
 #define MAX_NAME_LEN	32

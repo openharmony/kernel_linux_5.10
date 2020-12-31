@@ -56,7 +56,59 @@ struct user_lasx_state {
 	uint64_t vregs[32*4];
 };
 
+/* Read and write watchpoint registers.	 */
+#define NUM_WATCH_REGS 16
+
+enum pt_watch_style {
+	pt_watch_style_la32,
+	pt_watch_style_la64
+};
+
+struct la32_watch_regs {
+	uint32_t addr;
+	uint32_t mask;
+	/* irw/irwsta/irwmask I R W bits.
+	 * bit 0 -- 1 if W bit is usable.
+	 * bit 1 -- 1 if R bit is usable.
+	 * bit 2 -- 1 if I bit is usable.
+	 */
+	uint8_t irw;
+	uint8_t irwstat;
+	uint8_t irwmask;
+} __attribute__((aligned(8)));
+
+struct la64_watch_regs {
+	uint64_t addr;
+	uint64_t mask;
+	/* irw/irwsta/irwmask I R W bits.
+	 * bit 0 -- 1 if W bit is usable.
+	 * bit 1 -- 1 if R bit is usable.
+	 * bit 2 -- 1 if I bit is usable.
+	 */
+	uint8_t irw;
+	uint8_t irwstat;
+	uint8_t irwmask;
+} __attribute__((aligned(8)));
+
+struct pt_watch_regs {
+	int16_t max_valid;
+	int16_t num_valid;
+	enum pt_watch_style style;
+	union {
+		struct la32_watch_regs la32[NUM_WATCH_REGS];
+		struct la64_watch_regs la64[NUM_WATCH_REGS];
+	};
+};
+
 #define PTRACE_SYSEMU			0x1f
 #define PTRACE_SYSEMU_SINGLESTEP	0x20
+#define PTRACE_GET_WATCH_REGS		0xd0
+#define PTRACE_SET_WATCH_REGS		0xd1
+
+/* Watch irw/irwmask/irwstat bit definitions */
+#define LA_WATCH_W		(1 << 0)
+#define LA_WATCH_R		(1 << 1)
+#define LA_WATCH_I		(1 << 2)
+#define LA_WATCH_IRW	(LA_WATCH_W | LA_WATCH_R | LA_WATCH_I)
 
 #endif /* _UAPI_ASM_PTRACE_H */

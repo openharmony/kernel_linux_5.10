@@ -88,6 +88,14 @@ struct loongarch_fpu {
 	{0,} \
 }
 
+struct loongarch_watch_reg_state {
+	unsigned long addr[NUM_WATCH_REGS];
+	unsigned long mask[NUM_WATCH_REGS];
+	unsigned char irw[NUM_WATCH_REGS];
+	unsigned char irwstat[NUM_WATCH_REGS];
+	unsigned char irwmask[NUM_WATCH_REGS];
+};
+
 #define ARCH_MIN_TASKALIGN	32
 
 struct loongarch_vdso_info;
@@ -120,6 +128,12 @@ struct thread_struct {
 
 	/* Eflags register */
 	unsigned long eflags;
+
+	/* Used by ptrace single_step */
+	unsigned long single_step;
+
+	/* Watch register state, if available. */
+	struct loongarch_watch_reg_state watch;
 
 	/* Other stuff associated with the thread. */
 	unsigned long trap_nr;
@@ -159,6 +173,10 @@ struct thread_struct {
 	.csr_euen		= 0,				\
 	.csr_ecfg		= 0,				\
 	.csr_badvaddr		= 0,				\
+	/*							\
+	 * Saved watch register stuff				\
+	 */							\
+	.watch = {{0,},},					\
 	/*							\
 	 * Other stuff associated with the process		\
 	 */							\

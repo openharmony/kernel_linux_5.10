@@ -34,7 +34,9 @@
 #include <asm/syscall.h>
 #include <linux/uaccess.h>
 #include <asm/bootinfo.h>
+#include <asm/ptrace.h>
 #include <asm/reg.h>
+#include <asm/watch.h>
 
 static void init_fp_ctx(struct task_struct *target)
 {
@@ -512,10 +514,105 @@ static inline int write_user(struct task_struct *target, unsigned long addr,
 	return 0;
 }
 
+static int ptrace_get_watch_regs(struct task_struct *child,
+			  struct pt_watch_regs __user *addr)
+{
+	enum pt_watch_style style;
+	int i;
+	unsigned int cnt;
+
+	if (!cpu_has_watch || boot_cpu_data.watch_reg_use_cnt == 0)
+		return -EIO;
+	if (!access_ok(addr, sizeof(struct pt_watch_regs)))
+		return -EIO;
+
+#ifdef CONFIG_32BIT
+	style = pt_watch_style_la32;
+#define WATCH_STYLE la32
+#else
+	style = pt_watch_style_la64;
+#define WATCH_STYLE la64
+#endif
+
+	loongarch_update_watch_registers(child);
+
+	/* Reserve the first instruction watchpoint if TIF_SINGLESTEP is set. */
+	if (unlikely(test_thread_flag(TIF_SINGLESTEP)))
+		child->thread.watch.irwmask[boot_cpu_data.watch_dreg_count] = 0;
+
+	__get_user(cnt, &addr->max_valid);
+	cnt = min(boot_cpu_data.watch_reg_use_cnt, cnt);
+	__put_user(cnt, &addr->num_valid);
+	__put_user(style, &addr->style);
+	for (i = 0; i < cnt; i++) {
+		__put_user(child->thread.watch.addr[i], &addr->WATCH_STYLE[i].addr);
+		__put_user(child->thread.watch.mask[i], &addr->WATCH_STYLE[i].mask);
+		__put_user(child->thread.watch.irw[i], &addr->WATCH_STYLE[i].irw);
+		__put_user(child->thread.watch.irwstat[i], &addr->WATCH_STYLE[i].irwstat);
+		__put_user(child->thread.watch.irwmask[i], &addr->WATCH_STYLE[i].irwmask);
+	}
+
+	return 0;
+}
+
+static int ptrace_set_watch_regs(struct task_struct *child,
+			  struct pt_watch_regs __user *addr)
+{
+	int i;
+	unsigned int cnt;
+	int watch_active = 0;
+	unsigned long addrt[NUM_WATCH_REGS];
+	unsigned long maskt[NUM_WATCH_REGS];
+	unsigned char irwt[NUM_WATCH_REGS];
+
+	if (!cpu_has_watch || boot_cpu_data.watch_reg_use_cnt == 0)
+		return -EIO;
+	if (!access_ok(addr, sizeof(struct pt_watch_regs)))
+		return -EIO;
+
+	__get_user(cnt, &addr->max_valid);
+	cnt = min(boot_cpu_data.watch_reg_use_cnt, cnt);
+	/* Check the values. */
+	for (i = 0; i < cnt; i++) {
+		__get_user(addrt[i], &addr->WATCH_STYLE[i].addr);
+#ifdef CONFIG_32BIT
+		if (addrt[i] & __UA_LIMIT)
+			return -EINVAL;
+#else
+		if (test_tsk_thread_flag(child, TIF_32BIT_ADDR)) {
+			if (addrt[i] & 0xffffffff80000000UL)
+				return -EINVAL;
+		} else {
+			if (addrt[i] & __UA_LIMIT)
+				return -EINVAL;
+		}
+#endif
+		__get_user(maskt[i], &addr->WATCH_STYLE[i].mask);
+		__get_user(irwt[i], &addr->WATCH_STYLE[i].irw);
+	}
+	/* Install them. */
+	for (i = 0; i < boot_cpu_data.watch_reg_use_cnt; i++) {
+		if (irwt[i] & LA_WATCH_IRW)
+			watch_active = 1;
+		child->thread.watch.addr[i] = addrt[i];
+		child->thread.watch.mask[i] = maskt[i];
+		child->thread.watch.irw[i] = irwt[i];
+	}
+
+	if (watch_active)
+		set_tsk_thread_flag(child, TIF_LOAD_WATCH);
+	else
+		clear_tsk_thread_flag(child, TIF_LOAD_WATCH);
+
+	return 0;
+}
+
+
 long arch_ptrace(struct task_struct *child, long request,
 		 unsigned long addr, unsigned long data)
 {
 	int ret;
+	void __user *addrp = (void __user *) addr;
 	unsigned long __user *datap = (void __user *) data;
 
 	switch (request) {
@@ -527,6 +624,14 @@ long arch_ptrace(struct task_struct *child, long request,
 		ret = write_user(child, addr, data);
 		break;
 
+	case PTRACE_GET_WATCH_REGS:
+		ret = ptrace_get_watch_regs(child, addrp);
+		break;
+
+	case PTRACE_SET_WATCH_REGS:
+		ret = ptrace_set_watch_regs(child, addrp);
+		break;
+
 	default:
 		ret = ptrace_request(child, request, addr, data);
 		break;
@@ -534,3 +639,22 @@ long arch_ptrace(struct task_struct *child, long request,
 
 	return ret;
 }
+
+void user_enable_single_step(struct task_struct *task)
+{
+	int i = boot_cpu_data.watch_dreg_count;
+	struct thread_info *ti = task_thread_info(task);
+
+	task->thread.watch.addr[i] = task_pt_regs(task)->csr_era;
+	task->thread.watch.mask[i] = -1UL;
+	task->thread.watch.irw[i] = LA_WATCH_I;
+	task->thread.single_step = task_pt_regs(task)->csr_era;
+	set_ti_thread_flag(ti, TIF_SINGLESTEP);
+}
+EXPORT_SYMBOL(user_enable_single_step);
+
+void user_disable_single_step(struct task_struct *task)
+{
+	clear_tsk_thread_flag(task, TIF_SINGLESTEP);
+}
+EXPORT_SYMBOL(user_disable_single_step);

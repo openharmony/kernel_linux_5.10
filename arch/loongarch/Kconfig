@@ -222,6 +222,9 @@ config CPU_SUPPORTS_32BIT_KERNEL
 	bool
 config CPU_SUPPORTS_64BIT_KERNEL
 	bool
+config HARDWARE_WATCHPOINTS
+	bool
+	default y
 
 menu "Kernel type and options"
 
