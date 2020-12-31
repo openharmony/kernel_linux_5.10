@@ -47,7 +47,6 @@ struct lsx_context {
 	__u64	regs[2*32];
 	__u64	fcc;
 	__u32	fcsr;
-	__u32	vcsr;
 };
 
 /* LASX context */
@@ -57,7 +56,6 @@ struct lasx_context {
 	__u64	regs[4*32];
 	__u64	fcc;
 	__u32	fcsr;
-	__u32	vcsr;
 };
 
 #endif /* _UAPI_ASM_SIGCONTEXT_H */
