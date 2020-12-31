@@ -5,6 +5,7 @@
 
 archscripts: scripts_basic
 	$(Q)$(MAKE) $(build)=arch/loongarch/tools elf-entry
+	$(Q)$(MAKE) $(build)=arch/loongarch/boot/tools relocs
 
 #
 # Select the object file format to substitute into the linker script.
@@ -59,6 +60,10 @@ KBUILD_AFLAGS_KERNEL		+= -Wa,-mla-global-with-pcrel
 KBUILD_CFLAGS_KERNEL		+= -Wa,-mla-global-with-pcrel
 KBUILD_AFLAGS_MODULE		+= -Wa,-mla-global-with-abs
 KBUILD_CFLAGS_MODULE		+= -fplt -Wa,-mla-global-with-abs,-mla-local-with-abs
+endif
+
+ifeq ($(CONFIG_RELOCATABLE),y)
+LDFLAGS_vmlinux		+= --emit-relocs
 endif
 
 cflags-y += -ffreestanding
@@ -163,6 +168,7 @@ endif
 archclean:
 	$(Q)$(MAKE) $(clean)=arch/loongarch/boot
 	$(Q)$(MAKE) $(clean)=arch/loongarch/boot/compressed
+	$(Q)$(MAKE) $(clean)=arch/loongarch/boot/tools
 	$(Q)$(MAKE) $(clean)=arch/loongarch/tools
 
 define archhelp

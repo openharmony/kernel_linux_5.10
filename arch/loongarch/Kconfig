@@ -132,6 +132,7 @@ config MACH_LOONGSON64
 	select SYS_SUPPORTS_HOTPLUG_CPU
 	select SYS_SUPPORTS_NUMA
 	select SYS_SUPPORTS_64BIT_KERNEL
+	select SYS_SUPPORTS_RELOCATABLE
 	select ZONE_DMA32
 	help
 	  This enables the support of Loongson 64-bit family of machines. These
@@ -162,6 +163,11 @@ config SYS_SUPPORTS_HOTPLUG_CPU
 
 config GENERIC_CSUM
 	def_bool y
+
+config SYS_SUPPORTS_RELOCATABLE
+	bool
+	help
+	 Selected if the platform supports relocating the kernel.
 
 config SYS_SUPPORTS_HUGETLBFS
 	def_bool y
@@ -410,6 +416,61 @@ config NUMA
 
 config SYS_SUPPORTS_NUMA
 	bool
+
+config RELOCATABLE
+	bool "Relocatable kernel"
+	depends on SYS_SUPPORTS_RELOCATABLE
+	help
+	  This builds a kernel image that retains relocation information
+	  so it can be loaded someplace besides the default 1MB.
+	  The relocations make the kernel binary about 15% larger,
+	  but are discarded at runtime
+
+config RELOCATION_TABLE_SIZE
+	hex "Relocation table size"
+	depends on RELOCATABLE
+	range 0x0 0x01000000
+	default "0x00200000"
+	help
+	  A table of relocation data will be appended to the kernel binary
+	  and parsed at boot to fix up the relocated kernel.
+
+	  This option allows the amount of space reserved for the table to be
+	  adjusted, although the default of 1Mb should be ok in most cases.
+
+	  The build will fail and a valid size suggested if this is too small.
+
+	  If unsure, leave at the default value.
+
+config RANDOMIZE_BASE
+	bool "Randomize the address of the kernel image"
+	depends on RELOCATABLE
+	help
+	   Randomizes the physical and virtual address at which the
+	   kernel image is loaded, as a security feature that
+	   deters exploit attempts relying on knowledge of the location
+	   of kernel internals.
+
+	   Entropy is generated using any coprocessor 0 registers available.
+
+	   The kernel will be offset by up to RANDOMIZE_BASE_MAX_OFFSET.
+
+	   If unsure, say N.
+
+config RANDOMIZE_BASE_MAX_OFFSET
+	hex "Maximum kASLR offset" if EXPERT
+	depends on RANDOMIZE_BASE
+	range 0x0 0x40000000 if 64BIT
+	range 0x0 0x08000000
+	default "0x01000000"
+	help
+	  When kASLR is active, this provides the maximum offset that will
+	  be applied to the kernel image. It should be set according to the
+	  amount of physical RAM available in the target system minus
+	  PHYSICAL_START and must be a power of 2.
+
+	  This is limited by the size of KPRANGE1, 256Mb on 32-bit or 1Gb with
+	  64-bit. The default is 16Mb.
 
 config NODES_SHIFT
 	int
