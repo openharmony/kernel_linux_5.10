@@ -21,6 +21,7 @@ obj-$(CONFIG_CPU_HAS_FPU)	+= fpu.o
 obj-$(CONFIG_SMP)		+= smp.o
 
 obj-$(CONFIG_PROC_FS)		+= proc.o
+obj-$(CONFIG_MAGIC_SYSRQ)	+= sysrq.o
 
 obj-$(CONFIG_UNWINDER_GUESS)	+= unwind_guess.o
 obj-$(CONFIG_UNWINDER_PROLOGUE)	+= unwind_prologue.o

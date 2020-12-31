@@ -23,6 +23,11 @@ KBUILD_AFLAGS := $(KBUILD_AFLAGS) -D__ASSEMBLY__ \
 # decompressor objects (linked with vmlinuz)
 vmlinuzobjs-y := $(obj)/head.o $(obj)/decompress.o $(obj)/string.o
 
+ifdef CONFIG_DEBUG_ZBOOT
+vmlinuzobjs-$(CONFIG_DEBUG_ZBOOT)	+= $(obj)/dbg.o
+vmlinuzobjs-$(CONFIG_DEBUG_ZBOOT)	+= $(obj)/uart-16550.o
+endif
+
 vmlinuzobjs-$(CONFIG_KERNEL_XZ) += $(obj)/ashldi3.o
 
 extra-y += ashldi3.c
