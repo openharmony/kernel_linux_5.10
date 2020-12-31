@@ -72,4 +72,7 @@ obj-$(CONFIG_UPROBES)		+= uprobes.o
 obj-$(CONFIG_JUMP_LABEL)	+= jump_label.o
 obj-$(CONFIG_SPINLOCK_TEST)	+= spinlock_test.o
 
+obj-$(CONFIG_PARAVIRT)        += paravirt.o
+obj-$(CONFIG_PARAVIRT_SPINLOCKS) += paravirt-spinlocks.o
+
 CPPFLAGS_vmlinux.lds		:= $(KBUILD_CFLAGS)

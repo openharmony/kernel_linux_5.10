@@ -392,6 +392,8 @@ void loongarch_probe_watch_registers(struct cpuinfo_loongarch *c)
 	c->watch_dreg_count = dbcn;
 	total =  ibcn + dbcn;
 	c->watch_reg_use_cnt = (total < NUM_WATCH_REGS) ? total : NUM_WATCH_REGS;
+	if (total)
+		c->options |= LOONGARCH_CPU_WATCH;
 }
 
 /*

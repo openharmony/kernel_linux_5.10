@@ -226,6 +226,7 @@ config CPU_LOONGSON64
 	select CPU_SUPPORTS_LASX
 	select GPIOLIB
 	select SWIOTLB
+	select HAVE_KVM
 	select ARCH_SUPPORTS_ATOMIC_RMW
 	help
 	  The Loongson 64-bit processor implements the LoongArch64 (the 64-bit
@@ -850,3 +851,44 @@ source "drivers/cpufreq/Kconfig"
 endmenu
 
 source "drivers/firmware/Kconfig"
+source "arch/loongarch/kvm/Kconfig"
+
+config PARAVIRT
+    bool "Enable paravirtualization code"
+    help
+      This changes the kernel so it can modify itself when it is run
+      under a hypervisor, potentially improving performance significantly
+      over full virtualization.
+
+config PARAVIRT_SPINLOCKS
+        bool "Paravirtualization layer for spinlocks"
+        depends on PARAVIRT && SMP
+        help
+          Paravirtualized spinlocks allow a pvops backend to replace the
+          spinlock implementation with something virtualization-friendly
+          (for example, block the virtual CPU rather than spinning).
+
+          It has a minimal impact on native kernels and gives a nice performance
+          benefit on paravirtualized KVM kernels.
+
+          If you are unsure how to answer this question, answer Y.
+
+config QUEUED_LOCK_STAT
+        bool "Paravirt queued spinlock statistics"
+        depends on PARAVIRT_SPINLOCKS && DEBUG_FS
+        help
+          Enable the collection of statistical data on the slowpath
+          behavior of paravirtualized queued spinlocks and report
+          them on debugfs.
+
+config PARAVIRT_TIME_ACCOUNTING
+    bool "Paravirtual steal time accounting"
+    select PARAVIRT
+    default n
+    help
+      Select this option to enable fine granularity task steal time
+      accounting. Time spent executing other tasks in parallel with
+      the current vCPU is discounted from the vCPU power. To account for
+      that, there can be a small performance impact.
+
+      If in doubt, say N here.

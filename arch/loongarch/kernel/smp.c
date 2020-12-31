@@ -28,6 +28,7 @@
 #include <asm/numa.h>
 #include <asm/time.h>
 #include <asm/setup.h>
+#include <asm/paravirt.h>
 
 int __cpu_number_map[NR_CPUS];   /* Map physical to logical */
 EXPORT_SYMBOL(__cpu_number_map);
@@ -126,7 +127,7 @@ void calculate_cpu_foreign_map(void)
 			       &temp_foreign_map, &cpu_sibling_map[i]);
 }
 
-const struct plat_smp_ops *mp_ops;
+struct plat_smp_ops *mp_ops;
 EXPORT_SYMBOL(mp_ops);
 
 void register_smp_ops(const struct plat_smp_ops *ops)
@@ -134,7 +135,8 @@ void register_smp_ops(const struct plat_smp_ops *ops)
 	if (mp_ops)
 		printk(KERN_WARNING "Overriding previously set SMP ops\n");
 
-	mp_ops = ops;
+	mp_ops = (struct plat_smp_ops *)ops;
+	pv_ipi_init();
 }
 
 /*
@@ -217,6 +219,11 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 #endif
 }
 
+static void __init kvm_smp_prepare_boot_cpu(void)
+{
+	kvm_spinlock_init();
+}
+
 /* Preload SMP state for boot cpu */
 void smp_prepare_boot_cpu(void)
 {
@@ -250,6 +257,8 @@ void smp_prepare_boot_cpu(void)
 			rr_node = next_node_in(rr_node, node_online_map);
 		}
 	}
+
+	kvm_smp_prepare_boot_cpu();
 }
 
 int __cpu_up(unsigned int cpu, struct task_struct *tidle)

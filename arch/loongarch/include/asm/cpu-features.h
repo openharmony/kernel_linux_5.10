@@ -62,4 +62,35 @@
 #define cpu_has_hypervisor	cpu_opt(LOONGARCH_CPU_HYPERVISOR)
 #define cpu_has_ptw		cpu_opt(LOONGARCH_CPU_PTW)
 
+#define cpu_has_matc_guest	(cpu_data[0].guest_cfg & (1 << 0))
+#define cpu_has_matc_root	(cpu_data[0].guest_cfg & (1 << 1))
+#define cpu_has_matc_nest	(cpu_data[0].guest_cfg & (1 << 2))
+#define cpu_has_sitp		(cpu_data[0].guest_cfg & (1 << 6))
+#define cpu_has_titp		(cpu_data[0].guest_cfg & (1 << 8))
+#define cpu_has_toep		(cpu_data[0].guest_cfg & (1 << 10))
+#define cpu_has_topp		(cpu_data[0].guest_cfg & (1 << 12))
+#define cpu_has_torup		(cpu_data[0].guest_cfg & (1 << 14))
+#define cpu_has_gcip_all	(cpu_data[0].guest_cfg & (1 << 16))
+#define cpu_has_gcip_hit	(cpu_data[0].guest_cfg & (1 << 17))
+#define cpu_has_gcip_secure	(cpu_data[0].guest_cfg & (1 << 18))
+
+/*
+ * Guest capabilities
+ */
+#define cpu_guest_has_conf1	(cpu_data[0].guest.conf & (1 << 1))
+#define cpu_guest_has_conf2	(cpu_data[0].guest.conf & (1 << 2))
+#define cpu_guest_has_conf3	(cpu_data[0].guest.conf & (1 << 3))
+#define cpu_guest_has_fpu	(cpu_data[0].guest.options & LOONGARCH_CPU_FPU)
+#define cpu_guest_has_perf	(cpu_data[0].guest.options & LOONGARCH_CPU_PMP)
+#define cpu_guest_has_watch	(cpu_data[0].guest.options & LOONGARCH_CPU_WATCH)
+#define cpu_guest_has_lsx	(cpu_data[0].guest.ases & LOONGARCH_ASE_LSX)
+#define cpu_guest_has_kscr(n)	(cpu_data[0].guest.kscratch_mask & (1u << (n)))
+
+/*
+ * Guest dynamic capabilities
+ */
+#define cpu_guest_has_dyn_fpu	(cpu_data[0].guest.options_dyn & LOONGARCH_CPU_FPU)
+#define cpu_guest_has_dyn_perf	(cpu_data[0].guest.options_dyn & LOONGARCH_CPU_PMP)
+#define cpu_guest_has_dyn_lsx	(cpu_data[0].guest.ases_dyn & LOONGARCH_ASE_LSX)
+
 #endif /* __ASM_CPU_FEATURES_H */

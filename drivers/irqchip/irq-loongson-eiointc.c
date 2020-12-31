@@ -95,6 +95,13 @@ static void eiointc_set_irq_route(int pos, unsigned int cpu, unsigned int mnode,
 	}
 }
 
+#ifdef CONFIG_LOONGARCH
+static void virt_eiointc_set_irq_route(int pos, unsigned int cpu)
+{
+	iocsr_write8(cpu_logical_map(cpu), EIOINTC_REG_ROUTE + pos);
+}
+#endif
+
 static DEFINE_RAW_SPINLOCK(affinity_lock);
 
 static int eiointc_set_irq_affinity(struct irq_data *d, const struct cpumask *affinity, bool force)
@@ -144,16 +151,20 @@ static int eiointc_set_irq_affinity(struct irq_data *d, const struct cpumask *af
 
 	regaddr = EIOINTC_REG_ENABLE + ((vector >> 5) << 2);
 
-	/* Mask target vector */
-	csr_any_send(regaddr, EIOINTC_ALL_ENABLE & (~BIT(vector & 0x1F)),
-			0x0, priv->node * CORES_PER_EIO_NODE);
-
-	/* Set route for target vector */
-	eiointc_set_irq_route(vector, cpu, priv->node, &priv->node_map);
-
-	/* Unmask target vector */
-	csr_any_send(regaddr, EIOINTC_ALL_ENABLE,
-			0x0, priv->node * CORES_PER_EIO_NODE);
+	if (!cpu_has_hypervisor) {
+		/* Mask target vector */
+		csr_any_send(regaddr, EIOINTC_ALL_ENABLE & (~BIT(vector & 0x1F)),
+				0x0, priv->node * CORES_PER_EIO_NODE);
+		/* Set route for target vector */
+		eiointc_set_irq_route(vector, cpu, priv->node, &priv->node_map);
+		/* Unmask target vector */
+		csr_any_send(regaddr, EIOINTC_ALL_ENABLE,
+				0x0, priv->node * CORES_PER_EIO_NODE);
+	} else {
+		iocsr_write32(EIOINTC_ALL_ENABLE & (~((1 << (vector & 0x1F)))), regaddr);
+		virt_eiointc_set_irq_route(vector, cpu);
+		iocsr_write32(EIOINTC_ALL_ENABLE, regaddr);
+	}
 
 	irq_data_update_effective_affinity(d, cpumask_of(cpu));
 
@@ -206,6 +217,8 @@ static int eiointc_router_init(unsigned int cpu)
 				bit = BIT(cpu_logical_map(0));
 			else
 				bit = (eiointc_priv[index]->node << 4) | 1;
+			if (cpu_has_hypervisor)
+				bit = cpu_logical_map(0);
 
 			data = bit | (bit << 8) | (bit << 16) | (bit << 24);
 			iocsr_write32(data, EIOINTC_REG_ROUTE + i * 4);

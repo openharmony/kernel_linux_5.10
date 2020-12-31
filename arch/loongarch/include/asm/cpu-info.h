@@ -32,6 +32,15 @@ struct cache_desc {
 #define CACHE_LEVEL_MAX		3
 #define CACHE_LEAVES_MAX	6
 
+struct guest_info {
+	unsigned long		ases;
+	unsigned long		ases_dyn;
+	unsigned long long	options;
+	unsigned long long	options_dyn;
+	u8			conf;
+	unsigned int		kscratch_mask;
+};
+
 struct cpuinfo_loongarch {
 	u64			asid_cache;
 	unsigned long		asid_mask;
@@ -62,6 +71,10 @@ struct cpuinfo_loongarch {
 	unsigned int		watch_dreg_count;   /* Number data breakpoints */
 	unsigned int		watch_ireg_count;   /* Number instruction breakpoints */
 	unsigned int		watch_reg_use_cnt; /* min(NUM_WATCH_REGS, watch_dreg_count + watch_ireg_count), Usable by ptrace */
+
+	/* VZ & Guest features */
+	struct guest_info	guest;
+	unsigned long		guest_cfg;
 } __attribute__((aligned(SMP_CACHE_BYTES)));
 
 extern struct cpuinfo_loongarch cpu_data[];

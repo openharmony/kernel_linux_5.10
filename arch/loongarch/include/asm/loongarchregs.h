@@ -214,8 +214,46 @@ __asm__(".macro	parse_r var r\n\t"
 /* IOCSR */
 #define iocsr_read32(reg) __iocsrrd_w(reg)
 #define iocsr_read64(reg) __iocsrrd_d(reg)
+#define iocsr_write8(val, reg) __iocsrwr_b(val, reg)
 #define iocsr_write32(val, reg) __iocsrwr_w(val, reg)
 #define iocsr_write64(val, reg) __iocsrwr_d(val, reg)
+
+/* GCSR */
+#define gcsr_read(csr)							\
+({									\
+	register unsigned long __v = 0;					\
+	__asm__ __volatile__ (						\
+	"parse_r __reg, %[val]	\n\t"					\
+	".word 0x5 << 24 | %[reg] << 10 | 0 << 5 | __reg	\n\t"	\
+	: [val] "+r" (__v)						\
+	: [reg] "i" (csr)						\
+	: "memory");							\
+	__v;								\
+})
+
+#define gcsr_write(v, csr)						\
+({									\
+	register unsigned long __v = v;					\
+	__asm__ __volatile__ (						\
+	"parse_r __reg, %[val]	\n\t"					\
+	".word 0x5 << 24 | %[reg] << 10 | 1 << 5 | __reg	\n\t"	\
+	: [val] "+r" (__v)						\
+	: [reg] "i" (csr)						\
+	: "memory");							\
+})
+
+#define gcsr_xchg(v, m, csr)						\
+({									\
+	register unsigned long __v = v;					\
+	__asm__ __volatile__ (						\
+	"parse_r __rd, %[val]	\n\t"					\
+	"parse_r __rj, %[mask]	\n\t"					\
+	".word 0x5 << 24 | %[reg] << 10 | __rj << 5 | __rd	\n\t"	\
+	: [val] "+r" (__v)						\
+	: [mask] "r" (m), [reg] "i" (csr)				\
+	: "memory");							\
+	__v;								\
+})
 
 #endif /* !__ASSEMBLY__ */
 
@@ -357,13 +395,13 @@ __asm__(".macro	parse_r var r\n\t"
 #define  CSR_TLBLO1_V			(_ULCAST_(0x1) << CSR_TLBLO1_V_SHIFT)
 
 #define LOONGARCH_CSR_GTLBC		0x15	/* Guest TLB control */
-#define  CSR_GTLBC_RID_SHIFT		16
-#define  CSR_GTLBC_RID_WIDTH		8
-#define  CSR_GTLBC_RID			(_ULCAST_(0xff) << CSR_GTLBC_RID_SHIFT)
+#define  CSR_GTLBC_TGID_SHIFT		16
+#define  CSR_GTLBC_TGID_WIDTH		8
+#define  CSR_GTLBC_TGID			(_ULCAST_(0xff) << CSR_GTLBC_TGID_SHIFT)
 #define  CSR_GTLBC_TOTI_SHIFT		13
 #define  CSR_GTLBC_TOTI			(_ULCAST_(0x1) << CSR_GTLBC_TOTI_SHIFT)
-#define  CSR_GTLBC_USERID_SHIFT		12
-#define  CSR_GTLBC_USERID		(_ULCAST_(0x1) << CSR_GTLBC_USERID_SHIFT)
+#define  CSR_GTLBC_USETGID_SHIFT	12
+#define  CSR_GTLBC_USETGID		(_ULCAST_(0x1) << CSR_GTLBC_USETGID_SHIFT)
 #define  CSR_GTLBC_GMTLBSZ_SHIFT	0
 #define  CSR_GTLBC_GMTLBSZ_WIDTH	6
 #define  CSR_GTLBC_GMTLBSZ		(_ULCAST_(0x3f) << CSR_GTLBC_GMTLBSZ_SHIFT)
@@ -568,6 +606,12 @@ __asm__(".macro	parse_r var r\n\t"
 #define  CSR_GCFG_MATC_GUEST		(_ULCAST_(0x0) << CSR_GCFG_MATC_SHITF)
 #define  CSR_GCFG_MATC_ROOT		(_ULCAST_(0x1) << CSR_GCFG_MATC_SHITF)
 #define  CSR_GCFG_MATC_NEST		(_ULCAST_(0x2) << CSR_GCFG_MATC_SHITF)
+#define  CSR_GCFG_MATP_SHITF		0
+#define  CSR_GCFG_MATP_WIDTH		4
+#define  CSR_GCFG_MATP_MASK		(_ULCAST_(0x3) << CSR_GCFG_MATP_SHITF)
+#define  CSR_GCFG_MATP_GUEST		(_ULCAST_(0x0) << CSR_GCFG_MATP_SHITF)
+#define  CSR_GCFG_MATP_ROOT		(_ULCAST_(0x1) << CSR_GCFG_MATP_SHITF)
+#define  CSR_GCFG_MATP_NEST		(_ULCAST_(0x2) << CSR_GCFG_MATP_SHITF)
 
 #define LOONGARCH_CSR_GINTC		0x52	/* Guest interrupt control */
 #define  CSR_GINTC_HC_SHIFT		16
@@ -925,6 +969,7 @@ __asm__(".macro	parse_r var r\n\t"
 #define  CSR_PERFCTRL_PLV2		(_ULCAST_(1) << 18)
 #define  CSR_PERFCTRL_PLV3		(_ULCAST_(1) << 19)
 #define  CSR_PERFCTRL_IE		(_ULCAST_(1) << 20)
+#define  CSR_PERFCTRL_GMOD		(_ULCAST_(3) << 21)
 #define  CSR_PERFCTRL_EVENT		0x3ff
 
 /* Debug registers */
@@ -1238,6 +1283,131 @@ static inline void write_csr_tlbrefill_pagesize(unsigned int size)
 #define write_csr_perfctrl3(val)	csr_write64(val, LOONGARCH_CSR_PERFCTRL3)
 #define write_csr_perfcntr3(val)	csr_write64(val, LOONGARCH_CSR_PERFCNTR3)
 
+/* Guest related CSRS */
+#define read_csr_gtlbc()		csr_read32(LOONGARCH_CSR_GTLBC)
+#define write_csr_gtlbc(val)		csr_write32(val, LOONGARCH_CSR_GTLBC)
+#define read_csr_trgp()			csr_read32(LOONGARCH_CSR_TRGP)
+#define read_csr_gcfg()			csr_read32(LOONGARCH_CSR_GCFG)
+#define write_csr_gcfg(val)		csr_write32(val, LOONGARCH_CSR_GCFG)
+#define read_csr_gstat()		csr_read32(LOONGARCH_CSR_GSTAT)
+#define write_csr_gstat(val)		csr_write32(val, LOONGARCH_CSR_GSTAT)
+#define read_csr_gintc()		csr_read32(LOONGARCH_CSR_GINTC)
+#define write_csr_gintc(val)		csr_write32(val, LOONGARCH_CSR_GINTC)
+#define read_csr_gcntc()		csr_read64(LOONGARCH_CSR_GCNTC)
+#define write_csr_gcntc(val)		csr_write64(val, LOONGARCH_CSR_GCNTC)
+
+/* Guest CSRS read and write */
+#define read_gcsr_crmd()		gcsr_read(LOONGARCH_CSR_CRMD)
+#define write_gcsr_crmd(val)		gcsr_write(val, LOONGARCH_CSR_CRMD)
+#define read_gcsr_prmd()		gcsr_read(LOONGARCH_CSR_PRMD)
+#define write_gcsr_prmd(val)		gcsr_write(val, LOONGARCH_CSR_PRMD)
+#define read_gcsr_euen()		gcsr_read(LOONGARCH_CSR_EUEN)
+#define write_gcsr_euen(val)	gcsr_write(val, LOONGARCH_CSR_EUEN)
+#define read_gcsr_misc()		gcsr_read(LOONGARCH_CSR_MISC)
+#define write_gcsr_misc(val)		gcsr_write(val, LOONGARCH_CSR_MISC)
+#define read_gcsr_ecfg()		gcsr_read(LOONGARCH_CSR_ECFG)
+#define write_gcsr_ecfg(val)		gcsr_write(val, LOONGARCH_CSR_ECFG)
+#define read_gcsr_estat()		gcsr_read(LOONGARCH_CSR_ESTAT)
+#define write_gcsr_estat(val)		gcsr_write(val, LOONGARCH_CSR_ESTAT)
+#define read_gcsr_era()			gcsr_read(LOONGARCH_CSR_ERA)
+#define write_gcsr_era(val)		gcsr_write(val, LOONGARCH_CSR_ERA)
+#define read_gcsr_badv()		gcsr_read(LOONGARCH_CSR_BADV)
+#define write_gcsr_badv(val)		gcsr_write(val, LOONGARCH_CSR_BADV)
+#define read_gcsr_badi()		gcsr_read(LOONGARCH_CSR_BADI)
+#define write_gcsr_badi(val)		gcsr_write(val, LOONGARCH_CSR_BADI)
+#define read_gcsr_eentry()		gcsr_read(LOONGARCH_CSR_EENTRY)
+#define write_gcsr_eentry(val)		gcsr_write(val, LOONGARCH_CSR_EENTRY)
+
+#define read_gcsr_tlbidx()		gcsr_read(LOONGARCH_CSR_TLBIDX)
+#define write_gcsr_tlbidx(val)		gcsr_write(val, LOONGARCH_CSR_TLBIDX)
+#define read_gcsr_tlbhi()		gcsr_read(LOONGARCH_CSR_TLBEHI)
+#define write_gcsr_tlbhi(val)		gcsr_write(val, LOONGARCH_CSR_TLBEHI)
+#define read_gcsr_tlblo0()		gcsr_read(LOONGARCH_CSR_TLBELO0)
+#define write_gcsr_tlblo0(val)		gcsr_write(val, LOONGARCH_CSR_TLBELO0)
+#define read_gcsr_tlblo1()		gcsr_read(LOONGARCH_CSR_TLBELO1)
+#define write_gcsr_tlblo1(val)		gcsr_write(val, LOONGARCH_CSR_TLBELO1)
+
+#define read_gcsr_asid()		gcsr_read(LOONGARCH_CSR_ASID)
+#define write_gcsr_asid(val)		gcsr_write(val, LOONGARCH_CSR_ASID)
+#define read_gcsr_pgdl()		gcsr_read(LOONGARCH_CSR_PGDL)
+#define write_gcsr_pgdl(val)		gcsr_write(val, LOONGARCH_CSR_PGDL)
+#define read_gcsr_pgdh()		gcsr_read(LOONGARCH_CSR_PGDH)
+#define write_gcsr_pgdh(val)		gcsr_write(val, LOONGARCH_CSR_PGDH)
+#define read_gcsr_pgd()			gcsr_read(LOONGARCH_CSR_PGD)
+#define write_gcsr_pgd(val)		gcsr_write(val, LOONGARCH_CSR_PGD)
+#define read_gcsr_pwctl0()		gcsr_read(LOONGARCH_CSR_PWCTL0)
+#define write_gcsr_pwctl0(val)		gcsr_write(val, LOONGARCH_CSR_PWCTL0)
+#define read_gcsr_pwctl1()		gcsr_read(LOONGARCH_CSR_PWCTL1)
+#define write_gcsr_pwctl1(val)		gcsr_write(val, LOONGARCH_CSR_PWCTL1)
+#define read_gcsr_stlbpgsize()		gcsr_read(LOONGARCH_CSR_STLBPGSIZE)
+#define write_gcsr_stlbpgsize(val)	gcsr_write(val, LOONGARCH_CSR_STLBPGSIZE)
+#define read_gcsr_rvacfg()		gcsr_read(LOONGARCH_CSR_RVACFG)
+#define write_gcsr_rvacfg(val)		gcsr_write(val, LOONGARCH_CSR_RVACFG)
+
+#define read_gcsr_cpuid()		gcsr_read(LOONGARCH_CSR_CPUID)
+#define write_gcsr_cpuid(val)		gcsr_write(val, LOONGARCH_CSR_CPUID)
+#define read_gcsr_prcfg1()		gcsr_read(LOONGARCH_CSR_PRCFG1)
+#define write_gcsr_prcfg1(val)		gcsr_write(val, LOONGARCH_CSR_PRCFG1)
+#define read_gcsr_prcfg2()		gcsr_read(LOONGARCH_CSR_PRCFG2)
+#define write_gcsr_prcfg2(val)		gcsr_write(val, LOONGARCH_CSR_PRCFG2)
+#define read_gcsr_prcfg3()		gcsr_read(LOONGARCH_CSR_PRCFG3)
+#define write_gcsr_prcfg3(val)		gcsr_write(val, LOONGARCH_CSR_PRCFG3)
+
+#define read_gcsr_kscratch0()		gcsr_read(LOONGARCH_CSR_KS0)
+#define write_gcsr_kscratch0(val)	gcsr_write(val, LOONGARCH_CSR_KS0)
+#define read_gcsr_kscratch1()		gcsr_read(LOONGARCH_CSR_KS1)
+#define write_gcsr_kscratch1(val)	gcsr_write(val, LOONGARCH_CSR_KS1)
+#define read_gcsr_kscratch2()		gcsr_read(LOONGARCH_CSR_KS2)
+#define write_gcsr_kscratch2(val)	gcsr_write(val, LOONGARCH_CSR_KS2)
+#define read_gcsr_kscratch3()		gcsr_read(LOONGARCH_CSR_KS3)
+#define write_gcsr_kscratch3(val)	gcsr_write(val, LOONGARCH_CSR_KS3)
+#define read_gcsr_kscratch4()		gcsr_read(LOONGARCH_CSR_KS4)
+#define write_gcsr_kscratch4(val)	gcsr_write(val, LOONGARCH_CSR_KS4)
+#define read_gcsr_kscratch5()		gcsr_read(LOONGARCH_CSR_KS5)
+#define write_gcsr_kscratch5(val)	gcsr_write(val, LOONGARCH_CSR_KS5)
+#define read_gcsr_kscratch6()		gcsr_read(LOONGARCH_CSR_KS6)
+#define write_gcsr_kscratch6(val)	gcsr_write(val, LOONGARCH_CSR_KS6)
+#define read_gcsr_kscratch7()		gcsr_read(LOONGARCH_CSR_KS7)
+#define write_gcsr_kscratch7(val)	gcsr_write(val, LOONGARCH_CSR_KS7)
+
+#define read_gcsr_timerid()		gcsr_read(LOONGARCH_CSR_TMID)
+#define write_gcsr_timerid(val)		gcsr_write(val, LOONGARCH_CSR_TMID)
+#define read_gcsr_timercfg()		gcsr_read(LOONGARCH_CSR_TCFG)
+#define write_gcsr_timercfg(val)	gcsr_write(val, LOONGARCH_CSR_TCFG)
+#define read_gcsr_timertick()		gcsr_read(LOONGARCH_CSR_TVAL)
+#define write_gcsr_timertick(val)	gcsr_write(val, LOONGARCH_CSR_TVAL)
+#define read_gcsr_timeroffset()		gcsr_read(LOONGARCH_CSR_CNTC)
+#define write_gcsr_timeroffset(val)	gcsr_write(val, LOONGARCH_CSR_CNTC)
+
+#define read_gcsr_llbctl()		gcsr_read(LOONGARCH_CSR_LLBCTL)
+#define write_gcsr_llbctl(val)		gcsr_write(val, LOONGARCH_CSR_LLBCTL)
+
+#define read_gcsr_tlbrentry()		gcsr_read(LOONGARCH_CSR_TLBRENTRY)
+#define write_gcsr_tlbrentry(val)	gcsr_write(val, LOONGARCH_CSR_TLBRENTRY)
+#define read_gcsr_tlbrbadv()		gcsr_read(LOONGARCH_CSR_TLBRBADV)
+#define write_gcsr_tlbrbadv(val)	gcsr_write(val, LOONGARCH_CSR_TLBRBADV)
+#define read_gcsr_tlbrera()		gcsr_read(LOONGARCH_CSR_TLBRERA)
+#define write_gcsr_tlbrera(val)		gcsr_write(val, LOONGARCH_CSR_TLBRERA)
+#define read_gcsr_tlbrsave()		gcsr_read(LOONGARCH_CSR_TLBRSAVE)
+#define write_gcsr_tlbrsave(val)	gcsr_write(val, LOONGARCH_CSR_TLBRSAVE)
+#define read_gcsr_tlbrelo0()		gcsr_read(LOONGARCH_CSR_TLBRELO0)
+#define write_gcsr_tlbrelo0(val)	gcsr_write(val, LOONGARCH_CSR_TLBRELO0)
+#define read_gcsr_tlbrelo1()		gcsr_read(LOONGARCH_CSR_TLBRELO1)
+#define write_gcsr_tlbrelo1(val)	gcsr_write(val, LOONGARCH_CSR_TLBRELO1)
+#define read_gcsr_tlbrehi()		gcsr_read(LOONGARCH_CSR_TLBREHI)
+#define write_gcsr_tlbrehi(val)		gcsr_write(val, LOONGARCH_CSR_TLBREHI)
+#define read_gcsr_tlbrprmd()		gcsr_read(LOONGARCH_CSR_TLBRPRMD)
+#define write_gcsr_tlbrprmd(val)	gcsr_write(val, LOONGARCH_CSR_TLBRPRMD)
+
+#define read_gcsr_directwin0()		gcsr_read(LOONGARCH_CSR_DMWIN0)
+#define write_gcsr_directwin0(val)	gcsr_write(val, LOONGARCH_CSR_DMWIN0)
+#define read_gcsr_directwin1()		gcsr_read(LOONGARCH_CSR_DMWIN1)
+#define write_gcsr_directwin1(val)	gcsr_write(val, LOONGARCH_CSR_DMWIN1)
+#define read_gcsr_directwin2()		gcsr_read(LOONGARCH_CSR_DMWIN2)
+#define write_gcsr_directwin2(val)	gcsr_write(val, LOONGARCH_CSR_DMWIN2)
+#define read_gcsr_directwin3()		gcsr_read(LOONGARCH_CSR_DMWIN3)
+#define write_gcsr_directwin3(val)	gcsr_write(val, LOONGARCH_CSR_DMWIN3)
+
 /*
  * Manipulate bits in a register.
  */
@@ -1280,15 +1450,26 @@ change_##name(unsigned long change, unsigned long val)		\
 }
 
 #define __BUILD_CSR_OP(name)	__BUILD_CSR_COMMON(csr_##name)
+#define __BUILD_GCSR_OP(name)	__BUILD_CSR_COMMON(gcsr_##name)
 
 __BUILD_CSR_OP(euen)
 __BUILD_CSR_OP(ecfg)
 __BUILD_CSR_OP(tlbidx)
+__BUILD_CSR_OP(gcfg)
+__BUILD_CSR_OP(gstat)
+__BUILD_CSR_OP(gtlbc)
+__BUILD_CSR_OP(gintc)
+__BUILD_GCSR_OP(llbctl)
+__BUILD_GCSR_OP(tlbidx)
 
 #define set_csr_estat(val)	\
 	csr_xchg32(val, val, LOONGARCH_CSR_ESTAT)
 #define clear_csr_estat(val)	\
 	csr_xchg32(~(val), val, LOONGARCH_CSR_ESTAT)
+#define set_gcsr_estat(val)	\
+	gcsr_xchg(val, val, LOONGARCH_CSR_ESTAT)
+#define clear_gcsr_estat(val)	\
+	gcsr_xchg(~(val), val, LOONGARCH_CSR_ESTAT)
 
 #endif /* __ASSEMBLY__ */
 

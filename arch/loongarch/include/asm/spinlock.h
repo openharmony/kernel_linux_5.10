@@ -11,6 +11,9 @@
 #ifndef _ASM_SPINLOCK_H
 #define _ASM_SPINLOCK_H
 
+/* How long a lock should spin before we consider blocking */
+#define SPIN_THRESHOLD  (1 << 15)
+
 #include <asm/processor.h>
 #include <asm/qrwlock.h>
 #include <asm/qspinlock.h>

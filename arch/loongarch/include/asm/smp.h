@@ -31,7 +31,7 @@ struct plat_smp_ops {
 #endif
 };
 
-extern const struct plat_smp_ops *mp_ops;
+extern struct plat_smp_ops *mp_ops;
 void register_smp_ops(const struct plat_smp_ops *ops);
 
 static inline void plat_smp_setup(void)

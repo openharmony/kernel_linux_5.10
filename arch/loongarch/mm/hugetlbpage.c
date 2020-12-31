@@ -54,11 +54,13 @@ int pmd_huge(pmd_t pmd)
 {
 	return (pmd_val(pmd) & _PAGE_HUGE) != 0;
 }
+EXPORT_SYMBOL(pmd_huge);
 
 int pud_huge(pud_t pud)
 {
 	return (pud_val(pud) & _PAGE_HUGE) != 0;
 }
+EXPORT_SYMBOL(pud_huge);
 
 uint64_t pmd_to_entrylo(unsigned long pmd_val)
 {
