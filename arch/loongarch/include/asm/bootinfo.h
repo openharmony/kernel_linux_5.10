@@ -21,6 +21,8 @@ extern void early_init(void);
 extern void init_environ(void);
 extern void platform_init(void);
 extern void plat_mem_setup(void);
+extern void plat_swiotlb_setup(void);
+extern int __init init_numa_memory(void);
 
 struct loongson_board_info {
 	int bios_size;

@@ -215,6 +215,9 @@ static void loongson3_init_secondary(void)
 	else
 		xconf_writel(0xffffffff, ipi_en_regs[cpu_logical_map(cpu)]);
 
+#ifdef CONFIG_NUMA
+	numa_add_cpu(cpu);
+#endif
 	per_cpu(cpu_state, cpu) = CPU_ONLINE;
 	cpu_data[cpu].core =
 		     cpu_logical_map(cpu) % loongson_sysconf.cores_per_package;
@@ -318,6 +321,9 @@ static int loongson3_cpu_disable(void)
 	if (io_master(cpu))
 		return -EBUSY;
 
+#ifdef CONFIG_NUMA
+	numa_remove_cpu(cpu);
+#endif
 	set_cpu_online(cpu, false);
 	calculate_cpu_foreign_map();
 	local_irq_save(flags);

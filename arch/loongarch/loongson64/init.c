@@ -123,6 +123,9 @@ void __init platform_init(void)
 	acpi_boot_init();
 #endif
 
+#ifdef CONFIG_NUMA
+	init_numa_memory();
+#endif
 	dmi_setup();
 	smbios_parse();
 	pr_info("The BIOS Version: %s\n",b_info.bios_version);

@@ -24,6 +24,7 @@
 #include <asm/processor.h>
 #include <asm/idle.h>
 #include <asm/mmu_context.h>
+#include <asm/numa.h>
 #include <asm/time.h>
 #include <asm/setup.h>
 
@@ -211,14 +212,36 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 /* Preload SMP state for boot cpu */
 void smp_prepare_boot_cpu(void)
 {
-	unsigned int cpu;
+	unsigned int cpu, node, rr_node;
 
 	set_cpu_possible(0, true);
 	set_cpu_online(0, true);
 	set_my_cpu_offset(per_cpu_offset(0));
 
-	for_each_possible_cpu(cpu)
-		set_cpu_numa_node(cpu, 0);
+	rr_node = first_node(node_online_map);
+	for_each_possible_cpu(cpu) {
+		node = early_cpu_to_node(cpu);
+
+		/*
+		 * The mapping between present cpus and nodes has been
+		 * built during MADT and SRAT parsing.
+		 *
+		 * If possible cpus = present cpus here, early_cpu_to_node
+		 * will return valid node.
+		 *
+		 * If possible cpus > present cpus here (e.g. some possible
+		 * cpus will be added by cpu-hotplug later), for possible but
+		 * not present cpus, early_cpu_to_node will return NUMA_NO_NODE,
+		 * and we just map them to online nodes in round-robin way.
+		 * Once hotplugged, new correct mapping will be built for them.
+		 * */
+		if (node != NUMA_NO_NODE)
+			set_cpu_numa_node(cpu, node);
+		else {
+			set_cpu_numa_node(cpu, rr_node);
+			rr_node = next_node_in(rr_node, node_online_map);
+		}
+	}
 }
 
 int __cpu_up(unsigned int cpu, struct task_struct *tidle)

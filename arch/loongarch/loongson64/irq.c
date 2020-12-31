@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/stddef.h>
 #include <asm/irq.h>
+#include <asm/numa.h>
 #include <asm/setup.h>
 #include <asm/loongarchregs.h>
 #include <loongson.h>
