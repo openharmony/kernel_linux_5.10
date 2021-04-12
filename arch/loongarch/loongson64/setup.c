@@ -10,6 +10,8 @@
  */
 #include <linux/export.h>
 #include <linux/init.h>
+#include <linux/libfdt.h>
+#include <linux/of_fdt.h>
 #include <asm/bootinfo.h>
 
 #ifdef CONFIG_VT
@@ -39,3 +41,14 @@ static int __init register_gop_device(void)
 	return PTR_ERR_OR_ZERO(pd);
 }
 subsys_initcall(register_gop_device);
+
+#define NR_CELLS 6
+
+void __init device_tree_init(void)
+{
+	if (!initial_boot_params)
+		return;
+
+	if (early_init_dt_verify(initial_boot_params))
+		unflatten_and_copy_device_tree();
+}

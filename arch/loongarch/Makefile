@@ -8,6 +8,7 @@ archscripts: scripts_basic
 	$(Q)$(MAKE) $(build)=arch/loongarch/boot/tools relocs
 
 KBUILD_DEFCONFIG := loongson3_defconfig
+KBUILD_DTBS      := dtbs
 
 #
 # Select the object file format to substitute into the linker script.
@@ -159,7 +160,7 @@ bootz-y			:= vmlinuz
 bootz-y			+= vmlinuz.bin
 bootz-$(CONFIG_EFI_STUB)+= vmlinuz.efi
 
-all:	$(all-y)
+all:	$(all-y) $(KBUILD_DTBS)
 
 # boot
 $(boot-y): vmlinux FORCE

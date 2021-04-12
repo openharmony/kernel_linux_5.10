@@ -146,8 +146,11 @@ config MACH_LOONGSON64
 	select SYS_SUPPORTS_HOTPLUG_CPU
 	select SYS_SUPPORTS_NUMA
 	select SYS_SUPPORTS_64BIT_KERNEL
+	select SYS_SUPPORTS_HIGHMEM
 	select SYS_SUPPORTS_RELOCATABLE
 	select ZONE_DMA32
+	select USE_OF
+	select BUILTIN_DTB
 	help
 	  This enables the support of Loongson 64-bit family of machines. These
 	  machines are based on new Loongson-3 processors (Old Loongson is MIPS
@@ -200,6 +203,7 @@ config CPU_LOONGSON64
 	bool "Loongson 64-bit CPU"
 	depends on SYS_HAS_CPU_LOONGSON64
 	select CPU_SUPPORTS_64BIT_KERNEL
+	select CPU_SUPPORTS_HIGHMEM
 	select CPU_SUPPORTS_LSX
 	select CPU_SUPPORTS_LASX
 	select GPIOLIB
@@ -401,6 +405,22 @@ config CPU_HAS_LASX
 	  Loongson Advanced SIMD Extension is 256 bit wide SIMD extension.
 
 	  If unsure, say Y.
+
+#
+# - Highmem only makes sense for the 32-bit kernel.
+# - We use SYS_SUPPORTS_HIGHMEM to offer highmem only for systems where we
+#   know they might have memory configurations that could make use of highmem
+#   support.
+#
+config HIGHMEM
+	bool "High Memory Support"
+	depends on 32BIT && CPU_SUPPORTS_HIGHMEM && SYS_SUPPORTS_HIGHMEM
+
+config CPU_SUPPORTS_HIGHMEM
+	bool
+
+config SYS_SUPPORTS_HIGHMEM
+	bool
 
 config CPU_SUPPORTS_LSX
 	bool
@@ -719,6 +739,15 @@ config ARCH_STRICT_ALIGN
 	  on all LoongArch systems. But you can disable it manually if you want
 	  to run kernel only on systems with h/w unaligned access support in
 	  order to optimise for performance.
+
+config USE_OF
+	bool
+	select OF
+	select OF_EARLY_FLATTREE
+	select IRQ_DOMAIN
+
+config BUILTIN_DTB
+	bool
 
 endmenu
 

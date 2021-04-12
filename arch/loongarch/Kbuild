@@ -20,3 +20,5 @@ obj-y += kernel/
 obj-y += mm/
 obj-y += net/
 obj-y += vdso/
+
+obj-$(CONFIG_BUILTIN_DTB) += boot/dts/
