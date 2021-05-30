@@ -82,4 +82,16 @@ void emulate_load_store_insn(struct pt_regs *regs, void __user *addr, unsigned i
 unsigned long unaligned_read(void __user *addr, void *value, unsigned long n, bool sign);
 unsigned long unaligned_write(void __user *addr, unsigned long value, unsigned long n);
 
+static inline bool is_branch_insn(union loongarch_instruction insn)
+{
+	return insn.reg1i21_format.opcode >= beqz_op &&
+			insn.reg1i21_format.opcode <= bgeu_op;
+}
+
+static inline bool is_pc_insn(union loongarch_instruction insn)
+{
+	return insn.reg1i20_format.opcode >= pcaddi_op &&
+			insn.reg1i20_format.opcode <= pcaddu18i_op;
+}
+
 #endif /* _ASM_INST_H */

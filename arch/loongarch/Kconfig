@@ -108,6 +108,7 @@ config LOONGARCH
 	select SYSCTL_ARCH_UNALIGN_ALLOW
 	select SYSCTL_ARCH_UNALIGN_NO_WARN
 	select SYSCTL_EXCEPTION_TRACE
+	select USER_STACKTRACE_SUPPORT
 
 menu "Machine selection"
 
@@ -596,6 +597,10 @@ config ARCH_MEMORY_PROBE
 	depends on MEMORY_HOTPLUG
 
 config LOCKDEP_SUPPORT
+	bool
+	default y
+
+config STACKTRACE_SUPPORT
 	bool
 	default y
 

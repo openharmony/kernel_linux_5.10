@@ -44,6 +44,7 @@
 #include <asm/mmu_context.h>
 #include <asm/types.h>
 #include <asm/stacktrace.h>
+#include <asm/unwind.h>
 
 #include "access-helper.h"
 
@@ -64,20 +65,24 @@ extern asmlinkage void handle_vint(void);
 static void show_backtrace(struct task_struct *task, const struct pt_regs *regs,
 			   const char *loglvl, bool user)
 {
-	unsigned long addr;
-	unsigned long *sp = (unsigned long *)(regs->regs[3] & ~3);
+	unsigned long pc;
+	struct unwind_state state;
+	struct pt_regs *pregs = (struct pt_regs *)regs;
 
-	printk("%sCall Trace:", loglvl);
-#ifdef CONFIG_KALLSYMS
-	printk("%s\n", loglvl);
+	if (!task)
+		task = current;
+
+	unwind_start(&state, task, pregs);
+
+#ifdef CONFIG_UNWINDER_PROLOGUE
+	if (user_mode(regs))
+		state.enable = false;
 #endif
-	while (!kstack_end(sp)) {
-		if (__get_addr(&addr, sp++, user)) {
-			printk("%s (Bad stack address)", loglvl);
-			break;
-		}
-		if (__kernel_text_address(addr))
-			print_ip_sym(loglvl, addr);
+
+	printk("%sCall Trace:\n", loglvl);
+	for (; !unwind_done(&state); unwind_next_frame(&state)) {
+		pc = unwind_get_return_address(&state);
+		print_ip_sym(loglvl, pc);
 	}
 	printk("%s\n", loglvl);
 }

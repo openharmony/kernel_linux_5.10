@@ -37,7 +37,9 @@
 #include <asm/io.h>
 #include <asm/elf.h>
 #include <asm/inst.h>
+#include <asm/stacktrace.h>
 #include <asm/irq_regs.h>
+#include <asm/unwind.h>
 #include <asm/vdso.h>
 
 /*
@@ -132,6 +134,7 @@ int copy_thread(unsigned long clone_flags, unsigned long usp,
 	childregs = (struct pt_regs *) childksp - 1;
 	/*  Put the stack after the struct pt_regs.  */
 	childksp = (unsigned long) childregs;
+	p->thread.sched_cfa = 0;
 	p->thread.csr_euen = 0;
 	p->thread.csr_crmd = csr_read32(LOONGARCH_CSR_CRMD);
 	p->thread.csr_prmd = csr_read32(LOONGARCH_CSR_PRMD);
@@ -142,6 +145,7 @@ int copy_thread(unsigned long clone_flags, unsigned long usp,
 		p->thread.reg24 = kthread_arg;
 		p->thread.reg03 = childksp;
 		p->thread.reg01 = (unsigned long) ret_from_kernel_thread;
+		p->thread.sched_ra = (unsigned long) ret_from_kernel_thread;
 		memset(childregs, 0, sizeof(struct pt_regs));
 		childregs->csr_euen = p->thread.csr_euen;
 		childregs->csr_crmd = p->thread.csr_crmd;
@@ -158,6 +162,7 @@ int copy_thread(unsigned long clone_flags, unsigned long usp,
 
 	p->thread.reg03 = (unsigned long) childregs;
 	p->thread.reg01 = (unsigned long) ret_from_fork;
+	p->thread.sched_ra = (unsigned long) ret_from_fork;
 
 	/*
 	 * New tasks lose permission to use the fpu. This accelerates context
@@ -177,9 +182,120 @@ out:
 	return 0;
 }
 
+bool in_task_stack(unsigned long stack, struct task_struct *task,
+			struct stack_info *info)
+{
+	unsigned long begin = (unsigned long)task_stack_page(task);
+	unsigned long end = begin + THREAD_SIZE;
+
+	if (stack < begin || stack >= end)
+		return false;
+
+	info->type = STACK_TYPE_TASK;
+	info->begin = begin;
+	info->end = end;
+	info->next_sp = 0;
+
+	return true;
+}
+
+bool in_irq_stack(unsigned long stack, struct stack_info *info)
+{
+	unsigned long nextsp;
+	unsigned long begin = (unsigned long)this_cpu_read(irq_stack);
+	unsigned long end = begin + IRQ_STACK_START;
+
+	if (stack < begin || stack >= end)
+		return false;
+
+	nextsp = *(unsigned long *)end;
+	if (nextsp & (SZREG - 1))
+		return false;
+
+	info->type = STACK_TYPE_IRQ;
+	info->begin = begin;
+	info->end = end;
+	info->next_sp = nextsp;
+
+	return true;
+}
+
+int get_stack_info(unsigned long stack, struct task_struct *task,
+		   struct stack_info *info)
+{
+	task = task ? : current;
+
+	if (!stack || stack & (SZREG - 1))
+		goto unknown;
+
+	if (in_task_stack(stack, task, info))
+		return 0;
+
+	if (task != current)
+		goto unknown;
+
+	if (in_irq_stack(stack, info))
+		return 0;
+
+unknown:
+	info->type = STACK_TYPE_UNKNOWN;
+	return -EINVAL;
+}
+
 unsigned long get_wchan(struct task_struct *task)
 {
-	return 0;
+	unsigned long stack_page;
+	unsigned long pc;
+	unsigned long stack_page_end __maybe_unused;
+	unsigned long frame __maybe_unused;
+	struct unwind_state state __maybe_unused;
+
+	if (!task || task == current || task->state == TASK_RUNNING)
+		return 0;
+
+	stack_page = (unsigned long)try_get_task_stack(task);
+	if (!stack_page)
+		return 0;
+
+	pc = thread_saved_ra(task);
+
+#ifdef CONFIG_UNWINDER_GUESS
+	/*
+	 * Use "guess" unwinder get wchan is not reliable.
+	 * Just calculate a simpler wchan value here.
+	 * Do nothing here.
+	 */
+#else /* CONFIG_UNWINDER_PROLOGUE */
+	stack_page_end = stack_page + THREAD_SIZE;
+	frame = thread_saved_fp(task);
+
+	if (frame >= stack_page_end || frame < stack_page)
+		goto out;
+
+	memset(&state, 0, sizeof(state));
+	state.task = task;
+	state.sp = frame;
+	state.stack_info.type = STACK_TYPE_TASK;
+	state.stack_info.begin = stack_page;
+	state.stack_info.end = stack_page_end;
+	state.stack_info.next_sp = 0;
+	state.enable = true;
+	state.first = true;
+	state.pc = pc;
+
+	while (in_sched_functions(pc)) {
+		if (!unwind_next_frame(&state)) {
+			pc = 0;
+			goto out;
+		}
+		pc = unwind_get_return_address(&state);
+	}
+
+out:
+#endif /* CONFIG_UNWINDER_GUESS */
+
+	put_task_stack(task);
+	return pc;
 }
 
 unsigned long stack_top(void)
