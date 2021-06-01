@@ -79,10 +79,20 @@ void __init setup_IRQ(void)
 
 void __init arch_init_irq(void)
 {
+	int r, ipi_irq;
+	static int ipi_dummy_dev;
+
 	clear_csr_ecfg(ECFG0_IM);
 	clear_csr_estat(ESTATF_IP);
 
 	setup_IRQ();
+#ifdef CONFIG_SMP
+	ipi_irq = get_ipi_irq();
+	irq_set_percpu_devid(ipi_irq);
+	r = request_percpu_irq(ipi_irq, loongson3_ipi_interrupt, "IPI", &ipi_dummy_dev);
+	if (r < 0)
+		panic("IPI IRQ request failed\n");
+#endif
 
 	set_csr_ecfg(ECFGF_IP0 | ECFGF_IP1 | ECFGF_IP2 | ECFGF_IPI | ECFGF_PMC);
 }

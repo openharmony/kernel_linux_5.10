@@ -2,6 +2,8 @@
 #ifndef __ASM_MACH_LOONGSON64_IRQ_H_
 #define __ASM_MACH_LOONGSON64_IRQ_H_
 
+#include <linux/irqreturn.h>
+
 #define MAX_IO_PICS 2
 #define NR_IRQS	(64 + (256 * MAX_IO_PICS))
 
@@ -79,5 +81,7 @@ extern struct irq_domain *liointc_domain;
 extern struct irq_domain *pch_lpc_domain;
 extern struct irq_domain *pch_msi_domain[MAX_IO_PICS];
 extern struct irq_domain *pch_pic_domain[MAX_IO_PICS];
+
+extern irqreturn_t loongson3_ipi_interrupt(int irq, void *dev);
 
 #endif /* __ASM_MACH_LOONGSON64_IRQ_H_ */

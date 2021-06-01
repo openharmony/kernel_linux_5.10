@@ -92,7 +92,14 @@ vmalloc_done_load:
 	slli.d	t0, t0, _PTE_T_LOG2
 	add.d	t1, ra, t0
 
+#ifdef CONFIG_SMP
+smp_pgtable_change_load:
+#endif
+#ifdef CONFIG_SMP
+	ll.d	t0, t1, 0
+#else
 	ld.d	t0, t1, 0
+#endif
 	tlbsrch
 
 	srli.d	ra, t0, _PAGE_PRESENT_SHIFT
@@ -100,7 +107,12 @@ vmalloc_done_load:
 	beq	ra, $r0, nopage_tlb_load
 
 	ori	t0, t0, _PAGE_VALID
+#ifdef CONFIG_SMP
+	sc.d	t0, t1, 0
+	beq	t0, $r0, smp_pgtable_change_load
+#else
 	st.d	t0, t1, 0
+#endif
 	ori	t1, t1, 8
 	xori	t1, t1, 8
 	ld.d	t0, t1, 0
@@ -124,14 +136,24 @@ vmalloc_load:
 	 * spots a huge page.
 	 */
 tlb_huge_update_load:
+#ifdef CONFIG_SMP
+	ll.d	t0, t1, 0
+#else
 	ld.d	t0, t1, 0
+#endif
 	srli.d	ra, t0, _PAGE_PRESENT_SHIFT
 	andi	ra, ra, 1
 	beq	ra, $r0, nopage_tlb_load
 	tlbsrch
 
 	ori	t0, t0, _PAGE_VALID
+#ifdef CONFIG_SMP
+	sc.d	t0, t1, 0
+	beq	t0, $r0, tlb_huge_update_load
+	ld.d	t0, t1, 0
+#else
 	st.d	t0, t1, 0
+#endif
 	addu16i.d	t1, $r0, -(CSR_TLBIDX_EHINV >> 16)
 	addi.d	ra, t1, 0
 	csrxchg	ra, t1, LOONGARCH_CSR_TLBIDX
@@ -177,6 +199,7 @@ tlb_huge_update_load:
 	csrxchg		t1, t0, LOONGARCH_CSR_TLBIDX
 
 nopage_tlb_load:
+	dbar	0
 	csrrd	ra, EXCEPTION_KS2
 	la.abs	t0, tlb_do_page_fault_0
 	jirl	$r0, t0, 0
@@ -233,7 +256,14 @@ vmalloc_done_store:
 	slli.d	t0, t0, _PTE_T_LOG2
 	add.d	t1, ra, t0
 
+#ifdef CONFIG_SMP
+smp_pgtable_change_store:
+#endif
+#ifdef CONFIG_SMP
+	ll.d	t0, t1, 0
+#else
 	ld.d	t0, t1, 0
+#endif
 	tlbsrch
 
 	srli.d	ra, t0, _PAGE_PRESENT_SHIFT
@@ -242,7 +272,12 @@ vmalloc_done_store:
 	bne	ra, $r0, nopage_tlb_store
 
 	ori	t0, t0, (_PAGE_VALID | _PAGE_DIRTY | _PAGE_MODIFIED)
+#ifdef CONFIG_SMP
+	sc.d	t0, t1, 0
+	beq	t0, $r0, smp_pgtable_change_store
+#else
 	st.d	t0, t1, 0
+#endif
 
 	ori	t1, t1, 8
 	xori	t1, t1, 8
@@ -267,7 +302,11 @@ vmalloc_store:
 	 * spots a huge page.
 	 */
 tlb_huge_update_store:
+#ifdef CONFIG_SMP
+	ll.d	t0, t1, 0
+#else
 	ld.d	t0, t1, 0
+#endif
 	srli.d	ra, t0, _PAGE_PRESENT_SHIFT
 	andi	ra, ra, ((_PAGE_PRESENT | _PAGE_WRITE) >> _PAGE_PRESENT_SHIFT)
 	xori	ra, ra, ((_PAGE_PRESENT | _PAGE_WRITE) >> _PAGE_PRESENT_SHIFT)
@@ -276,7 +315,13 @@ tlb_huge_update_store:
 	tlbsrch
 	ori	t0, t0, (_PAGE_VALID | _PAGE_DIRTY | _PAGE_MODIFIED)
 
+#ifdef CONFIG_SMP
+	sc.d	t0, t1, 0
+	beq	t0, $r0, tlb_huge_update_store
+	ld.d	t0, t1, 0
+#else
 	st.d	t0, t1, 0
+#endif
 	addu16i.d	t1, $r0, -(CSR_TLBIDX_EHINV >> 16)
 	addi.d	ra, t1, 0
 	csrxchg	ra, t1, LOONGARCH_CSR_TLBIDX
@@ -322,6 +367,7 @@ tlb_huge_update_store:
 	csrxchg		t1, t0, LOONGARCH_CSR_TLBIDX
 
 nopage_tlb_store:
+	dbar	0
 	csrrd	ra, EXCEPTION_KS2
 	la.abs	t0, tlb_do_page_fault_1
 	jirl	$r0, t0, 0
@@ -377,7 +423,14 @@ vmalloc_done_modify:
 	slli.d	t0, t0, _PTE_T_LOG2
 	add.d	t1, ra, t0
 
+#ifdef CONFIG_SMP
+smp_pgtable_change_modify:
+#endif
+#ifdef CONFIG_SMP
+	ll.d	t0, t1, 0
+#else
 	ld.d	t0, t1, 0
+#endif
 	tlbsrch
 
 	srli.d	ra, t0, _PAGE_WRITE_SHIFT
@@ -385,7 +438,12 @@ vmalloc_done_modify:
 	beq	ra, $r0, nopage_tlb_modify
 
 	ori	t0, t0, (_PAGE_VALID | _PAGE_DIRTY | _PAGE_MODIFIED)
+#ifdef CONFIG_SMP
+	sc.d	t0, t1, 0
+	beq	t0, $r0, smp_pgtable_change_modify
+#else
 	st.d	t0, t1, 0
+#endif
 	ori	t1, t1, 8
 	xori	t1, t1, 8
 	ld.d	t0, t1, 0
@@ -409,7 +467,11 @@ vmalloc_modify:
 	 * build_tlbchange_handler_head spots a huge page.
 	 */
 tlb_huge_update_modify:
+#ifdef CONFIG_SMP
+	ll.d	t0, t1, 0
+#else
 	ld.d	t0, t1, 0
+#endif
 
 	srli.d	ra, t0, _PAGE_WRITE_SHIFT
 	andi	ra, ra, 1
@@ -418,7 +480,13 @@ tlb_huge_update_modify:
 	tlbsrch
 	ori	t0, t0, (_PAGE_VALID | _PAGE_DIRTY | _PAGE_MODIFIED)
 
+#ifdef CONFIG_SMP
+	sc.d	t0, t1, 0
+	beq	t0, $r0, tlb_huge_update_modify
+	ld.d	t0, t1, 0
+#else
 	st.d	t0, t1, 0
+#endif
 	/*
 	 * A huge PTE describes an area the size of the
 	 * configured huge page size. This is twice the
@@ -458,6 +526,7 @@ tlb_huge_update_modify:
 	csrxchg	t1, t0, LOONGARCH_CSR_TLBIDX
 
 nopage_tlb_modify:
+	dbar	0
 	csrrd	ra, EXCEPTION_KS2
 	la.abs	t0, tlb_do_page_fault_1
 	jirl	$r0, t0, 0

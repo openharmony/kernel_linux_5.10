@@ -59,6 +59,7 @@ config LOONGARCH
 	select GENERIC_LIB_UCMPDI2
 	select GENERIC_PCI_IOMAP
 	select GENERIC_SCHED_CLOCK
+	select GENERIC_SMP_IDLE_THREAD
 	select GENERIC_STRNCPY_FROM_USER
 	select GENERIC_STRNLEN_USER
 	select GENERIC_TIME_VSYSCALL
@@ -91,7 +92,7 @@ config LOONGARCH
 	select HAVE_RSEQ
 	select HAVE_SYSCALL_TRACEPOINTS
 	select HAVE_TIF_NOHZ
-	select HAVE_VIRT_CPU_ACCOUNTING_GEN if 64BIT
+	select HAVE_VIRT_CPU_ACCOUNTING_GEN if 64BIT || !SMP
 	select IRQ_FORCED_THREADING
 	select MODULES_USE_ELF_RELA if MODULES
 	select OF
@@ -122,6 +123,8 @@ config MACH_LOONGSON64
 	select NR_CPUS_DEFAULT_64
 	select SPARSE_IRQ
 	select SYS_HAS_CPU_LOONGSON64
+	select SYS_SUPPORTS_SMP
+	select SYS_SUPPORTS_HOTPLUG_CPU
 	select SYS_SUPPORTS_64BIT_KERNEL
 	select ZONE_DMA32
 	help
@@ -144,6 +147,9 @@ config GENERIC_CALIBRATE_DELAY
 config SCHED_OMIT_FRAME_POINTER
 	bool
 	default y
+
+config SYS_SUPPORTS_HOTPLUG_CPU
+	bool
 
 config GENERIC_CSUM
 	def_bool y
@@ -397,6 +403,74 @@ config EFI
 	help
 	  This enables the kernel to use EFI runtime services that are
 	  available (such as the EFI variable services).
+
+config SMP
+	bool "Multi-Processing support"
+	depends on SYS_SUPPORTS_SMP
+	help
+	  This enables support for systems with more than one CPU. If you have
+	  a system with only one CPU, say N. If you have a system with more
+	  than one CPU, say Y.
+
+	  If you say N here, the kernel will run on uni- and multiprocessor
+	  machines, but will use only one CPU of a multiprocessor machine. If
+	  you say Y here, the kernel will run on many, but not all,
+	  uniprocessor machines. On a uniprocessor machine, the kernel
+	  will run faster if you say N here.
+
+	  See also the SMP-HOWTO available at <http://www.tldp.org/docs.html#howto>.
+
+	  If you don't know what to do here, say N.
+
+config HOTPLUG_CPU
+	bool "Support for hot-pluggable CPUs"
+	select GENERIC_IRQ_MIGRATION
+	depends on SMP && SYS_SUPPORTS_HOTPLUG_CPU
+	help
+	  Say Y here to allow turning CPUs off and on. CPUs can be
+	  controlled through /sys/devices/system/cpu.
+	  (Note: power management support will enable this option
+	    automatically on SMP systems. )
+	  Say N if you want to disable CPU hotplug.
+
+config SYS_SUPPORTS_SMP
+	bool
+
+config NR_CPUS_DEFAULT_4
+	bool
+
+config NR_CPUS_DEFAULT_8
+	bool
+
+config NR_CPUS_DEFAULT_16
+	bool
+
+config NR_CPUS_DEFAULT_32
+	bool
+
+config NR_CPUS_DEFAULT_64
+	bool
+
+config NR_CPUS
+	int "Maximum number of CPUs (2-256)"
+	range 2 256
+	depends on SMP
+	default "4" if NR_CPUS_DEFAULT_4
+	default "8" if NR_CPUS_DEFAULT_8
+	default "16" if NR_CPUS_DEFAULT_16
+	default "32" if NR_CPUS_DEFAULT_32
+	default "64" if NR_CPUS_DEFAULT_64
+	help
+	  This allows you to specify the maximum number of CPUs which this
+	  kernel will support.  The maximum supported value is 32 for 32-bit
+	  kernel and 64 for 64-bit kernels; the minimum value which makes
+	  sense is 1 for Qemu (useful only for kernel debugging purposes)
+	  and 2 for all others.
+
+	  This is purely to save memory - each supported CPU adds
+	  approximately eight kilobytes to the kernel image.  For best
+	  performance should round up your number of processors to the next
+	  power of two.
 
 source "kernel/Kconfig.hz"
 
