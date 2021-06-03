@@ -9,6 +9,7 @@
 #include <linux/memblock.h>
 #include <linux/initrd.h>
 #include <linux/kexec.h>
+#include <linux/cpu.h>
 #include <linux/crash_dump.h>
 #include <linux/root_dev.h>
 #include <linux/console.h>
@@ -20,6 +21,7 @@
 #include <linux/swiotlb.h>
 
 #include <asm/addrspace.h>
+#include <asm/alternative.h>
 #include <asm/bootinfo.h>
 #include <asm/cache.h>
 #include <asm/cpu.h>
@@ -55,6 +57,11 @@ static struct resource bss_resource = { .name = "Kernel bss", };
 
 unsigned long __kaslr_offset __ro_after_init;
 EXPORT_SYMBOL(__kaslr_offset);
+
+void __init arch_cpu_finalize_init(void)
+{
+	alternative_instructions();
+}
 
 static void *detect_magic __initdata = detect_memory_region;
 
