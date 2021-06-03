@@ -71,6 +71,13 @@ void error(char *x)
 #include "../../../../lib/decompress_unzstd.c"
 #endif
 
+const unsigned long __stack_chk_guard = 0x000a0dff;
+
+void __stack_chk_fail(void)
+{
+	error("stack-protector: Kernel stack is corrupted\n");
+}
+
 void decompress_kernel(unsigned long boot_heap_start, long kdump_reloc_offset)
 {
 	unsigned long zimage_start, zimage_size;
