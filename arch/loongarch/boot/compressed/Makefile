@@ -3,6 +3,8 @@
 # Author: Huacai Chen <chenhuacai@loongson.cn>
 # Copyright (C) 2020 Loongson Technology Corporation Limited
 
+OBJECT_FILES_NON_STANDARD	:= y
+
 include $(srctree)/arch/loongarch/Kbuild.platforms
 
 # set the default size of the mallocing area for decompressing

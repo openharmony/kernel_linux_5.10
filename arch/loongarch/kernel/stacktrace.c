@@ -106,6 +106,76 @@ void save_stack_trace_tsk(struct task_struct *tsk,
 }
 EXPORT_SYMBOL_GPL(save_stack_trace_tsk);
 
+#ifdef CONFIG_HAVE_RELIABLE_STACKTRACE
+
+static int __always_inline
+__save_stack_trace_reliable(struct stack_trace *trace,
+			    struct task_struct *tsk)
+{
+	struct unwind_state state;
+	struct pt_regs dummyregs;
+	struct pt_regs *regs = &dummyregs;
+	unsigned long addr;
+
+	if (tsk == current) {
+		regs->csr_era = (unsigned long)__builtin_return_address(0);
+		regs->regs[3] = (unsigned long)__builtin_frame_address(0);
+	} else {
+		regs->csr_era = thread_saved_ra(tsk);
+		regs->regs[3] = thread_saved_fp(tsk);
+	}
+
+	for (unwind_start(&state, tsk, regs);
+	     !unwind_done(&state) && !unwind_error(&state);
+	     unwind_next_frame(&state)) {
+
+		addr = unwind_get_return_address(&state);
+
+		/*
+		 * A NULL or invalid return address probably means there's some
+		 * generated code which __kernel_text_address() doesn't know
+		 * about.
+		 */
+		if (!addr)
+			return -EINVAL;
+
+		if (!consume_entry(trace, addr))
+			return -EINVAL;
+	}
+
+	/* Check for stack corruption */
+	if (unwind_error(&state))
+		return -EINVAL;
+
+	return 0;
+}
+
+/*
+ * This function returns an error if it detects any unreliable features of the
+ * stack.  Otherwise it guarantees that the stack trace is reliable.
+ *
+ * If the task is not 'current', the caller *must* ensure the task is inactive.
+ */
+int save_stack_trace_tsk_reliable(struct task_struct *tsk,
+				  struct stack_trace *trace)
+{
+	int ret;
+
+	/*
+	 * If the task doesn't have a stack (e.g., a zombie), the stack is
+	 * "reliably" empty.
+	 */
+	if (!try_get_task_stack(tsk))
+		return 0;
+
+	ret = __save_stack_trace_reliable(trace, tsk);
+
+	put_task_stack(tsk);
+
+	return ret;
+}
+#endif /* CONFIG_HAVE_RELIABLE_STACKTRACE */
+
 static int
 copy_stack_frame(unsigned long fp, struct stack_frame *frame)
 {

@@ -31,6 +31,7 @@
 #include <asm/sections.h>
 #include <asm/setup.h>
 #include <asm/smp.h>
+#include <asm/unwind.h>
 
 DEFINE_PER_CPU(unsigned long, kernelsp);
 unsigned long fw_arg0, fw_arg1, fw_arg2;
@@ -368,6 +369,7 @@ void __init setup_arch(char **cmdline_p)
 {
 	cpu_probe();
 	*cmdline_p = boot_command_line;
+	unwind_init();
 
 	early_init();
 	pagetable_init();

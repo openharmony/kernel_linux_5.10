@@ -7,6 +7,8 @@
 # Drop some uninteresting sections in the kernel.
 # This is only relevant for ELF kernels but doesn't hurt a.out
 #
+OBJECT_FILES_NON_STANDARD	:= y
+
 drop-sections := .comment .note .options
 strip-flags   := $(addprefix --remove-section=,$(drop-sections))
 

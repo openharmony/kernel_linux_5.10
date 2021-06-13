@@ -7,6 +7,7 @@
 #ifndef _ASM_UNWIND_H
 #define _ASM_UNWIND_H
 
+#include <linux/module.h>
 #include <linux/sched.h>
 
 #include <asm/ptrace.h>
@@ -15,10 +16,13 @@
 struct unwind_state {
 	struct stack_info stack_info;
 	struct task_struct *task;
-#ifdef CONFIG_UNWINDER_PROLOGUE
+	int graph_idx;
+#if defined(CONFIG_UNWINDER_PROLOGUE)
 	unsigned long sp, pc, ra;
 	bool enable;
 	bool first;
+#elif defined(CONFIG_UNWINDER_ORC)
+	unsigned long sp, pc, fp, ra;
 #else /* CONFIG_UNWINDER_GUESS */
 	unsigned long sp, pc;
 	bool first;
@@ -40,4 +44,12 @@ static inline bool unwind_error(struct unwind_state *state)
 {
 	return state->error;
 }
+
+#ifdef CONFIG_UNWINDER_ORC
+void unwind_init(void);
+void unwind_module_init(struct module *mod, void *orc_ip, size_t orc_ip_size, void *orc, size_t orc_size);
+#else
+static inline void unwind_init(void) {}
+static inline void unwind_module_init(struct module *mod, void *orc_ip, size_t orc_ip_size, void *orc, size_t orc_size) {}
+#endif /* CONFIG_UNWINDER_ORC */
 #endif /* _ASM_UNWIND_H */

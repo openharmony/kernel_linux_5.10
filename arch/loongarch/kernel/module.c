@@ -19,6 +19,8 @@
 #include <linux/kernel.h>
 #include <asm/alternative.h>
 
+#include <asm/unwind.h>
+
 static inline bool signed_imm_check(long val, unsigned int bit)
 {
 	return -(1L << (bit - 1)) <= val && val < (1L << (bit - 1));
@@ -506,13 +508,25 @@ void *module_alloc(unsigned long size)
 int module_finalize(const Elf_Ehdr *hdr,
 		    const Elf_Shdr *sechdrs, struct module *mod)
 {
-	const Elf_Shdr *s, *se;
-	const char *secstrs = (void *)hdr + sechdrs[hdr->e_shstrndx].sh_offset;
+	char *secstrings;
+	const Elf_Shdr *s, *orc = NULL, *orc_ip = NULL, *alt = NULL;
 
-	for (s = sechdrs, se = sechdrs + hdr->e_shnum; s < se; s++) {
-		if (!strcmp(".altinstructions", secstrs + s->sh_name))
-			apply_alternatives((void *)s->sh_addr, (void *)s->sh_addr + s->sh_size);
+	secstrings = (void *)hdr + sechdrs[hdr->e_shstrndx].sh_offset;
+
+	for (s = sechdrs; s < sechdrs + hdr->e_shnum; s++) {
+		if (!strcmp(".altinstructions", secstrings + s->sh_name))
+			alt = s;
+		if (!strcmp(".orc_unwind", secstrings + s->sh_name))
+			orc = s;
+		if (!strcmp(".orc_unwind_ip", secstrings + s->sh_name))
+			orc_ip = s;
 	}
+
+	if (alt)
+		apply_alternatives((void *)alt->sh_addr, (void *)alt->sh_addr + alt->sh_size);
+
+	if (orc && orc_ip)
+		unwind_module_init(mod, (void *)orc_ip->sh_addr, orc_ip->sh_size, (void *)orc->sh_addr, orc->sh_size);
 
 	return 0;
 }
