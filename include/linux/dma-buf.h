@@ -335,8 +335,6 @@ struct dma_buf {
 	struct dma_buf_sysfs_entry {
 		struct kobject kobj;
 		struct dma_buf *dmabuf;
-		unsigned int attachment_uid;
-		struct kset *attach_stats_kset;
 	} *sysfs_entry;
 #endif
 };
@@ -388,7 +386,6 @@ struct dma_buf_attach_ops {
  * @importer_ops: importer operations for this attachment, if provided
  * dma_buf_map/unmap_attachment() must be called with the dma_resv lock held.
  * @importer_priv: importer specific attachment data.
- * @sysfs_entry: For exposing information about this attachment in sysfs.
  *
  * This structure holds the attachment information between the dma_buf buffer
  * and its user device(s). The list contains one attachment struct per device
@@ -409,13 +406,6 @@ struct dma_buf_attachment {
 	const struct dma_buf_attach_ops *importer_ops;
 	void *importer_priv;
 	void *priv;
-#ifdef CONFIG_DMABUF_SYSFS_STATS
-	/* for sysfs stats */
-	struct dma_buf_attach_sysfs_entry {
-		struct kobject kobj;
-		unsigned int map_counter;
-	} *sysfs_entry;
-#endif
 };
 
 /**
