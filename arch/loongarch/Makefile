@@ -135,6 +135,8 @@ libs-y += arch/loongarch/lib/
 # See arch/loongarch/Kbuild for content of core part of the kernel
 core-y += arch/loongarch/
 
+drivers-y		+= arch/loongarch/crypto/
+
 # suspend and hibernation support
 drivers-$(CONFIG_PM)	+= arch/loongarch/power/
 

@@ -663,6 +663,14 @@ config CRYPTO_CRC32_MIPS
 	  CRC32c and CRC32 CRC algorithms implemented using mips crypto
 	  instructions, when available.
 
+config CRYPTO_CRC32_LOONGARCH
+	tristate "CRC32c and CRC32 CRC algorithm (LoongArch)"
+	depends on LOONGARCH
+	select CRC32
+	select CRYPTO_HASH
+	help
+	  CRC32c and CRC32 CRC algorithms implemented using LoongArch
+	  CRC32 instructions, when available.
 
 config CRYPTO_XXHASH
 	tristate "xxHash hash algorithm"
