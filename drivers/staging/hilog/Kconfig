@@ -1,0 +1,21 @@
+#
+# Sensor device configuration
+#
+
+config HILOG
+	tristate "Hilog support"
+	default n
+	help
+	  hilog buffer manager.
+
+	  Hilog is a simple log manager for OpenHarmonyOS.
+	  log string write to /dev/hilog, and the hilog driver copy it
+	  to the ring buffer. Ring buffer can be read from userspace.
+
+	  If unsure, say N.
+
+if HILOG
+config HI_LOG_BUFFER_SIZE
+	int "hi log buffer size"
+	default "2048"
+endif
