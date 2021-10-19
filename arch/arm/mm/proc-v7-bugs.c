@@ -9,6 +9,19 @@
 #include <asm/spectre.h>
 #include <asm/system_misc.h>
 
+/*
+ * 32-bit ARM spectre hardening, enabled by default, can be disabled via boot
+ * cmdline param 'nospectre_v2' to avoid performance regression.
+ */
+int nospectre_v2 __read_mostly;
+
+static int __init nospectre_v2_setup(char *str)
+{
+	nospectre_v2 = 1;
+	return 0;
+}
+early_param("nospectre_v2", nospectre_v2_setup);
+
 #ifdef CONFIG_ARM_PSCI
 static int __maybe_unused spectre_v2_get_cpu_fw_mitigation_state(void)
 {
