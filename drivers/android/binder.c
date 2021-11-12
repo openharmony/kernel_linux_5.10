@@ -3107,7 +3107,7 @@ static void binder_transaction(struct binder_proc *proc,
 		t->from = thread;
 	else
 		t->from = NULL;
-	t->sender_euid = proc->cred->euid;
+	t->sender_euid = task_euid(proc->tsk);
 #ifdef CONFIG_ACCESS_TOKENID
 	t->sender_tokenid = current->token;
 	t->first_tokenid = current->ftoken;
