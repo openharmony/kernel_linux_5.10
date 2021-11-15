@@ -6135,7 +6135,11 @@ static struct io_wq_work *io_wq_submit_work(struct io_wq_work *work)
 	/* if NO_CANCEL is set, we must still run the work */
 	if ((work->flags & (IO_WQ_WORK_CANCEL|IO_WQ_WORK_NO_CANCEL)) ==
 				IO_WQ_WORK_CANCEL) {
-		ret = -ECANCELED;
+		/* io-wq is going to take down one */
+		refcount_inc(&req->refs);
+		percpu_ref_get(&req->ctx->refs);
+		io_req_task_work_add_fallback(req, io_req_task_cancel);
+		return io_steal_work(req);
 	}
 
 	if (!ret) {
