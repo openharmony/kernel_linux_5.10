@@ -1081,11 +1081,20 @@ int bpf_prog_array_copy(struct bpf_prog_array *old_array,
 			struct bpf_prog *include_prog,
 			struct bpf_prog_array **new_array);
 
+struct bpf_run_ctx {};
+
+struct bpf_cg_run_ctx {
+	struct bpf_run_ctx run_ctx;
+	struct bpf_prog_array_item *prog_item;
+};
+
 #define __BPF_PROG_RUN_ARRAY(array, ctx, func, check_non_null, set_cg_storage) \
 	({						\
 		struct bpf_prog_array_item *_item;	\
 		struct bpf_prog *_prog;			\
 		struct bpf_prog_array *_array;		\
+		struct bpf_run_ctx *old_run_ctx;	\
+		struct bpf_cg_run_ctx run_ctx;		\
 		u32 _ret = 1;				\
 		migrate_disable();			\
 		rcu_read_lock();			\
@@ -1093,17 +1102,13 @@ int bpf_prog_array_copy(struct bpf_prog_array *old_array,
 		if (unlikely(check_non_null && !_array))\
 			goto _out;			\
 		_item = &_array->items[0];		\
-		while ((_prog = READ_ONCE(_item->prog))) {		\
-			if (!set_cg_storage) {			\
-				_ret &= func(_prog, ctx);	\
-			} else {				\
-				if (unlikely(bpf_cgroup_storage_set(_item->cgroup_storage)))	\
-					break;			\
-				_ret &= func(_prog, ctx);	\
-				bpf_cgroup_storage_unset();	\
-			}				\
+		old_run_ctx = bpf_set_run_ctx(&run_ctx.run_ctx);\
+		while ((_prog = READ_ONCE(_item->prog))) {	\
+			run_ctx.prog_item = _item;	\
+			_ret &= func(_prog, ctx);	\
 			_item++;			\
 		}					\
+		bpf_reset_run_ctx(old_run_ctx);		\
 _out:							\
 		rcu_read_unlock();			\
 		migrate_enable();			\
@@ -1137,6 +1142,8 @@ _out:							\
 		struct bpf_prog_array_item *_item;	\
 		struct bpf_prog *_prog;			\
 		struct bpf_prog_array *_array;		\
+		struct bpf_run_ctx *old_run_ctx;	\
+		struct bpf_cg_run_ctx run_ctx;		\
 		u32 ret;				\
 		u32 _ret = 1;				\
 		u32 _cn = 0;				\
@@ -1144,15 +1151,15 @@ _out:							\
 		rcu_read_lock();			\
 		_array = rcu_dereference(array);	\
 		_item = &_array->items[0];		\
+		old_run_ctx = bpf_set_run_ctx(&run_ctx.run_ctx);	\
 		while ((_prog = READ_ONCE(_item->prog))) {		\
-			if (unlikely(bpf_cgroup_storage_set(_item->cgroup_storage)))	\
-				break;			\
+			run_ctx.prog_item = _item;	\
 			ret = func(_prog, ctx);		\
-			bpf_cgroup_storage_unset();	\
 			_ret &= (ret & 1);		\
 			_cn |= (ret & 2);		\
 			_item++;			\
 		}					\
+		bpf_reset_run_ctx(old_run_ctx);		\
 		rcu_read_unlock();			\
 		migrate_enable();			\
 		if (_ret)				\
@@ -1200,6 +1207,20 @@ static inline void bpf_enable_instrumentation(void)
 	else
 		__this_cpu_dec(bpf_prog_active);
 	migrate_enable();
+}
+
+static inline struct bpf_run_ctx *bpf_set_run_ctx(struct bpf_run_ctx *new_ctx)
+{
+	struct bpf_run_ctx *old_ctx;
+
+	old_ctx = current->bpf_ctx;
+	current->bpf_ctx = new_ctx;
+	return old_ctx;
+}
+
+static inline void bpf_reset_run_ctx(struct bpf_run_ctx *old_ctx)
+{
+	current->bpf_ctx = old_ctx;
 }
 
 extern const struct file_operations bpf_map_fops;
