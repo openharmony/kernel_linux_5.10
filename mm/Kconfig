@@ -528,6 +528,16 @@ config CMA_AREAS
 
 	  If unsure, leave the default value "7" in UMA and "19" in NUMA.
 
+config CMA_REUSE
+	bool "CMA reuse feature"
+	depends on CMA
+	help
+	  If enabled, it will add MIGRATE_CMA to pcp lists and movable
+	  allocations with __GFP_CMA flag will use cma areas prior to
+	  movable areas.
+
+	  It improves the utilization ratio of cma areas.
+
 config MEM_SOFT_DIRTY
 	bool "Track memory changes"
 	depends on CHECKPOINT_RESTORE && HAVE_ARCH_SOFT_DIRTY && PROC_FS

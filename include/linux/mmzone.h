@@ -42,9 +42,12 @@ enum migratetype {
 	MIGRATE_UNMOVABLE,
 	MIGRATE_MOVABLE,
 	MIGRATE_RECLAIMABLE,
+#ifdef CONFIG_CMA_REUSE
+	MIGRATE_CMA,
+#endif
 	MIGRATE_PCPTYPES,	/* the number of types on the pcp lists */
 	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,
-#ifdef CONFIG_CMA
+#if defined(CONFIG_CMA) && !defined(CONFIG_CMA_REUSE)
 	/*
 	 * MIGRATE_CMA migration type is designed to mimic the way
 	 * ZONE_MOVABLE works.  Only movable pages can be allocated
@@ -75,6 +78,12 @@ extern const char * const migratetype_names[MIGRATE_TYPES];
 #else
 #  define is_migrate_cma(migratetype) false
 #  define is_migrate_cma_page(_page) false
+#endif
+
+#ifdef CONFIG_CMA_REUSE
+#  define get_cma_migratetype() MIGRATE_CMA
+#else
+#  define get_cma_migratetype() MIGRATE_MOVABLE
 #endif
 
 static inline bool is_migrate_movable(int mt)
@@ -450,10 +459,6 @@ struct zone {
 #endif
 	struct pglist_data	*zone_pgdat;
 	struct per_cpu_pageset __percpu *pageset;
-
-#ifdef CONFIG_CMA
-	bool			cma_alloc;
-#endif
 
 #ifndef CONFIG_SPARSEMEM
 	/*
