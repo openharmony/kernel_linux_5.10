@@ -324,8 +324,11 @@ const char * const migratetype_names[MIGRATE_TYPES] = {
 	"Unmovable",
 	"Movable",
 	"Reclaimable",
+#ifdef CONFIG_CMA_REUSE
+	"CMA",
+#endif
 	"HighAtomic",
-#ifdef CONFIG_CMA
+#if defined(CONFIG_CMA) && !defined(CONFIG_CMA_REUSE)
 	"CMA",
 #endif
 #ifdef CONFIG_MEMORY_ISOLATION
@@ -2834,6 +2837,27 @@ do_steal:
 
 }
 
+static __always_inline struct page *
+__rmqueue_with_cma_reuse(struct zone *zone, unsigned int order,
+					int migratetype, unsigned int alloc_flags)
+{
+	struct page *page = NULL;
+retry:
+	page = __rmqueue_smallest(zone, order, migratetype);
+
+	if (unlikely(!page) && is_migrate_cma(migratetype)) {
+		migratetype = MIGRATE_MOVABLE;
+		alloc_flags &= ~ALLOC_CMA;
+		page = __rmqueue_smallest(zone, order, migratetype);
+	}
+
+	if (unlikely(!page) &&
+		__rmqueue_fallback(zone, order, migratetype, alloc_flags))
+		goto retry;
+
+	return page;
+}
+
 /*
  * Do the hard work of removing an element from the buddy allocator.
  * Call me with the zone->lock already held.
@@ -2843,6 +2867,11 @@ __rmqueue(struct zone *zone, unsigned int order, int migratetype,
 						unsigned int alloc_flags)
 {
 	struct page *page;
+
+#ifdef CONFIG_CMA_REUSE
+	page = __rmqueue_with_cma_reuse(zone, order, migratetype, alloc_flags);
+	goto out;
+#endif
 
 	if (IS_ENABLED(CONFIG_CMA)) {
 		/*
@@ -3435,7 +3464,8 @@ struct page *rmqueue(struct zone *preferred_zone,
 		 * we need to skip it when CMA area isn't allowed.
 		 */
 		if (!IS_ENABLED(CONFIG_CMA) || alloc_flags & ALLOC_CMA ||
-				migratetype != MIGRATE_MOVABLE) {
+				migratetype != MIGRATE_MOVABLE ||
+				IS_ENABLED(CONFIG_CMA_REUSE)) {
 			page = rmqueue_pcplist(preferred_zone, zone, gfp_flags,
 					migratetype, alloc_flags);
 			goto out;
@@ -3776,7 +3806,7 @@ static inline unsigned int current_alloc_flags(gfp_t gfp_mask,
 	unsigned int pflags = current->flags;
 
 	if (!(pflags & PF_MEMALLOC_NOCMA) &&
-			gfp_migratetype(gfp_mask) == MIGRATE_MOVABLE)
+			gfp_migratetype(gfp_mask) == get_cma_migratetype())
 		alloc_flags |= ALLOC_CMA;
 
 #endif
