@@ -14,8 +14,9 @@ config HILOG
 
 	  If unsure, say N.
 
-if HILOG
-config HI_LOG_BUFFER_SIZE
-	int "hi log buffer size"
-	default "2048"
-endif
+config HILOG_BUFFER_SIZE
+	int "hilog buffer size"
+	depends on HILOG
+	default 4096
+	help
+		Define the default ring buffer size of hilog
