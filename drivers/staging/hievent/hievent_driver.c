@@ -178,6 +178,13 @@ static ssize_t hievent_read(struct file *file, char __user *user_buf,
 
 	retval = header.len + sizeof(header);
 out:
+	if (retval == -ENOMEM) {
+		// clean ring buffer
+		hievent_dev.write_offset = 0;
+		hievent_dev.head_offset = 0;
+		hievent_dev.size = 0;
+		hievent_dev.count = 0;
+	}
 	(void)mutex_unlock(&hievent_dev.mtx);
 
 	return retval;
@@ -297,7 +304,7 @@ static unsigned int hievent_poll(struct file *filep,
 	return (POLLOUT | POLLWRNORM);
 }
 
-static ssize_t  hievent_write_iter(struct kiocb *iocb, struct iov_iter *from)
+static ssize_t hievent_write_iter(struct kiocb *iocb, struct iov_iter *from)
 {
 	int check_code = 0;
 	unsigned char *temp_buffer = NULL;
@@ -306,7 +313,7 @@ static ssize_t  hievent_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	int buf_len;
 
 	(void)iocb;
-	if (from->nr_segs != 3) {     /* must contain 3 segments */
+	if (from->nr_segs != 3) { /* must contain 3 segments */
 		retval = -EINVAL;
 		goto out;
 	}
@@ -361,8 +368,8 @@ out:
 }
 
 static const struct file_operations hievent_fops = {
-	.read  = hievent_read,   /* read */
-	.poll  = hievent_poll,   /* poll */
+	.read = hievent_read,   /* read */
+	.poll = hievent_poll,   /* poll */
 	.write_iter = hievent_write_iter, /* write_iter */
 };
 
