@@ -44,7 +44,7 @@ module_param(hilog_major, int, 0444);
 
 struct cdev g_hilog_cdev;
 
-#define HILOG_BUFFER ((size_t)1024)
+#define HILOG_BUFFER CONFIG_HILOG_BUFFER_SIZE
 #define HILOG_DRIVER "/dev/hilog"
 
 struct hilog_entry {
@@ -187,6 +187,13 @@ static ssize_t hilog_read(struct file *file,
 	hilog_buffer_dec(header.len);
 	retval = header.len + sizeof(header);
 out:
+	if (retval == -ENOMEM) {
+		// clean ring buffer
+		hilog_dev.wr_off = 0;
+		hilog_dev.hdr_off = 0;
+		hilog_dev.size = 0;
+		hilog_dev.count = 0;
+	}
 	(void)mutex_unlock(&hilog_dev.mtx);
 
 	return retval;
@@ -262,6 +269,7 @@ static void hilog_cover_old_log(size_t buf_len)
 	int retval;
 	struct hilog_entry header;
 	size_t total_size = buf_len + sizeof(struct hilog_entry);
+	int drop_log_lines = 0;
 
 	while (total_size + hilog_dev.size >= HILOG_BUFFER) {
 		retval = hilog_read_ring_head_buffer((unsigned char *)&header,
@@ -269,8 +277,12 @@ static void hilog_cover_old_log(size_t buf_len)
 		if (retval < 0)
 			break;
 
+		drop_log_lines++;
 		hilog_buffer_dec(sizeof(header) + header.len);
 	}
+	if (drop_log_lines > 0)
+		pr_info("hilog ringbuffer full, drop %d line(s) log",
+			drop_log_lines);
 }
 
 int hilog_write_internal(const char __user *buffer, size_t buf_len)
