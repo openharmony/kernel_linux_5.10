@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: GPL-2.0
+config ZRAM_GROUP
+	bool "Manage Zram objs with mem_cgroup"
+	depends on ZRAM && MEMCG
+	help
+	  Manage Zram objs with mem_cgroup.
+
+config ZRAM_GROUP_DEBUG
+	bool "Debug info for zram group"
+	depends on ZRAM_GROUP
+	help
+	  Debug info for ZRAM_GROUP.
+
+config ZLIST_DEBUG
+	bool "Debug info for zram group list"
+	depends on ZRAM_GROUP
+	help
+	  Debug info for zram group list.
+
+config ZRAM_GROUP_WRITEBACK
+	bool "Write back grouped zram objs to Hyperhold driver"
+	depends on ZRAM_GROUP && HYPERHOLD
+	help
+	  Write back grouped zram objs to hyperhold.
