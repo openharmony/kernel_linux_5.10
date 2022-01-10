@@ -692,6 +692,9 @@ int ubifs_garbage_collect(struct ubifs_info *c, int anyway)
 	for (i = 0; ; i++) {
 		int space_before, space_after;
 
+		/* Maybe continue after find and break before find */
+		lp.lnum = -1;
+
 		cond_resched();
 
 		/* Give the commit an opportunity to run */
@@ -753,8 +756,16 @@ int ubifs_garbage_collect(struct ubifs_info *c, int anyway)
 				 * caller instead of the original '-EAGAIN'.
 				 */
 				err = ubifs_return_leb(c, lp.lnum);
-				if (err)
+				if (err) {
 					ret = err;
+					/* LEB may always be "taken". So set
+					 * the ubifs to read-only. Sync wbuf
+					 * will return -EROFS, then go "out".
+					 */
+					ubifs_ro_mode(c, ret);
+				}
+				/*  Maybe double return if go out */
+				lp.lnum = -1;
 				break;
 			}
 			goto out;
@@ -843,7 +854,8 @@ out:
 	ubifs_wbuf_sync_nolock(wbuf);
 	ubifs_ro_mode(c, ret);
 	mutex_unlock(&wbuf->io_mutex);
-	ubifs_return_leb(c, lp.lnum);
+	if (lp.lnum != -1)
+		ubifs_return_leb(c, lp.lnum);
 	return ret;
 }
 
