@@ -874,6 +874,10 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
 
 	err = arch_dup_task_struct(tsk, orig);
 
+#ifdef CONFIG_ACCESS_TOKENID
+	tsk->token = orig->token;
+	tsk->ftoken = 0;
+#endif
 	/*
 	 * arch_dup_task_struct() clobbers the stack-related fields.  Make
 	 * sure they're properly initialized before using any stack-related
