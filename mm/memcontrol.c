@@ -666,7 +666,15 @@ static void mem_cgroup_remove_exceeded(struct mem_cgroup_per_node *mz,
 
 static unsigned long soft_limit_excess(struct mem_cgroup *memcg)
 {
+#ifdef CONFIG_HYPERHOLD_FILE_LRU
+	struct mem_cgroup_per_node *mz = mem_cgroup_nodeinfo(memcg, 0);
+	struct lruvec *lruvec = &mz->lruvec;
+	unsigned long nr_pages = lruvec_lru_size(lruvec, LRU_ACTIVE_ANON,
+			MAX_NR_ZONES) + lruvec_lru_size(lruvec, LRU_INACTIVE_ANON,
+			MAX_NR_ZONES);
+#else
 	unsigned long nr_pages = page_counter_read(&memcg->memory);
+#endif
 	unsigned long soft_limit = READ_ONCE(memcg->soft_limit);
 	unsigned long excess = 0;
 
@@ -854,8 +862,13 @@ void __mod_lruvec_state(struct lruvec *lruvec, enum node_stat_item idx,
 	__mod_node_page_state(lruvec_pgdat(lruvec), idx, val);
 
 	/* Update memcg and lruvec */
-	if (!mem_cgroup_disabled())
+	if (!mem_cgroup_disabled()) {
+#ifdef CONFIG_HYPERHOLD_FILE_LRU
+		if (is_node_lruvec(lruvec))
+			return;
+#endif
 		__mod_memcg_lruvec_state(lruvec, idx, val);
+	}
 }
 
 void __mod_lruvec_slab_state(void *p, enum node_stat_item idx, int val)
@@ -906,6 +919,10 @@ void __count_memcg_events(struct mem_cgroup *memcg, enum vm_event_item idx,
 
 	if (mem_cgroup_disabled())
 		return;
+#ifdef CONFIG_HYPERHOLD_FILE_LRU
+	if (!memcg)
+		return;
+#endif
 
 	x = count + __this_cpu_read(memcg->vmstats_percpu->events[idx]);
 	if (unlikely(x > MEMCG_CHARGE_BATCH)) {
@@ -1350,6 +1367,13 @@ struct lruvec *mem_cgroup_page_lruvec(struct page *page, struct pglist_data *pgd
 		goto out;
 	}
 
+#ifdef CONFIG_HYPERHOLD_FILE_LRU
+	if (is_file_lru(page_lru(page)) &&
+			!is_prot_page(page)) {
+		lruvec = node_lruvec(pgdat);
+		goto out;
+	}
+#endif
 	memcg = page->mem_cgroup;
 	/*
 	 * Swapcache readahead pages are added to the LRU - and
@@ -1392,6 +1416,10 @@ void mem_cgroup_update_lru_size(struct lruvec *lruvec, enum lru_list lru,
 	if (mem_cgroup_disabled())
 		return;
 
+#ifdef CONFIG_HYPERHOLD_FILE_LRU
+	if (is_node_lruvec(lruvec))
+		return;
+#endif
 	mz = container_of(lruvec, struct mem_cgroup_per_node, lruvec);
 	lru_size = &mz->lru_zone_size[zid][lru];
 
@@ -5191,6 +5219,10 @@ static inline void mem_cgroup_id_put(struct mem_cgroup *memcg)
 struct mem_cgroup *mem_cgroup_from_id(unsigned short id)
 {
 	WARN_ON_ONCE(!rcu_read_lock_held());
+#ifdef CONFIG_HYPERHOLD_FILE_LRU
+	if (id == -1)
+		return NULL;
+#endif
 	return idr_find(&mem_cgroup_idr, id);
 }
 
@@ -5229,6 +5261,7 @@ static int alloc_mem_cgroup_per_node_info(struct mem_cgroup *memcg, int node)
 
 	lruvec_init(&pn->lruvec);
 	pn->usage_in_excess = 0;
+	pn->lruvec.pgdat = NODE_DATA(node);
 	pn->on_tree = false;
 	pn->memcg = memcg;
 
@@ -5334,6 +5367,17 @@ static struct mem_cgroup *mem_cgroup_alloc(void)
 	INIT_LIST_HEAD(&memcg->deferred_split_queue.split_queue);
 	memcg->deferred_split_queue.split_queue_len = 0;
 #endif
+
+#ifdef CONFIG_HYPERHOLD_MEMCG
+	if (unlikely(!score_head_inited)) {
+		INIT_LIST_HEAD(&score_head);
+		score_head_inited = true;
+	}
+#endif
+
+#ifdef CONFIG_HYPERHOLD_MEMCG
+	INIT_LIST_HEAD(&memcg->score_node);
+#endif
 	idr_replace(&mem_cgroup_idr, memcg, memcg->id.id);
 	return memcg;
 fail:
@@ -5354,6 +5398,10 @@ mem_cgroup_css_alloc(struct cgroup_subsys_state *parent_css)
 	set_active_memcg(old_memcg);
 	if (IS_ERR(memcg))
 		return ERR_CAST(memcg);
+
+#ifdef CONFIG_HYPERHOLD_MEMCG
+	atomic64_set(&memcg->memcg_reclaimed.app_score, 300);
+#endif
 
 	page_counter_set_high(&memcg->memory, PAGE_COUNTER_MAX);
 	memcg->soft_limit = PAGE_COUNTER_MAX;
@@ -5421,6 +5469,11 @@ static int mem_cgroup_css_online(struct cgroup_subsys_state *css)
 		return -ENOMEM;
 	}
 
+#ifdef CONFIG_HYPERHOLD_MEMCG
+	memcg_app_score_update(memcg);
+	css_get(css);
+#endif
+
 	/* Online state pins memcg ID, memcg ID pins CSS */
 	refcount_set(&memcg->id.ref, 1);
 	css_get(css);
@@ -5431,6 +5484,15 @@ static void mem_cgroup_css_offline(struct cgroup_subsys_state *css)
 {
 	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
 	struct mem_cgroup_event *event, *tmp;
+
+#ifdef CONFIG_HYPERHOLD_MEMCG
+	unsigned long flags;
+
+	spin_lock_irqsave(&score_list_lock, flags);
+	list_del_init(&memcg->score_node);
+	spin_unlock_irqrestore(&score_list_lock, flags);
+	css_put(css);
+#endif
 
 	/*
 	 * Unregister events and notify userspace.

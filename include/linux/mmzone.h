@@ -829,6 +829,11 @@ typedef struct pglist_data {
 #define node_start_pfn(nid)	(NODE_DATA(nid)->node_start_pfn)
 #define node_end_pfn(nid) pgdat_end_pfn(NODE_DATA(nid))
 
+static inline struct lruvec *node_lruvec(struct pglist_data *pgdat)
+{
+	return &pgdat->__lruvec;
+}
+
 static inline unsigned long pgdat_end_pfn(pg_data_t *pgdat)
 {
 	return pgdat->node_start_pfn + pgdat->node_spanned_pages;
@@ -874,6 +879,13 @@ static inline struct pglist_data *lruvec_pgdat(struct lruvec *lruvec)
 	return container_of(lruvec, struct pglist_data, __lruvec);
 #endif
 }
+
+#ifdef CONFIG_HYPERHOLD_FILE_LRU
+static inline int is_node_lruvec(struct lruvec *lruvec)
+{
+	return &lruvec_pgdat(lruvec)->__lruvec == lruvec;
+}
+#endif
 
 extern unsigned long lruvec_lru_size(struct lruvec *lruvec, enum lru_list lru, int zone_idx);
 
