@@ -1,0 +1,55 @@
+{
+    "name": "@ohos/kernel_linux_5_10",
+    "version": "",
+    "description": "Linux Kernel 5.10",
+    "homePage": "https://gitee.com/openharmony",
+    "license": "GPL V2",
+    "repository": "https://gitee.com/openharmony/kernel_linux_5.10",
+    "domain": "os",
+    "language": "",
+    "publishAs": "code-segment",
+    "private": false,
+    "scripts": {},
+    "tags": [
+        "kernel"
+    ],
+    "keywords": [
+        "kernel",
+        "linux"
+    ],
+    "envs": {},
+    "dirs": {},
+    "author": {
+        "name": "",
+        "email": "",
+        "url": ""
+    },
+    "contributors": [
+        {
+            "name": "",
+            "email": "",
+            "url": ""
+        }
+    ],
+    "segment": {
+        "destPath": "kernel/linux/linux-5.10"
+    },
+    "component": {
+        "name": "kernel_linux_5.10",
+        "subsystem": "",
+        "syscap": [],
+        "features": [],
+        "adapted_system_type": [],
+        "rom": "",
+        "ram": "",
+        "deps": {
+            "components": [],
+            "third_party": []
+        },
+        "build": {
+            "sub_component": [],
+            "inner_kits": [],
+            "test": []
+        }
+    }
+}
