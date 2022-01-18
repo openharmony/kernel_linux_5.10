@@ -591,6 +591,10 @@ struct binder_transaction {
 	 * during thread teardown
 	 */
 	spinlock_t lock;
+#ifdef CONFIG_ACCESS_TOKENID
+	u64 sender_tokenid;
+	u64 first_tokenid;
+#endif /* CONFIG_ACCESS_TOKENID */
 };
 
 /**
@@ -3088,6 +3092,10 @@ static void binder_transaction(struct binder_proc *proc,
 	else
 		t->from = NULL;
 	t->sender_euid = task_euid(proc->tsk);
+#ifdef CONFIG_ACCESS_TOKENID
+	t->sender_tokenid = current->token;
+	t->first_tokenid = current->ftoken;
+#endif /* CONFIG_ACCESS_TOKENID */
 	t->to_proc = target_proc;
 	t->to_thread = target_thread;
 	t->code = tr->code;
@@ -4447,6 +4455,10 @@ retry:
 		trd->code = t->code;
 		trd->flags = t->flags;
 		trd->sender_euid = from_kuid(current_user_ns(), t->sender_euid);
+#ifdef CONFIG_ACCESS_TOKENID
+		trd->sender_tokenid = t->sender_tokenid;
+		trd->first_tokenid = t->first_tokenid;
+#endif /* CONFIG_ACCESS_TOKENID */
 
 		t_from = binder_get_txn_from(t);
 		if (t_from) {
@@ -5081,7 +5093,7 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			ret = -EINVAL;
 			goto err;
 		}
-		if (put_user(BINDER_CURRENT_PROTOCOL_VERSION,
+		if (put_user(BINDER_CURRENT_PROTOCOL_VERSION + BINDER_SUB_VERSION,
 			     &ver->protocol_version)) {
 			ret = -EINVAL;
 			goto err;

@@ -195,6 +195,15 @@ struct binder_version {
 #define BINDER_CURRENT_PROTOCOL_VERSION 8
 #endif
 
+#ifdef CONFIG_ACCESS_TOKENID
+#define ENABLE_ACCESS_TOKENID 1
+#else
+#define ENABLE_ACCESS_TOKENID 0
+#endif /* CONFIG_ACCESS_TOKENID */
+
+#define BINDER_SUB_VERSION_SHIFT_BASE 16
+#define BINDER_SUB_VERSION (ENABLE_ACCESS_TOKENID << BINDER_SUB_VERSION_SHIFT_BASE)
+
 /*
  * Use with BINDER_GET_NODE_DEBUG_INFO, driver reads ptr, writes to all fields.
  * Set ptr to NULL for the first call to get the info for the first node, and
@@ -284,6 +293,10 @@ struct binder_transaction_data {
 		} ptr;
 		__u8	buf[8];
 	} data;
+#ifdef CONFIG_ACCESS_TOKENID
+	__u64 sender_tokenid;
+	__u64 first_tokenid;
+#endif /* CONFIG_ACCESS_TOKENID */
 };
 
 struct binder_transaction_data_secctx {
