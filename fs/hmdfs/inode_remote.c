@@ -392,6 +392,19 @@ struct inode *fill_inode_remote(struct super_block *sb, struct hmdfs_peer *con,
 	return inode;
 }
 
+static bool in_share_dir(struct dentry *child_dentry)
+{
+	struct dentry *parent_dentry = dget_parent(child_dentry);
+	bool ret = false;
+	const char *share_dir = ".share";
+
+	if (!strncmp(parent_dentry->d_name.name, share_dir, strlen(share_dir)))
+		ret = true;
+
+	dput(parent_dentry);
+	return ret;
+}
+
 static struct dentry *hmdfs_lookup_remote_dentry(struct inode *parent_inode,
 						 struct dentry *child_dentry,
 						 int flags)
@@ -436,6 +449,8 @@ static struct dentry *hmdfs_lookup_remote_dentry(struct inode *parent_inode,
 	if (lookup_result != NULL) {
 		if (S_ISLNK(lookup_result->i_mode))
 			gdi->file_type = HM_SYMLINK;
+		if (in_share_dir(child_dentry))
+			gdi->file_type = HM_SHARE;
 		inode = fill_inode_remote(sb, con, lookup_result, parent_inode);
 		ret = d_splice_alias(inode, child_dentry);
 		if (!IS_ERR_OR_NULL(ret))

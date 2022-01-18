@@ -454,11 +454,57 @@ int hmdfs_dir_release_merge(struct inode *inode, struct file *file)
 	return 0;
 }
 
+long hmdfs_dir_unlocked_ioctl_merge(struct file *file, unsigned int cmd,
+							unsigned long arg)
+{
+	struct hmdfs_file_info *fi_head = hmdfs_f(file);
+	struct hmdfs_file_info *fi_iter = NULL;
+	struct hmdfs_file_info *fi_temp = NULL;
+	struct file *lower_file = NULL;
+	int error = -ENOTTY;
+
+	mutex_lock(&fi_head->comrade_list_lock);
+	list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
+				  comrade_list) {
+		if (fi_iter->device_id == 0) {
+			lower_file = fi_iter->lower_file;
+			error = lower_file->f_op->unlocked_ioctl(lower_file, cmd, arg);
+			break;
+		}
+	}
+	mutex_unlock(&fi_head->comrade_list_lock);
+	return error;
+}
+
+long hmdfs_dir_compat_ioctl_merge(struct file *file, unsigned int cmd,
+							unsigned long arg)
+{
+	struct hmdfs_file_info *fi_head = hmdfs_f(file);
+	struct hmdfs_file_info *fi_iter = NULL;
+	struct hmdfs_file_info *fi_temp = NULL;
+	struct file *lower_file = NULL;
+	int error = -ENOTTY;
+
+	mutex_lock(&fi_head->comrade_list_lock);
+	list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
+				  comrade_list) {
+		if (fi_iter->device_id == 0) {
+			lower_file = fi_iter->lower_file;
+			error = lower_file->f_op->compat_ioctl(lower_file, cmd, arg);
+			break;
+		}
+	}
+	mutex_unlock(&fi_head->comrade_list_lock);
+	return error;
+}
+
 const struct file_operations hmdfs_dir_fops_merge = {
 	.owner = THIS_MODULE,
 	.iterate = hmdfs_iterate_merge,
 	.open = hmdfs_dir_open_merge,
 	.release = hmdfs_dir_release_merge,
+	.unlocked_ioctl = hmdfs_dir_unlocked_ioctl_merge,
+	.compat_ioctl = hmdfs_dir_compat_ioctl_merge,
 };
 
 int hmdfs_file_open_merge(struct inode *inode, struct file *file)
