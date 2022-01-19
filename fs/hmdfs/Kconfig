@@ -1,0 +1,48 @@
+config HMDFS_FS
+	tristate "HMDFS filesystem support"
+	help
+	  HMDFS is an overlay file system. Relying on the underlying file system,
+	  under the premise of networking, file exchanges across devices can be
+	  realized. Device view and merge view are provided. In the device view,
+	  the shared directories of the corresponding devices are provided under
+	  different device directories; in the merge view, acollection of shared
+	  files of all devices is provided.
+
+config HMDFS_FS_PERMISSION
+	bool "HMDFS application permission management"
+	depends on HMDFS_FS
+	help
+	  HMDFS provides cross-device file and directory sharing. Only the same
+	  application can access the files and directories under the corresponding
+	  package directory. it provides management and control of access
+	  permissions.
+
+	  If unsure, say N.
+
+config HMDFS_FS_ENCRYPTION
+	bool "HMDFS message encryption"
+	depends on HMDFS_FS && TLS
+	help
+	  HMDFS provides cross-device file and directory sharing by sending and
+	  receiving network messages. To ensure data security, TLS encryption is
+	  provided.
+
+	  If you want to improve performance, say N.
+
+config HMDFS_FS_DEBUG
+	bool "HMDFS debug log"
+	depends on HMDFS_FS
+	help
+	  HMDFS print a lot of logs, but many of them are debugging information,
+	  which is actually unnecessary during operation. If there is a problem,
+	  it works.
+
+	  If unsure, say N.
+
+config HMDFS_FS_FAULT_INJECT
+	bool "HMDFS fault inject"
+	depends on HMDFS_FS
+	help
+	  HMDFS provide fault inject for test.
+
+	  If unsure, say N.
