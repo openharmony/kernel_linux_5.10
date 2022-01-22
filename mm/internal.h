@@ -227,11 +227,17 @@ extern unsigned long highest_memmap_pfn;
  */
 extern int isolate_lru_page(struct page *page);
 extern void putback_lru_page(struct page *page);
-extern unsigned int shrink_page_list(struct list_head *page_list,
-				     struct pglist_data *pgdat,
-				     struct scan_control *sc,
-				     struct reclaim_stat *stat,
-				     bool ignore_references);
+extern unsigned int shrink_page_list(struct list_head *page_list, struct pglist_data *pgdat,
+		struct scan_control *sc, struct reclaim_stat *stat, bool ignore_references);
+extern unsigned long isolate_lru_pages(unsigned long nr_to_scan, struct lruvec *lruvec,
+		struct list_head *dst, unsigned long *nr_scanned, struct scan_control *sc,
+		enum lru_list lru);
+extern unsigned move_pages_to_lru(struct lruvec *lruvec, struct list_head *list);
+extern void shrink_active_list(unsigned long nr_to_scan, struct lruvec *lruvec,
+		struct scan_control *sc, enum lru_list lru);
+extern unsigned long shrink_inactive_list(unsigned long nr_to_scan, struct lruvec *lruvec,
+		struct scan_control *sc, enum lru_list lru);
+extern void shrink_lruvec(struct lruvec *lruvec, struct scan_control *sc);
 
 /*
  * in mm/rmap.c:

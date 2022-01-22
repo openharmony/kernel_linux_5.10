@@ -43,6 +43,7 @@
 #include <asm/tlbflush.h>
 #include <linux/swapops.h>
 #include <linux/swap_cgroup.h>
+#include <linux/zswapd.h>
 
 static bool swap_count_continued(struct swap_info_struct *, pgoff_t,
 				 unsigned char);
@@ -3440,6 +3441,28 @@ void si_swapinfo(struct sysinfo *val)
 	val->totalswap = total_swap_pages + nr_to_be_unused;
 	spin_unlock(&swap_lock);
 }
+
+#ifdef CONFIG_HYPERHOLD_ZSWAPD
+bool free_swap_is_low(void)
+{
+	unsigned int type;
+	unsigned long long freeswap = 0;
+	unsigned long nr_to_be_unused = 0;
+
+	spin_lock(&swap_lock);
+	for (type = 0; type < nr_swapfiles; type++) {
+		struct swap_info_struct *si = swap_info[type];
+
+		if ((si->flags & SWP_USED) && !(si->flags & SWP_WRITEOK))
+			nr_to_be_unused += si->inuse_pages;
+	}
+	freeswap = atomic_long_read(&nr_swap_pages) + nr_to_be_unused;
+	spin_unlock(&swap_lock);
+
+	return (freeswap < get_free_swap_threshold());
+}
+EXPORT_SYMBOL(free_swap_is_low);
+#endif
 
 /*
  * Verify that a swap entry is valid and increment its swap map count.

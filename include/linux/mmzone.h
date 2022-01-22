@@ -763,6 +763,12 @@ typedef struct pglist_data {
 
 	int kswapd_failures;		/* Number of 'reclaimed == 0' runs */
 
+#ifdef CONFIG_HYPERHOLD_ZSWAPD
+	wait_queue_head_t zswapd_wait;
+	atomic_t zswapd_wait_flag;
+	struct task_struct *zswapd;
+#endif
+
 #ifdef CONFIG_COMPACTION
 	int kcompactd_max_order;
 	enum zone_type kcompactd_highest_zoneidx;

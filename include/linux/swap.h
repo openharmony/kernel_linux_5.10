@@ -458,6 +458,9 @@ extern atomic_long_t nr_swap_pages;
 extern long total_swap_pages;
 extern atomic_t nr_rotate_swap;
 extern bool has_usable_swap(void);
+#ifdef CONFIG_HYPERHOLD_ZSWAPD
+extern bool free_swap_is_low(void);
+#endif
 
 /* Swap 50% full? Release swapcache more aggressively.. */
 static inline bool vm_swap_full(void)

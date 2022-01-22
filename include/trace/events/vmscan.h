@@ -336,6 +336,36 @@ TRACE_EVENT(mm_vmscan_writepage,
 		show_reclaim_flags(__entry->reclaim_flags))
 );
 
+#ifdef CONFIG_HYPERHOLD_ZSWAPD
+TRACE_EVENT(mm_vmscan_lru_zswapd_shrink_active,
+
+	TP_PROTO(int nid, unsigned long nr_taken,
+		unsigned long nr_deactivated, int priority),
+
+	TP_ARGS(nid, nr_taken, nr_deactivated, priority),
+
+	TP_STRUCT__entry(
+		__field(int, nid)
+		__field(unsigned long, nr_taken)
+		__field(unsigned long, nr_deactivated)
+		__field(int, priority)
+	),
+
+	TP_fast_assign(
+		__entry->nid = nid;
+		__entry->nr_taken = nr_taken;
+		__entry->nr_deactivated = nr_deactivated;
+		__entry->priority = priority;
+	),
+
+	TP_printk("nid=%d nr_taken=%ld nr_deactivated=%ld priority=%d",
+		__entry->nid,
+		__entry->nr_taken,
+		__entry->nr_deactivated,
+		__entry->priority)
+);
+#endif
+
 TRACE_EVENT(mm_vmscan_lru_shrink_inactive,
 
 	TP_PROTO(int nid,

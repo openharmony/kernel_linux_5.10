@@ -65,6 +65,7 @@
 #include "slab.h"
 
 #include <linux/uaccess.h>
+#include <linux/zswapd.h>
 
 #include <trace/events/vmscan.h>
 
@@ -4196,6 +4197,9 @@ static int memcg_stat_show(struct seq_file *m, void *v)
 	}
 #endif
 
+#ifdef CONFIG_HYPERHOLD_DEBUG
+	memcg_eswap_info_show(m);
+#endif
 	return 0;
 }
 
@@ -5402,7 +5406,11 @@ mem_cgroup_css_alloc(struct cgroup_subsys_state *parent_css)
 #ifdef CONFIG_HYPERHOLD_MEMCG
 	atomic64_set(&memcg->memcg_reclaimed.app_score, 300);
 #endif
-
+#ifdef CONFIG_HYPERHOLD_ZSWAPD
+	atomic_set(&memcg->memcg_reclaimed.ub_zram2ufs_ratio, 10);
+	atomic_set(&memcg->memcg_reclaimed.ub_mem2zram_ratio, 60);
+	atomic_set(&memcg->memcg_reclaimed.refault_threshold, 50);
+#endif
 	page_counter_set_high(&memcg->memory, PAGE_COUNTER_MAX);
 	memcg->soft_limit = PAGE_COUNTER_MAX;
 	page_counter_set_high(&memcg->swap, PAGE_COUNTER_MAX);
