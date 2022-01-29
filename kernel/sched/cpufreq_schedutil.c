@@ -287,6 +287,10 @@ static unsigned long sugov_get_util(struct sugov_cpu *sg_cpu)
 	sg_cpu->max = max;
 	sg_cpu->bw_dl = cpu_bw_dl(rq);
 
+#ifdef CONFIG_SCHED_WALT
+	return cpu_util_freq_walt(sg_cpu->cpu);
+#endif
+
 	return schedutil_cpu_util(sg_cpu->cpu, util, max, FREQUENCY_UTIL, NULL);
 }
 
@@ -520,7 +524,11 @@ sugov_update_shared(struct update_util_data *hook, u64 time, unsigned int flags)
 
 	ignore_dl_rate_limit(sg_cpu, sg_policy);
 
+#ifdef CONFIG_SCHED_WALT
+	if (sugov_should_update_freq(sg_policy, time) && !(flags & SCHED_CPUFREQ_CONTINUE)) {
+#else
 	if (sugov_should_update_freq(sg_policy, time)) {
+#endif
 		next_f = sugov_next_freq_shared(sg_cpu, time);
 
 		if (sg_policy->policy->fast_switch_enabled)
