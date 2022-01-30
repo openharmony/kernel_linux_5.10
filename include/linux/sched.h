@@ -222,6 +222,41 @@ enum task_event {
 	IRQ_UPDATE      = 5,
 };
 
+#ifdef CONFIG_CPU_ISOLATION_OPT
+extern int sched_isolate_count(const cpumask_t *mask, bool include_offline);
+extern int sched_isolate_cpu(int cpu);
+extern int sched_unisolate_cpu(int cpu);
+extern int sched_unisolate_cpu_unlocked(int cpu);
+#else
+static inline int sched_isolate_count(const cpumask_t *mask,
+				      bool include_offline)
+{
+	cpumask_t count_mask;
+
+	if (include_offline)
+		cpumask_andnot(&count_mask, mask, cpu_online_mask);
+	else
+		return 0;
+
+	return cpumask_weight(&count_mask);
+}
+
+static inline int sched_isolate_cpu(int cpu)
+{
+	return 0;
+}
+
+static inline int sched_unisolate_cpu(int cpu)
+{
+	return 0;
+}
+
+static inline int sched_unisolate_cpu_unlocked(int cpu)
+{
+	return 0;
+}
+#endif
+
 extern void scheduler_tick(void);
 
 #define	MAX_SCHEDULE_TIMEOUT		LONG_MAX

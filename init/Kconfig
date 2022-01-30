@@ -658,6 +658,32 @@ config CPU_ISOLATION
 
 	  Say Y if unsure.
 
+config SCHED_RUNNING_AVG
+	bool "per-rq and per-cluster running average statistics"
+	default n
+
+config CPU_ISOLATION_OPT
+	bool "CPU isolation optimization"
+	depends on SMP
+	default n
+	help
+	  This option enables cpu isolation optimization, which allows
+	  to isolate cpu dynamically. The isolated cpu will be unavailable
+	  to scheduler and load balancer, and all its non-pinned timers,
+	  IRQs and tasks will be migrated to other cpus, only pinned
+	  kthread and IRQS are still allowed to run, this achieves
+	  similar effect as hotplug but at lower latency cost.
+
+config SCHED_CORE_CTRL
+	bool "Core control"
+	depends on CPU_ISOLATION_OPT
+	select SCHED_RUNNING_AVG
+	default n
+	help
+	  This option enables the core control functionality in
+	  the scheduler. Core control automatically isolate and
+	  unisolate cores based on cpu load and utilization.
+
 source "kernel/rcu/Kconfig"
 
 config BUILD_BIN2C

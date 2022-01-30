@@ -180,9 +180,38 @@ static struct attribute_group crash_note_cpu_attr_group = {
 };
 #endif
 
+#ifdef CONFIG_CPU_ISOLATION_OPT
+static ssize_t isolate_show(struct device *dev,
+			    struct device_attribute *attr, char *buf)
+{
+	struct cpu *cpu = container_of(dev, struct cpu, dev);
+	ssize_t rc;
+	int cpuid = cpu->dev.id;
+	unsigned int isolated = cpu_isolated(cpuid);
+
+	rc = sysfs_emit(buf, "%d\n", isolated);
+
+	return rc;
+}
+
+static DEVICE_ATTR_RO(isolate);
+
+static struct attribute *cpu_isolated_attrs[] = {
+	&dev_attr_isolate.attr,
+	NULL
+};
+
+static struct attribute_group cpu_isolated_attr_group = {
+	.attrs = cpu_isolated_attrs,
+};
+#endif
+
 static const struct attribute_group *common_cpu_attr_groups[] = {
 #ifdef CONFIG_KEXEC
 	&crash_note_cpu_attr_group,
+#endif
+#ifdef CONFIG_CPU_ISOLATION_OPT
+	&cpu_isolated_attr_group,
 #endif
 	NULL
 };
@@ -190,6 +219,9 @@ static const struct attribute_group *common_cpu_attr_groups[] = {
 static const struct attribute_group *hotplugable_cpu_attr_groups[] = {
 #ifdef CONFIG_KEXEC
 	&crash_note_cpu_attr_group,
+#endif
+#ifdef CONFIG_CPU_ISOLATION_OPT
+	&cpu_isolated_attr_group,
 #endif
 	NULL
 };
@@ -220,6 +252,9 @@ static struct cpu_attr cpu_attrs[] = {
 	_CPU_ATTR(online, &__cpu_online_mask),
 	_CPU_ATTR(possible, &__cpu_possible_mask),
 	_CPU_ATTR(present, &__cpu_present_mask),
+#ifdef CONFIG_CPU_ISOLATION_OPT
+	_CPU_ATTR(core_ctl_isolated, &__cpu_isolated_mask),
+#endif
 };
 
 /*
@@ -465,6 +500,9 @@ static struct attribute *cpu_root_attrs[] = {
 	&cpu_attrs[0].attr.attr,
 	&cpu_attrs[1].attr.attr,
 	&cpu_attrs[2].attr.attr,
+#ifdef CONFIG_CPU_ISOLATION_OPT
+	&cpu_attrs[3].attr.attr,
+#endif
 	&dev_attr_kernel_max.attr,
 	&dev_attr_offline.attr,
 	&dev_attr_isolated.attr,
