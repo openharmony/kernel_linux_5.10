@@ -195,15 +195,6 @@ struct binder_version {
 #define BINDER_CURRENT_PROTOCOL_VERSION 8
 #endif
 
-#ifdef CONFIG_ACCESS_TOKENID
-#define ENABLE_ACCESS_TOKENID 1
-#else
-#define ENABLE_ACCESS_TOKENID 0
-#endif /* CONFIG_ACCESS_TOKENID */
-
-#define BINDER_SUB_VERSION_SHIFT_BASE 16
-#define BINDER_SUB_VERSION (ENABLE_ACCESS_TOKENID << BINDER_SUB_VERSION_SHIFT_BASE)
-
 /*
  * Use with BINDER_GET_NODE_DEBUG_INFO, driver reads ptr, writes to all fields.
  * Set ptr to NULL for the first call to get the info for the first node, and
@@ -226,6 +217,16 @@ struct binder_node_info_for_ref {
 	__u32            reserved3;
 };
 
+struct binder_feature_set {
+	__u64 feature_set;
+};
+
+struct access_token {
+	__u64 sender_tokenid;
+	__u64 first_tokenid;
+	__u64 reserved[2];
+};
+
 #define BINDER_WRITE_READ		_IOWR('b', 1, struct binder_write_read)
 #define BINDER_SET_IDLE_TIMEOUT		_IOW('b', 3, __s64)
 #define BINDER_SET_MAX_THREADS		_IOW('b', 5, __u32)
@@ -236,6 +237,9 @@ struct binder_node_info_for_ref {
 #define BINDER_GET_NODE_DEBUG_INFO	_IOWR('b', 11, struct binder_node_debug_info)
 #define BINDER_GET_NODE_INFO_FOR_REF	_IOWR('b', 12, struct binder_node_info_for_ref)
 #define BINDER_SET_CONTEXT_MGR_EXT	_IOW('b', 13, struct flat_binder_object)
+
+#define BINDER_FEATURE_SET	_IOWR('b', 30, struct binder_feature_set)
+#define BINDER_GET_ACCESS_TOKEN	_IOWR('b', 31, struct access_token)
 
 /*
  * NOTE: Two special error codes you should check for when calling
@@ -293,10 +297,6 @@ struct binder_transaction_data {
 		} ptr;
 		__u8	buf[8];
 	} data;
-#ifdef CONFIG_ACCESS_TOKENID
-	__u64 sender_tokenid;
-	__u64 first_tokenid;
-#endif /* CONFIG_ACCESS_TOKENID */
 };
 
 struct binder_transaction_data_secctx {

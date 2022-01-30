@@ -95,6 +95,15 @@ DEFINE_SHOW_ATTRIBUTE(proc);
 
 #define FORBIDDEN_MMAP_FLAGS                (VM_WRITE)
 
+#ifdef CONFIG_ACCESS_TOKENID
+#define ENABLE_ACCESS_TOKENID 1
+#else
+#define ENABLE_ACCESS_TOKENID 0
+#endif /* CONFIG_ACCESS_TOKENID */
+
+#define ACCESS_TOKENID_FEATURE_VALUE (ENABLE_ACCESS_TOKENID << 0)
+#define BINDER_CURRENT_FEATURE_SET ACCESS_TOKENID_FEATURE_VALUE
+
 enum {
 	BINDER_DEBUG_USER_ERROR             = 1U << 0,
 	BINDER_DEBUG_FAILED_TRANSACTION     = 1U << 1,
@@ -4455,10 +4464,6 @@ retry:
 		trd->code = t->code;
 		trd->flags = t->flags;
 		trd->sender_euid = from_kuid(current_user_ns(), t->sender_euid);
-#ifdef CONFIG_ACCESS_TOKENID
-		trd->sender_tokenid = t->sender_tokenid;
-		trd->first_tokenid = t->first_tokenid;
-#endif /* CONFIG_ACCESS_TOKENID */
 
 		t_from = binder_get_txn_from(t);
 		if (t_from) {
@@ -5093,7 +5098,7 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			ret = -EINVAL;
 			goto err;
 		}
-		if (put_user(BINDER_CURRENT_PROTOCOL_VERSION + BINDER_SUB_VERSION,
+		if (put_user(BINDER_CURRENT_PROTOCOL_VERSION,
 			     &ver->protocol_version)) {
 			ret = -EINVAL;
 			goto err;
@@ -5137,6 +5142,49 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		}
 		break;
 	}
+	case BINDER_FEATURE_SET: {
+		struct binder_feature_set __user *features = ubuf;
+
+		if (size != sizeof(struct binder_feature_set)) {
+			ret = -EINVAL;
+			goto err;
+		}
+		if (put_user(BINDER_CURRENT_FEATURE_SET, &features->feature_set)) {
+			ret = -EINVAL;
+			goto err;
+		}
+		break;
+	}
+#ifdef CONFIG_ACCESS_TOKENID
+	case BINDER_GET_ACCESS_TOKEN: {
+		struct access_token __user *tokens = ubuf;
+		u64 token, ftoken;
+
+		if (size != sizeof(struct access_token)) {
+			ret = -EINVAL;
+			goto err;
+		}
+		binder_inner_proc_lock(proc);
+		if (thread->transaction_stack == NULL) {
+			ret = -EFAULT;
+			binder_inner_proc_unlock(proc);
+			goto err;
+		}
+		token = thread->transaction_stack->sender_tokenid;
+		ftoken = thread->transaction_stack->first_tokenid;
+
+		binder_inner_proc_unlock(proc);
+		if (put_user(token, &tokens->sender_tokenid)) {
+			ret = -EINVAL;
+			goto err;
+		}
+		if (put_user(ftoken, &tokens->first_tokenid)) {
+			ret = -EINVAL;
+			goto err;
+		}
+		break;
+	}
+#endif /* CONFIG_ACCESS_TOKENID */
 	default:
 		ret = -EINVAL;
 		goto err;
