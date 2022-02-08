@@ -23,24 +23,22 @@ struct cache_fs_override {
 
 #ifdef CONFIG_HMDFS_FS_PERMISSION
 
-#define AID_ROOT             0
-#define AID_SYSTEM        1000
-#define AID_SDCARD_RW     1015
-#define AID_MEDIA_RW      1023
-#define AID_EVERYBODY     9997
+#define OID_ROOT             	0
+#define OID_SYSTEM        	1000
+#define OID_USER_DATA_RW      	1008
 
 /* copied from sdcardfs/multiuser.h */
-#define AID_USER_OFFSET     100000 /* offset for uid ranges for each user */
+#define BASE_USER_RANGE     200000 /* offset for uid ranges for each user */
 
 #define HMDFS_PERM_XATTR "user.hmdfs.perm"
 
-#define ROOT_UID KUIDT_INIT(AID_ROOT)
-#define SYSTEM_UID KUIDT_INIT(AID_SYSTEM)
-#define MEDIA_RW_UID KUIDT_INIT(AID_MEDIA_RW)
+#define ROOT_UID 		KUIDT_INIT(OID_ROOT)
+#define SYSTEM_UID 		KUIDT_INIT(OID_SYSTEM)
+#define USER_DATA_RW_UID 	KUIDT_INIT(OID_USER_DATA_RW)
 
-#define SYSTEM_GID KGIDT_INIT((gid_t) AID_SYSTEM)
-#define MEDIA_RW_GID KGIDT_INIT(AID_MEDIA_RW)
-#define SDCARD_RW_GID KGIDT_INIT(AID_SDCARD_RW)
+#define ROOT_GID 		KGIDT_INIT(OID_ROOT)
+#define SYSTEM_GID 		KGIDT_INIT(OID_SYSTEM)
+#define USER_DATA_RW_GID 	KGIDT_INIT(OID_USER_DATA_RW)
 
 #define PKG_ROOT_NAME "data"
 #define SYSTEM_NAME "system"
@@ -89,7 +87,7 @@ static inline bool is_perm_other(__u16 perm)
 
 static inline void hmdfs_check_cred(const struct cred *cred)
 {
-	if (cred->fsuid.val != AID_SYSTEM || cred->fsgid.val != AID_SYSTEM)
+	if (cred->fsuid.val != OID_SYSTEM || cred->fsgid.val != OID_SYSTEM)
 		hmdfs_warning("uid is %u, gid is %u", cred->fsuid.val,
 			      cred->fsgid.val);
 }
@@ -176,6 +174,13 @@ static inline bool is_system_auth(__u16 perm)
 
 #define HMDFS_ALL_MASK (HMDFS_MOUNT_POINT_MASK | AUTH_MASK | HMDFS_DIR_TYPE_MASK | HMDFS_PERM_MASK)
 
+static inline kuid_t get_bid_from_uid(kuid_t uid)
+{
+	kuid_t bid;
+
+	bid.val = uid.val % BASE_USER_RANGE;
+	return bid;
+}
 
 static inline void set_inode_gid(struct inode *inode, kgid_t gid)
 {
@@ -250,6 +255,9 @@ int hmdfs_override_dir_id_fs(struct cache_fs_override *or,
 void hmdfs_revert_dir_id_fs(struct cache_fs_override *or);
 void check_and_fixup_ownership_remote(struct inode *dir,
 				      struct dentry *dentry);
+extern int get_bid(const char *bname);
+extern int __init hmdfs_init_configfs(void);
+extern void hmdfs_exit_configfs(void);
 
 #else
 
@@ -322,6 +330,10 @@ static inline
 void hmdfs_check_cred(const struct cred *cred)
 {
 }
+
+static inline int get_bid(const char *bname) { return 0; }
+static inline int __init hmdfs_init_configfs(void) { return 0; }
+static inline void hmdfs_exit_configfs(void) {}
 
 #endif /* CONFIG_HMDFS_FS_PERMISSION */
 

@@ -48,9 +48,8 @@ const struct cred *hmdfs_override_fsids(bool is_recv_thread)
 	if (!cred)
 		return NULL;
 
-	cred->fsuid = MEDIA_RW_UID;
-	cred->fsgid = is_recv_thread ?
-		      KGIDT_INIT((gid_t)AID_EVERYBODY) : MEDIA_RW_GID;
+	cred->fsuid = is_recv_thread ? SYSTEM_UID : USER_DATA_RW_UID;
+	cred->fsgid = is_recv_thread ? SYSTEM_GID : USER_DATA_RW_GID;
 
 	old_cred = override_creds(cred);
 
@@ -73,7 +72,8 @@ const struct cred *hmdfs_override_dir_fsids(struct inode *dir,
 	switch (level) {
 	case HMDFS_PERM_MNT:
 		/* system : media_rw */
-		cred->fsuid = SYSTEM_UID;
+		cred->fsuid = USER_DATA_RW_UID;
+		cred->fsgid = USER_DATA_RW_GID;
 		perm = (hii->perm & HMDFS_DIR_TYPE_MASK) | level;
 		break;
 	case HMDFS_PERM_DFS:
@@ -83,15 +83,12 @@ const struct cred *hmdfs_override_dir_fsids(struct inode *dir,
 		 * other : media_rw : media_rw
 		 **/
 		if (!strcmp(dentry->d_name.name, PKG_ROOT_NAME)) {
-			cred->fsuid = SYSTEM_UID;
 			perm = HMDFS_DIR_DATA | level;
-		} else if (!strcmp(dentry->d_name.name, SYSTEM_NAME)) {
-			cred->fsuid = SYSTEM_UID;
-			perm = AUTH_SYSTEM | HMDFS_DIR_SYSTEM | level;
 		} else {
-			cred->fsuid = MEDIA_RW_UID;
 			perm = HMDFS_DIR_PUBLIC | level;
 		}
+		cred->fsuid = USER_DATA_RW_UID;
+		cred->fsgid = USER_DATA_RW_GID;
 		break;
 	case HMDFS_PERM_PKG:
 		if (is_data_dir(hii->perm)) {
@@ -102,20 +99,25 @@ const struct cred *hmdfs_override_dir_fsids(struct inode *dir,
 			 * local uninstall.
 			 * Set appid + media_rw for local install.
 			 */
-			uid_t app_id = 0;
+			int bid = get_bid(dentry->d_name.name);
 
-			if (app_id != 0)
-				cred->fsuid = KUIDT_INIT(app_id);
-			else
+			if (bid != 0) {
+				cred->fsuid = KUIDT_INIT(bid);
+				cred->fsgid = KGIDT_INIT(bid);
+			} else {
 				cred->fsuid = ROOT_UID;
+				cred->fsgid = ROOT_GID;
+			}
 			perm = AUTH_PKG | HMDFS_DIR_PKG | level;
 		} else {
 			cred->fsuid = dir->i_uid;
+			cred->fsgid = dir->i_gid;
 			perm = (hii->perm & AUTH_MASK) | HMDFS_DIR_DEFAULT | level;
 		}
 		break;
 	case HMDFS_PERM_OTHER:
 		cred->fsuid = dir->i_uid;
+		cred->fsgid = dir->i_gid;
 		if (is_pkg_auth(hii->perm))
 			perm = AUTH_PKG | HMDFS_DIR_PKG_SUB | level;
 		else
@@ -127,7 +129,6 @@ const struct cred *hmdfs_override_dir_fsids(struct inode *dir,
 		break;
 	}
 
-	cred->fsgid = MEDIA_RW_GID;
 	*_perm = perm;
 	old_cred = override_creds(cred);
 
@@ -312,27 +313,6 @@ static __u16 __inherit_perm_file(struct inode *parent)
 	return perm;
 }
 
-static void fixup_ownership(struct inode *child, struct dentry *lower_dentry,
-		     uid_t uid)
-{
-	int err;
-	struct iattr newattrs;
-
-	newattrs.ia_valid = ATTR_UID | ATTR_FORCE;
-	newattrs.ia_uid = KUIDT_INIT(uid);
-	if (!S_ISDIR(d_inode(lower_dentry)->i_mode))
-		newattrs.ia_valid |= ATTR_KILL_SUID | ATTR_KILL_PRIV;
-
-	inode_lock(d_inode(lower_dentry));
-	err = notify_change(lower_dentry, &newattrs, NULL);
-	inode_unlock(d_inode(lower_dentry));
-
-	if (!err)
-		child->i_uid = KUIDT_INIT(uid);
-	else
-		hmdfs_err("update PKG uid failed, err = %d", err);
-}
-
 static void fixup_ownership_user_group(struct inode *child, struct dentry *lower_dentry,
 		     uid_t uid, gid_t gid)
 {
@@ -371,7 +351,7 @@ __u16 hmdfs_perm_inherit(struct inode *parent_inode, struct inode *child)
 void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child,
 			       struct dentry *lower_dentry, const char *name)
 {
-	uid_t appid;
+	int bid;
 	struct hmdfs_inode_info *info = hmdfs_i(child);
 
 	if (info->perm == HMDFS_ALL_MASK)
@@ -379,24 +359,21 @@ void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child,
 
 	switch (info->perm & HMDFS_DIR_TYPE_MASK) {
 	case HMDFS_DIR_PKG:
-		appid = 0;
-		if (appid != child->i_uid.val)
-			fixup_ownership(child, lower_dentry, appid);
+		bid = get_bid(name);
+		if (bid != child->i_uid.val || bid != child->i_gid.val)
+			fixup_ownership_user_group(child, lower_dentry, bid, bid);
 
 		break;
 	case HMDFS_DIR_DATA:
 	case HMDFS_FILE_PKG_SUB:
 	case HMDFS_DIR_DEFAULT:
 	case HMDFS_FILE_DEFAULT:
+	case HMDFS_DIR_PUBLIC:
 		if (parent_inode->i_uid.val != child->i_uid.val ||
 		    parent_inode->i_gid.val != child->i_gid.val)
 			fixup_ownership_user_group(child, lower_dentry,
 					parent_inode->i_uid.val,
 					parent_inode->i_gid.val);
-		break;
-	case HMDFS_DIR_PUBLIC:
-		fixup_ownership(child, lower_dentry, (uid_t)AID_MEDIA_RW);
-
 		break;
 	default:
 		break;
@@ -416,7 +393,8 @@ void check_and_fixup_ownership_remote(struct inode *dir,
 	switch (level) {
 	case HMDFS_PERM_MNT:
 		/* system : media_rw */
-		dinode->i_uid = SYSTEM_UID;
+		dinode->i_uid = USER_DATA_RW_UID;
+		dinode->i_gid = USER_DATA_RW_GID;
 		perm = (hii->perm & HMDFS_DIR_TYPE_MASK) | level;
 		break;
 	case HMDFS_PERM_DFS:
@@ -426,17 +404,12 @@ void check_and_fixup_ownership_remote(struct inode *dir,
 		 * other : media_rw : media_rw
 		 **/
 		if (!strcmp(dentry->d_name.name, PKG_ROOT_NAME)) {
-			// "data"
-			dinode->i_uid = SYSTEM_UID;
 			perm = HMDFS_DIR_DATA | level;
-		} else if (!strcmp(dentry->d_name.name, SYSTEM_NAME)) {
-			 // "system"
-			dinode->i_uid = SYSTEM_UID;
-			perm = AUTH_SYSTEM | HMDFS_DIR_SYSTEM | level;
 		} else {
-			dinode->i_uid = MEDIA_RW_UID;
 			perm = HMDFS_DIR_PUBLIC | level;
 		}
+		dinode->i_uid = USER_DATA_RW_UID;
+		dinode->i_gid = USER_DATA_RW_GID;
 		break;
 	case HMDFS_PERM_PKG:
 		if (is_data_dir(hii->perm)) {
@@ -447,20 +420,24 @@ void check_and_fixup_ownership_remote(struct inode *dir,
 			 * local uninstall.
 			 * Set appid + media_rw for local install.
 			 */
-			uid_t app_id = 0;
-
-			if (app_id != 0)
-				dinode->i_uid = KUIDT_INIT(app_id);
-			else
+			int bid = get_bid(dentry->d_name.name);
+			if (bid != 0) {
+				dinode->i_uid = KUIDT_INIT(bid);
+				dinode->i_gid = KGIDT_INIT(bid);
+			} else {
 				dinode->i_uid = ROOT_UID;
+				dinode->i_gid = ROOT_GID;
+			}
 			perm = AUTH_PKG | HMDFS_DIR_PKG | level;
 		} else {
 			dinode->i_uid = dir->i_uid;
+			dinode->i_gid = dir->i_gid;
 			perm = (hii->perm & AUTH_MASK) | HMDFS_DIR_DEFAULT | level;
 		}
 		break;
 	case HMDFS_PERM_OTHER:
 		dinode->i_uid = dir->i_uid;
+		dinode->i_gid = dir->i_gid;
 		if (is_pkg_auth(hii->perm))
 			perm = AUTH_PKG | HMDFS_DIR_PKG_SUB | level;
 		else
@@ -472,7 +449,6 @@ void check_and_fixup_ownership_remote(struct inode *dir,
 		break;
 	}
 
-	dinode->i_gid = MEDIA_RW_GID;
 	dinfo->perm = perm;
 }
 
@@ -481,6 +457,6 @@ void hmdfs_root_inode_perm_init(struct inode *root_inode)
 	struct hmdfs_inode_info *hii = hmdfs_i(root_inode);
 
 	hii->perm = HMDFS_DIR_ROOT | HMDFS_PERM_MNT;
-	set_inode_uid(root_inode, SYSTEM_UID);
-	set_inode_gid(root_inode, MEDIA_RW_GID);
+	set_inode_uid(root_inode, USER_DATA_RW_UID);
+	set_inode_gid(root_inode, USER_DATA_RW_GID);
 }

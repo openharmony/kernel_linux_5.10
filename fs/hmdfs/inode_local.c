@@ -872,6 +872,8 @@ static int hmdfs_getattr_local(const struct path *path, struct kstat *stat,
 	hmdfs_get_lower_path(path->dentry, &lower_path);
 	ret = vfs_getattr(&lower_path, stat, request_mask, flags);
 	stat->ino = d_inode(path->dentry)->i_ino;
+	stat->uid = d_inode(path->dentry)->i_uid;
+	stat->gid = d_inode(path->dentry)->i_gid;
 	hmdfs_put_lower_path(&lower_path);
 
 	return ret;
@@ -892,10 +894,12 @@ int hmdfs_permission(struct inode *inode, int mask)
 	} else if (in_group_p(inode->i_gid)) {
 		mode >>= 3;
 	} else if (is_pkg_auth(hii->perm)) {
-		if (uid_eq(cur_uid, inode->i_uid))
+		kuid_t bid = get_bid_from_uid(cur_uid);
+
+		if (uid_eq(bid, inode->i_uid))
 			return 0;
 	} else if (is_system_auth(hii->perm)) {
-		if (in_group_p(MEDIA_RW_GID))
+		if (in_group_p(USER_DATA_RW_GID))
 			return 0;
 	}
 
