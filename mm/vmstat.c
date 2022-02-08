@@ -1350,6 +1350,24 @@ const char * const vmstat_text[] = {
 	"swap_ra",
 	"swap_ra_hit",
 #endif
+#ifdef CONFIG_HYPERHOLD_ZSWAPD
+	"zswapd_running",
+	"zswapd_hit_refaults",
+	"zswapd_medium_press",
+	"zswapd_critical_press",
+	"zswapd_memcg_ratio_skip",
+	"zswapd_memcg_refault_skip",
+	"zswapd_swapout",
+	"zswapd_empty_round",
+	"zswapd_empty_round_skip_times",
+	"zswapd_snapshot_times",
+	"zswapd_reclaimed",
+	"zswapd_scanned",
+#endif
+#ifdef CONFIG_HYPERHOLD_MEMCG
+	"freeze_reclaimed",
+	"freeze_reclaim_count",
+#endif
 #endif /* CONFIG_VM_EVENT_COUNTERS || CONFIG_MEMCG */
 };
 #endif /* CONFIG_PROC_FS || CONFIG_SYSFS || CONFIG_NUMA || CONFIG_MEMCG */

@@ -380,7 +380,22 @@ extern int sysctl_min_slab_ratio;
 #define node_reclaim_mode 0
 #endif
 
+struct scan_control;
+
+extern unsigned long shrink_list(enum lru_list lru, unsigned long nr_to_scan,
+				 struct lruvec *lruvec,
+				 struct scan_control *sc);
+extern bool inactive_is_low(struct lruvec *lruvec, enum lru_list inactive_lru);
+extern bool cgroup_reclaim(struct scan_control *sc);
 extern void check_move_unevictable_pages(struct pagevec *pvec);
+extern unsigned long shrink_slab(gfp_t gfp_mask, int nid, struct mem_cgroup *memcg,
+			  int priority);
+extern bool writeback_throttling_sane(struct scan_control *sc);
+extern inline bool should_continue_reclaim(struct pglist_data *pgdat,
+					   unsigned long nr_reclaimed,
+					   struct scan_control *sc);
+
+extern int current_may_throttle(void);
 
 extern int kswapd_run(int nid);
 extern void kswapd_stop(int nid);
@@ -443,6 +458,9 @@ extern atomic_long_t nr_swap_pages;
 extern long total_swap_pages;
 extern atomic_t nr_rotate_swap;
 extern bool has_usable_swap(void);
+#ifdef CONFIG_HYPERHOLD_ZSWAPD
+extern bool free_swap_is_low(void);
+#endif
 
 /* Swap 50% full? Release swapcache more aggressively.. */
 static inline bool vm_swap_full(void)

@@ -63,6 +63,33 @@ config SPARSEMEM_MANUAL
 
 endchoice
 
+config HYPERHOLD_FILE_LRU
+	bool "Enable HyperHold FILE LRU"
+	depends on HYPERHOLD && MEMCG
+	select HYPERHOLD_MEMCG
+	default n
+	help
+	  File-LRU is a mechanism that put file page in global lru list,
+	  and anon page in memcg lru list(if MEMCG is enable), what's
+	  more, recliam of anonymous pages and file page are separated.
+
+config HYPERHOLD_MEMCG
+	bool "Enable Memcg Management in HyperHold"
+	depends on HYPERHOLD && MEMCG
+	help
+	  Add more attributes in memory cgroup, these attribute is used
+	  to show information, shrink memory, swapin page and so on.
+
+config HYPERHOLD_ZSWAPD
+	bool "Enable zswapd thread to reclaim anon pages in background"
+	depends on HYPERHOLD
+	default n
+	help
+	  zswapd is a kernel thread that reclaim anonymous pages in the
+	  background. When the use of swap pages reaches the watermark
+	  and the refault of anonymous pages is high, the content of
+	  zram will exchanged to eswap by a certain percentage.
+
 config DISCONTIGMEM
 	def_bool y
 	depends on (!SELECT_MEMORY_MODEL && ARCH_DISCONTIGMEM_ENABLE) || DISCONTIGMEM_MANUAL

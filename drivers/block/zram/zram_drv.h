@@ -21,6 +21,10 @@
 
 #include "zcomp.h"
 
+#ifdef CONFIG_ZRAM_GROUP
+#include "zram_group.h"
+#endif
+
 #define SECTORS_PER_PAGE_SHIFT	(PAGE_SHIFT - SECTOR_SHIFT)
 #define SECTORS_PER_PAGE	(1 << SECTORS_PER_PAGE_SHIFT)
 #define ZRAM_LOGICAL_BLOCK_SHIFT 12
@@ -39,7 +43,15 @@
  * The lower ZRAM_FLAG_SHIFT bits is for object size (excluding header),
  * the higher bits is for zram_pageflags.
  */
+#ifdef CONFIG_ZRAM_GROUP
+/* reserve 16 bits for group id */
+#define ZRAM_SIZE_SHIFT 24
+#define ZRAM_GRPID_SHIFT 16
+#define ZRAM_GRPID_MASK (((1UL << ZRAM_GRPID_SHIFT) - 1) << ZRAM_SIZE_SHIFT)
+#define ZRAM_FLAG_SHIFT (ZRAM_SIZE_SHIFT + ZRAM_GRPID_SHIFT)
+#else
 #define ZRAM_FLAG_SHIFT 24
+#endif
 
 /* Flags for zram pages (table[page_no].flags) */
 enum zram_pageflags {
@@ -50,6 +62,10 @@ enum zram_pageflags {
 	ZRAM_UNDER_WB,	/* page is under writeback */
 	ZRAM_HUGE,	/* Incompressible page */
 	ZRAM_IDLE,	/* not accessed page since last idle marking */
+#ifdef CONFIG_ZRAM_GROUP_WRITEBACK
+	ZRAM_GWB,	/* obj is group writeback*/
+	ZRAM_FAULT,	/* obj is needed by a pagefault req */
+#endif
 
 	__NR_ZRAM_PAGEFLAGS,
 };
@@ -91,6 +107,10 @@ struct zram_stats {
 
 struct zram {
 	struct zram_table_entry *table;
+#ifdef CONFIG_ZRAM_GROUP
+	struct zram_group *zgrp;
+	unsigned int zgrp_ctrl;
+#endif
 	struct zs_pool *mem_pool;
 	struct zcomp *comp;
 	struct gendisk *disk;
@@ -126,4 +146,86 @@ struct zram {
 	struct dentry *debugfs_dir;
 #endif
 };
+
+static inline int zram_slot_trylock(struct zram *zram, u32 index)
+{
+	return bit_spin_trylock(ZRAM_LOCK, &zram->table[index].flags);
+}
+
+static inline void zram_slot_lock(struct zram *zram, u32 index)
+{
+	bit_spin_lock(ZRAM_LOCK, &zram->table[index].flags);
+}
+
+static inline void zram_slot_unlock(struct zram *zram, u32 index)
+{
+	bit_spin_unlock(ZRAM_LOCK, &zram->table[index].flags);
+}
+
+static inline unsigned long zram_get_handle(struct zram *zram, u32 index)
+{
+	return zram->table[index].handle;
+}
+
+static inline void zram_set_handle(struct zram *zram, u32 index, unsigned long handle)
+{
+	zram->table[index].handle = handle;
+}
+
+/* flag operations require table entry bit_spin_lock() being held */
+static inline bool zram_test_flag(struct zram *zram, u32 index,
+			enum zram_pageflags flag)
+{
+	return zram->table[index].flags & BIT(flag);
+}
+
+static inline void zram_set_flag(struct zram *zram, u32 index,
+			enum zram_pageflags flag)
+{
+	zram->table[index].flags |= BIT(flag);
+}
+
+static inline void zram_clear_flag(struct zram *zram, u32 index,
+			enum zram_pageflags flag)
+{
+	zram->table[index].flags &= ~BIT(flag);
+}
+#ifdef CONFIG_ZRAM_GROUP
+static inline size_t zram_get_obj_size(struct zram *zram, u32 index)
+{
+	return zram->table[index].flags & (BIT(ZRAM_SIZE_SHIFT) - 1);
+}
+
+static inline void zram_set_obj_size(struct zram *zram, u32 index, size_t size)
+{
+	unsigned long flags = zram->table[index].flags >> ZRAM_SIZE_SHIFT;
+
+	zram->table[index].flags = (flags << ZRAM_SIZE_SHIFT) | size;
+}
+
+void zram_group_init(struct zram *zram, u32 nr_obj);
+void zram_group_deinit(struct zram *zram);
+void zram_group_track_obj(struct zram *zram, u32 index, struct mem_cgroup *memcg);
+void zram_group_untrack_obj(struct zram *zram, u32 index);
+#ifdef CONFIG_ZRAM_GROUP_WRITEBACK
+int zram_group_fault_obj(struct zram *zram, u32 index);
+#endif
+
+#ifdef CONFIG_ZRAM_GROUP_DEBUG
+void group_debug(struct zram *zram, u32 op, u32 index, u32 gid);
+#endif
+
+#else
+static inline size_t zram_get_obj_size(struct zram *zram, u32 index)
+{
+	return zram->table[index].flags & (BIT(ZRAM_FLAG_SHIFT) - 1);
+}
+
+static inline void zram_set_obj_size(struct zram *zram, u32 index, size_t size)
+{
+	unsigned long flags = zram->table[index].flags >> ZRAM_FLAG_SHIFT;
+
+	zram->table[index].flags = (flags << ZRAM_FLAG_SHIFT) | size;
+}
+#endif
 #endif
