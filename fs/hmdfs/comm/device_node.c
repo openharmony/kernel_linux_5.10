@@ -1421,6 +1421,7 @@ int hmdfs_register_sysfs(const char *name, struct hmdfs_sb_info *sbi)
 	init_completion(&sbi->s_kobj_unregister);
 	ret = kobject_init_and_add(&sbi->kobj, &sbi_ktype,
 				   &hmdfs_kset->kobj, "%s", name);
+	sysfs_change_owner(&sbi->kobj, KUIDT_INIT(1000), KGIDT_INIT(1000));
 	mutex_unlock(&hmdfs_sysfs_mutex);
 
 	if (ret) {
