@@ -16,11 +16,7 @@
 #include "hp_space.h"
 #include "hp_iotab.h"
 
-#ifdef CONFIG_HYPERHOLD_DEBUG
-#define HP_DFLT_DEVICE "/dev/loop6"
-#else
 #define HP_DFLT_DEVICE "/dev/by-name/hyperhold"
-#endif
 #define HP_DFLT_EXT_SIZE (1 << 15)
 #define HP_DEV_NAME_LEN 256
 #define HP_STATE_LEN 10
@@ -38,6 +34,7 @@ struct hyperhold {
 
 	char device_name[HP_DEV_NAME_LEN];
 	u32 extent_size;
+	u32 enable_soft_crypt;
 
 	struct hp_device dev;
 	struct hp_space spc;
@@ -79,6 +76,7 @@ void hyperhold_disable(bool force)
 	if (hyperhold.write_wq)
 		destroy_workqueue(hyperhold.write_wq);
 	deinit_space(&hyperhold.spc);
+	crypto_deinit(&hyperhold.dev);
 	unbind_bdev(&hyperhold.dev);
 out:
 	if (hyperhold.inited)
@@ -101,6 +99,8 @@ void hyperhold_enable(void)
 		goto unlock;
 	if (!bind_bdev(&hyperhold.dev, hyperhold.device_name))
 		goto err;
+	if (!crypto_init(&hyperhold.dev, hyperhold.enable_soft_crypt))
+		goto err;
 	if (!init_space(&hyperhold.spc, hyperhold.dev.dev_size, hyperhold.extent_size))
 		goto err;
 	hyperhold.read_wq = alloc_workqueue("hyperhold_read", WQ_HIGHPRI | WQ_UNBOUND, 0);
@@ -117,6 +117,7 @@ err:
 	if (hyperhold.write_wq)
 		destroy_workqueue(hyperhold.write_wq);
 	deinit_space(&hyperhold.spc);
+	crypto_deinit(&hyperhold.dev);
 	unbind_bdev(&hyperhold.dev);
 	enable = false;
 unlock:
@@ -132,8 +133,8 @@ out:
 }
 EXPORT_SYMBOL(hyperhold_enable);
 
-static int hyperhold_sysctl_handler(struct ctl_table *table, int write,
-		void *buffer, size_t *lenp, loff_t *ppos)
+static int enable_sysctl_handler(struct ctl_table *table, int write,
+				 void *buffer, size_t *lenp, loff_t *ppos)
 {
 	if (write) {
 		if (!strcmp(buffer, "enable\n"))
@@ -162,26 +163,93 @@ static int hyperhold_sysctl_handler(struct ctl_table *table, int write,
 	return 0;
 }
 
+static int device_sysctl_handler(struct ctl_table *table, int write,
+				 void *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+
+	mutex_lock(&hyperhold.init_lock);
+	if (write && hyperhold.inited) {
+		pr_err("hyperhold device is busy!\n");
+		ret = -EBUSY;
+		goto unlock;
+	}
+	ret = proc_dostring(table, write, buffer, lenp, ppos);
+	if (write && !ret) {
+		hyperhold.enable_soft_crypt = 1;
+		pr_info("device changed, default enable soft crypt.\n");
+	}
+unlock:
+	mutex_unlock(&hyperhold.init_lock);
+
+	return ret;
+}
+
+static int extent_sysctl_handler(struct ctl_table *table, int write,
+				 void *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+
+	mutex_lock(&hyperhold.init_lock);
+	if (write && hyperhold.inited) {
+		pr_err("hyperhold device is busy!\n");
+		ret = -EBUSY;
+		goto unlock;
+	}
+	ret = proc_douintvec(table, write, buffer, lenp, ppos);
+unlock:
+	mutex_unlock(&hyperhold.init_lock);
+
+	return ret;
+}
+
+static int crypto_sysctl_handler(struct ctl_table *table, int write,
+				 void *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+
+	mutex_lock(&hyperhold.init_lock);
+	if (write && hyperhold.inited) {
+		pr_err("hyperhold device is busy!\n");
+		ret = -EBUSY;
+		goto unlock;
+	}
+	ret = proc_douintvec_minmax(table, write, buffer, lenp, ppos);
+unlock:
+	mutex_unlock(&hyperhold.init_lock);
+
+	return ret;
+}
+
 static struct ctl_table_header *hp_sysctl_header;
 static struct ctl_table hp_table[] = {
 	{
 		.procname = "enable",
 		.mode = 0644,
-		.proc_handler = hyperhold_sysctl_handler,
+		.proc_handler = enable_sysctl_handler,
 	},
 	{
 		.procname = "device",
 		.data = &hyperhold.device_name,
 		.maxlen = sizeof(hyperhold.device_name),
 		.mode = 0644,
-		.proc_handler = proc_dostring,
+		.proc_handler = device_sysctl_handler,
 	},
 	{
 		.procname = "extent_size",
 		.data = &hyperhold.extent_size,
 		.maxlen = sizeof(hyperhold.extent_size),
 		.mode = 0644,
-		.proc_handler = proc_douintvec,
+		.proc_handler = extent_sysctl_handler,
+	},
+	{
+		.procname = "soft_crypt",
+		.data = &hyperhold.enable_soft_crypt,
+		.maxlen = sizeof(hyperhold.enable_soft_crypt),
+		.mode = 0644,
+		.proc_handler = crypto_sysctl_handler,
+		.extra1 = SYSCTL_ZERO,
+		.extra2 = SYSCTL_ONE,
 	},
 	{}
 };
@@ -204,13 +272,14 @@ static struct ctl_table hp_sys_table[] = {
 
 bool is_hyperhold_enable(void)
 {
-	return CHECK_ENABLE;
+	return hyperhold.enable;
 }
 
 static int __init hyperhold_init(void)
 {
 	strcpy(hyperhold.device_name, HP_DFLT_DEVICE);
 	hyperhold.extent_size = HP_DFLT_EXT_SIZE;
+	hyperhold.enable_soft_crypt = 1;
 	mutex_init(&hyperhold.init_lock);
 	hp_sysctl_header = register_sysctl_table(hp_sys_table);
 	if (!hp_sysctl_header) {
@@ -536,10 +605,74 @@ void *hyperhold_io_private(struct hpio *hpio)
 }
 EXPORT_SYMBOL(hyperhold_io_private);
 
+static struct page *get_encrypted_page(struct hp_device *dev, struct page *page, unsigned int op)
+{
+	struct page *encrypted_page = NULL;
+
+	if (!dev->ctfm) {
+		encrypted_page = page;
+		get_page(encrypted_page);
+		goto out;
+	}
+
+	encrypted_page = alloc_page(GFP_NOIO);
+	if (!encrypted_page) {
+		pr_err("alloc encrypted page failed!\n");
+		goto out;
+	}
+	encrypted_page->index = page->index;
+
+	/* just alloc a new page for read */
+	if (!op_is_write(op))
+		goto out;
+
+	/* encrypt page for write */
+	if (soft_crypt_page(dev->ctfm, encrypted_page, page, HP_DEV_ENCRYPT)) {
+		put_page(encrypted_page);
+		encrypted_page = NULL;
+	}
+out:
+	return encrypted_page;
+}
+
+static void put_encrypted_pages(struct bio *bio)
+{
+	struct bio_vec *bv = NULL;
+	struct bvec_iter_all iter;
+
+	bio_for_each_segment_all(bv, bio, iter)
+		put_page(bv->bv_page);
+}
+
 static void hp_endio_work(struct work_struct *work)
 {
 	struct hpio *hpio = container_of(work, struct hpio, endio_work);
+	struct hp_device *dev = NULL;
+	struct bio_vec *bv = NULL;
+	struct bvec_iter_all iter;
+	struct page *page = NULL;
+	u32 ext_size;
+	sector_t sec;
+	int i;
 
+	if (op_is_write(hpio->op))
+		goto endio;
+	ext_size = space_of(hpio->eid)->ext_size;
+	dev = device_of(hpio->eid);
+	sec = hpio->eid * ext_size / dev->sec_size;
+	i = 0;
+	bio_for_each_segment_all(bv, hpio->bio, iter) {
+		page = bv->bv_page;
+		BUG_ON(i >= hpio->nr_page);
+		BUG_ON(!hpio->pages[i]);
+		if (dev->ctfm)
+			BUG_ON(soft_crypt_page(dev->ctfm, hpio->pages[i], page, HP_DEV_DECRYPT));
+		sec += PAGE_SIZE / dev->sec_size;
+		i++;
+	}
+endio:
+	put_encrypted_pages(hpio->bio);
+	bio_put(hpio->bio);
 	if (hpio->endio)
 		hpio->endio(hpio);
 }
@@ -554,7 +687,6 @@ static void hpio_endio(struct bio *bio)
 	hpio_set_state(hpio, bio->bi_status ? HPIO_FAIL : HPIO_DONE);
 	wq = op_is_write(hpio->op) ? hyperhold.write_wq : hyperhold.read_wq;
 	queue_work(wq, &hpio->endio_work);
-	bio_put(bio);
 	atomic64_sub(sizeof(struct bio), &mem_used);
 }
 
@@ -562,6 +694,7 @@ static int hpio_submit(struct hpio *hpio)
 {
 	struct hp_device *dev = NULL;
 	struct bio *bio = NULL;
+	struct page *page = NULL;
 	u32 ext_size;
 	sector_t sec;
 	int i;
@@ -584,18 +717,27 @@ static int hpio_submit(struct hpio *hpio)
 		if (!hpio->pages[i])
 			break;
 		hpio->pages[i]->index = sec;
-		if (!bio_add_page(bio, hpio->pages[i], PAGE_SIZE, 0))
+		page = get_encrypted_page(dev, hpio->pages[i], hpio->op);
+		if (!page)
 			goto err;
+		if (!bio_add_page(bio, page, PAGE_SIZE, 0)) {
+			put_page(page);
+			goto err;
+		}
 		sec += PAGE_SIZE / dev->sec_size;
 	}
 
+	if (dev->blk_key)
+		inline_crypt_bio(dev->blk_key, bio);
 	bio->bi_private = hpio;
 	bio->bi_end_io = hpio_endio;
+	hpio->bio = bio;
 	submit_bio(bio);
 	pr_info("submit hpio %p for eid %u.\n", hpio, hpio->eid);
 
 	return 0;
 err:
+	put_encrypted_pages(bio);
 	bio_put(bio);
 	atomic64_sub(sizeof(struct bio), &mem_used);
 	return -EIO;
