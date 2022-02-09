@@ -96,6 +96,7 @@ void unregister_pstore_device(struct pstore_device_info *dev);
  * @pmsg_size:		Total size of the pmsg storage area
  * @console_size:	Total size of the console storage area
  * @ftrace_size:	Total size for ftrace logging data (for all CPUs)
+ * @blackbox_size:	Total size of the blackbox storage area
  */
 struct pstore_blk_config {
 	char device[80];
@@ -104,6 +105,7 @@ struct pstore_blk_config {
 	unsigned long pmsg_size;
 	unsigned long console_size;
 	unsigned long ftrace_size;
+	unsigned long blackbox_size;
 };
 
 /**
