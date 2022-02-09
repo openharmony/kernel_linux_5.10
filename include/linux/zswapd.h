@@ -93,6 +93,10 @@ static struct group_swap_device *register_group_swap(struct group_swap_ops *ops,
 static void unregister_group_swap(struct group_swap_device *gsdev)
 {
 }
+
+static void memcg_eswap_info_show(struct seq_file *m)
+{
+}
 #endif
 
 #endif /* _LINUX_ZSWAPD_H */

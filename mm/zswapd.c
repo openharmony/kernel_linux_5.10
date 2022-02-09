@@ -250,7 +250,7 @@ static bool get_memcg_anon_refault_status(struct mem_cgroup *memcg)
 {
 	const unsigned int percent_constant = 100;
 	unsigned long long anon_pagefault;
-	unsigned long anon_total;
+	unsigned long long anon_total;
 	unsigned long long ratio;
 	struct mem_cgroup_per_node *mz = NULL;
 	struct lruvec *lruvec = NULL;
@@ -274,8 +274,8 @@ static bool get_memcg_anon_refault_status(struct mem_cgroup *memcg)
 		lruvec_lru_size(lruvec, LRU_INACTIVE_ANON, MAX_NR_ZONES) +
 		memcg_data_size(memcg, SWAP_PAGE) + memcg_data_size(memcg, CACHE_PAGE);
 
-	ratio = (anon_pagefault - memcg->memcg_reclaimed.reclaimed_pagefault) *
-		percent_constant / (anon_total + 1);
+	ratio = div64_u64((anon_pagefault - memcg->memcg_reclaimed.reclaimed_pagefault) *
+			percent_constant, (anon_total + 1));
 	if (ratio > atomic_read(&memcg->memcg_reclaimed.refault_threshold))
 		return true;
 
@@ -294,8 +294,8 @@ static bool get_area_anon_refault_status(void)
 	if (anon_pagefault == last_anon_pagefault || time == last_snapshot_time)
 		return false;
 
-	ratio = (anon_pagefault - last_anon_pagefault) * percent_constant /
-		(jiffies_to_msecs(time - last_snapshot_time) + 1);
+	ratio = div_u64((anon_pagefault - last_anon_pagefault) * percent_constant,
+			(jiffies_to_msecs(time - last_snapshot_time) + 1));
 	anon_refault_ratio = ratio;
 
 	if (ratio > get_area_anon_refault_threshold())
@@ -396,7 +396,7 @@ int get_zram_current_watermark(void)
 	/* after_comp to before_comp */
 	diff_buffers *= get_compress_ratio();
 	/* page to ratio */
-	diff_buffers = diff_buffers * percent_constant / nr_total;
+	diff_buffers = div64_s64(diff_buffers * percent_constant, nr_total);
 
 	return min(zram_wm_ratio, zram_wm_ratio - diff_buffers);
 }
@@ -410,7 +410,7 @@ bool zram_watermark_ok(void)
 
 	ratio = get_zram_current_watermark();
 	nr_zram_used = get_zram_used_pages();
-	nr_wm = totalram_pages() * ratio / percent_constant;
+	nr_wm = div_u64(totalram_pages() * ratio, percent_constant);
 	if (nr_zram_used > nr_wm)
 		return true;
 
@@ -592,8 +592,8 @@ static bool zswapd_shrink_anon(pg_data_t *pgdat, struct scan_control *sc)
 		nr_zram = memcg_data_size(memcg, CACHE_PAGE);
 		nr_eswap = memcg_data_size(memcg, SWAP_PAGE);
 
-		zram_ratio = (nr_zram + nr_eswap) * percent_constant /
-			(nr_inactive + nr_active + nr_zram + nr_eswap + 1);
+		zram_ratio = div64_u64((nr_zram + nr_eswap) * percent_constant,
+				(nr_inactive + nr_active + nr_zram + nr_eswap + 1));
 		if (zram_ratio >= (u32)atomic_read(&memcg->memcg_reclaimed.ub_mem2zram_ratio)) {
 			count_vm_event(ZSWAPD_MEMCG_RATIO_SKIP);
 			continue;
@@ -637,7 +637,7 @@ static u64 __calc_nr_to_reclaim(void)
 	reclaim_size = min(reclaim_size, max_reclaim_size);
 
 	/* MB to pages */
-	return reclaim_size * SZ_1M / PAGE_SIZE;
+	return div_u64(reclaim_size * SZ_1M, PAGE_SIZE);
 }
 
 static void zswapd_shrink_node(pg_data_t *pgdat)
@@ -706,7 +706,7 @@ u64 zram_watermark_diff(void)
 
 	ratio = get_zram_current_watermark();
 	nr_zram_used = get_zram_used_pages();
-	nr_wm = totalram_pages() * ratio / percent_constant;
+	nr_wm = div_u64(totalram_pages() * ratio, percent_constant);
 	if (nr_zram_used > nr_wm)
 		return (nr_zram_used - nr_wm) * PAGE_SIZE + SWAP_MORE_ZRAM;
 

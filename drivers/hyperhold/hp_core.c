@@ -287,7 +287,7 @@ int hyperhold_addr_extent(u64 addr)
 
 	if (!CHECK_INITED)
 		return -EINVAL;
-	eid = addr / hyperhold.spc.ext_size;
+	eid = div_u64(addr, hyperhold.spc.ext_size);
 	spc = space_of(eid);
 	if (!CHECK(spc, "invalid eid %u!\n", eid))
 		return -EINVAL;
@@ -302,7 +302,7 @@ int hyperhold_addr_offset(u64 addr)
 	if (!CHECK_INITED)
 		return -EINVAL;
 
-	return addr % hyperhold.spc.ext_size;
+	return do_div(addr, hyperhold.spc.ext_size);
 }
 EXPORT_SYMBOL(hyperhold_addr_offset);
 
@@ -578,7 +578,7 @@ static int hpio_submit(struct hpio *hpio)
 	bio_set_dev(bio, dev->bdev);
 
 	ext_size = space_of(hpio->eid)->ext_size;
-	sec = (u64)hpio->eid * ext_size / dev->sec_size;
+	sec = div_u64((u64)hpio->eid * ext_size, dev->sec_size);
 	bio->bi_iter.bi_sector = sec;
 	for (i = 0; i < hpio->nr_page; i++) {
 		if (!hpio->pages[i])
