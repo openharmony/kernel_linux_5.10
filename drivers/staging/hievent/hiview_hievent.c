@@ -8,7 +8,7 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  */
@@ -24,19 +24,19 @@
 #define MAX_PATH_LEN        256
 #define MAX_STR_LEN         (10 * 1024)
 
-/* 64K is max length of /dev/hwlog_exception */
-#define EVENT_INFO_BUF_LEN         (64 * 1024)
-#define EVENT_INFO_PACK_BUF_LEN    (2 * 1024)
+/* CONFIG_BBOX_BUFFER_SIZE is max length of /dev/bbox */
+#define EVENT_INFO_BUF_LEN         ((size_t)CONFIG_BBOX_BUFFER_SIZE)
+#define EVENT_INFO_PACK_BUF_LEN    min((size_t)CONFIG_BBOX_BUFFER_SIZE, 2048)
 
-#define BUF_POINTER_FORWARD                     \
+#define BUF_POINTER_FORWARD             \
 do {                                    \
-	if (tmplen < len) {                 \
-		tmp += tmplen;                  \
-		len -= tmplen;                  \
-	} else {                            \
-		tmp += len;                     \
-		len = 0;                        \
-	}                                   \
+	if (tmplen < len) {             \
+		tmp += tmplen;          \
+		len -= tmplen;          \
+	} else {                        \
+		tmp += len;             \
+		len = 0;                \
+	}                               \
 } while (0)
 
 struct hievent_payload {
