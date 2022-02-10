@@ -93,6 +93,7 @@ struct pstore_zone {
  * @ppsz: pmsg storage zone
  * @cpsz: console storage zone
  * @fpszs: ftrace storage zones
+ * @bpsz: blackbox storage zone
  * @kmsg_max_cnt: max count of @kpszs
  * @kmsg_read_cnt: counter of total read kmsg dumps
  * @kmsg_write_cnt: counter of total kmsg dump writes
@@ -100,6 +101,7 @@ struct pstore_zone {
  * @console_read_cnt: counter of total read console zone
  * @ftrace_max_cnt: max count of @fpszs
  * @ftrace_read_cnt: counter of max read ftrace zone
+ * @blackbox_read_cnt: counter of total read blackbox zone
  * @oops_counter: counter of oops dumps
  * @panic_counter: counter of panic dumps
  * @recovered: whether finished recovering data from storage
@@ -113,6 +115,7 @@ struct psz_context {
 	struct pstore_zone *ppsz;
 	struct pstore_zone *cpsz;
 	struct pstore_zone **fpszs;
+	struct pstore_zone *bpsz;
 	unsigned int kmsg_max_cnt;
 	unsigned int kmsg_read_cnt;
 	unsigned int kmsg_write_cnt;
@@ -120,6 +123,7 @@ struct psz_context {
 	unsigned int console_read_cnt;
 	unsigned int ftrace_max_cnt;
 	unsigned int ftrace_read_cnt;
+	unsigned int blackbox_read_cnt;
 	/*
 	 * These counters should be calculated during recovery.
 	 * It records the oops/panic times after crashes rather than boots.
@@ -325,6 +329,8 @@ static void psz_flush_all_dirty_zones(struct work_struct *work)
 		ret |= psz_flush_dirty_zones(cxt->kpszs, cxt->kmsg_max_cnt);
 	if (cxt->fpszs)
 		ret |= psz_flush_dirty_zones(cxt->fpszs, cxt->ftrace_max_cnt);
+	if (cxt->bpsz)
+		ret |= psz_flush_dirty_zone(cxt->bpsz);
 	if (ret && cxt->pstore_zone_info)
 		schedule_delayed_work(&psz_cleaner, msecs_to_jiffies(1000));
 }
@@ -617,6 +623,10 @@ static inline int psz_recovery(struct psz_context *cxt)
 	if (ret)
 		goto out;
 
+	ret = psz_recover_zone(cxt, cxt->bpsz);
+	if (ret)
+		goto out;
+
 	ret = psz_recover_zones(cxt, cxt->fpszs, cxt->ftrace_max_cnt);
 
 out:
@@ -637,6 +647,7 @@ static int psz_pstore_open(struct pstore_info *psi)
 	cxt->pmsg_read_cnt = 0;
 	cxt->console_read_cnt = 0;
 	cxt->ftrace_read_cnt = 0;
+	cxt->blackbox_read_cnt = 0;
 	return 0;
 }
 
@@ -713,6 +724,8 @@ static int psz_pstore_erase(struct pstore_record *record)
 		if (record->id >= cxt->ftrace_max_cnt)
 			return -EINVAL;
 		return psz_record_erase(cxt, cxt->fpszs[record->id]);
+	case PSTORE_TYPE_BLACKBOX:
+		return psz_record_erase(cxt, cxt->bpsz);
 	default: return -EINVAL;
 	}
 }
@@ -898,6 +911,8 @@ static int notrace psz_pstore_write(struct pstore_record *record)
 			return -ENOSPC;
 		return psz_record_write(cxt->fpszs[zonenum], record);
 	}
+	case PSTORE_TYPE_BLACKBOX:
+		return psz_record_write(cxt->bpsz, record);
 	default:
 		return -EINVAL;
 	}
@@ -931,6 +946,13 @@ static struct pstore_zone *psz_read_next_zone(struct psz_context *cxt)
 	if (cxt->console_read_cnt == 0) {
 		cxt->console_read_cnt++;
 		zone = cxt->cpsz;
+		if (psz_old_ok(zone))
+			return zone;
+	}
+
+	if (cxt->blackbox_read_cnt == 0) {
+		cxt->blackbox_read_cnt++;
+		zone = cxt->bpsz;
 		if (psz_old_ok(zone))
 			return zone;
 	}
@@ -1082,6 +1104,7 @@ next_zone:
 		break;
 	case PSTORE_TYPE_CONSOLE:
 	case PSTORE_TYPE_PMSG:
+	case PSTORE_TYPE_BLACKBOX:
 		readop = psz_record_read;
 		break;
 	default:
@@ -1145,6 +1168,8 @@ static void psz_free_all_zones(struct psz_context *cxt)
 		psz_free_zone(&cxt->cpsz);
 	if (cxt->fpszs)
 		psz_free_zones(&cxt->fpszs, &cxt->ftrace_max_cnt);
+	if (cxt->bpsz)
+		psz_free_zone(&cxt->bpsz);
 }
 
 static struct pstore_zone *psz_init_zone(enum pstore_type_id type,
@@ -1266,6 +1291,15 @@ static int psz_alloc_zones(struct psz_context *cxt)
 		goto free_out;
 	}
 
+	off_size += info->blackbox_size;
+	cxt->bpsz = psz_init_zone(PSTORE_TYPE_BLACKBOX, &off,
+			info->blackbox_size);
+	if (IS_ERR(cxt->bpsz)) {
+		err = PTR_ERR(cxt->bpsz);
+		cxt->bpsz = NULL;
+		goto free_out;
+	}
+
 	cxt->kpszs = psz_init_zones(PSTORE_TYPE_DMESG, &off,
 			info->total_size - off_size,
 			info->kmsg_size, &cxt->kmsg_max_cnt);
@@ -1301,7 +1335,7 @@ int register_pstore_zone(struct pstore_zone_info *info)
 	}
 
 	if (!info->kmsg_size && !info->pmsg_size && !info->console_size &&
-	    !info->ftrace_size) {
+	    !info->ftrace_size && !info->blackbox_size) {
 		pr_warn("at least one record size must be non-zero\n");
 		return -EINVAL;
 	}
@@ -1326,6 +1360,7 @@ int register_pstore_zone(struct pstore_zone_info *info)
 	check_size(pmsg_size, SECTOR_SIZE);
 	check_size(console_size, SECTOR_SIZE);
 	check_size(ftrace_size, SECTOR_SIZE);
+	check_size(blackbox_size, SECTOR_SIZE);
 
 #undef check_size
 
@@ -1354,6 +1389,7 @@ int register_pstore_zone(struct pstore_zone_info *info)
 	pr_debug("\tpmsg size : %ld Bytes\n", info->pmsg_size);
 	pr_debug("\tconsole size : %ld Bytes\n", info->console_size);
 	pr_debug("\tftrace size : %ld Bytes\n", info->ftrace_size);
+	pr_debug("\tblackbox size : %ld Bytes\n", info->blackbox_size);
 
 	err = psz_alloc_zones(cxt);
 	if (err) {
@@ -1394,6 +1430,10 @@ int register_pstore_zone(struct pstore_zone_info *info)
 	if (info->ftrace_size) {
 		cxt->pstore.flags |= PSTORE_FLAGS_FTRACE;
 		pr_cont(" ftrace");
+	}
+	if (info->blackbox_size) {
+		cxt->pstore.flags |= PSTORE_FLAGS_BLACKBOX;
+		pr_cont(" blackbox");
 	}
 	pr_cont("\n");
 

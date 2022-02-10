@@ -124,4 +124,6 @@ source "drivers/staging/hievent/Kconfig"
 
 source "drivers/staging/hungtask/Kconfig"
 
+source "drivers/staging/blackbox/Kconfig"
+
 endif # STAGING
