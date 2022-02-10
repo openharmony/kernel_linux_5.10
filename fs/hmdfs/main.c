@@ -1034,6 +1034,11 @@ static int __init hmdfs_init(void)
 		hmdfs_err("hmdfs register failed!");
 		goto out_err;
 	}
+
+	err = hmdfs_init_configfs();
+	if (err)
+		goto out_err;
+
 	err = hmdfs_sysfs_init();
 	if (err)
 		goto out_err;
@@ -1043,6 +1048,7 @@ static int __init hmdfs_init(void)
 	return 0;
 out_err:
 	hmdfs_sysfs_exit();
+	hmdfs_exit_configfs();
 	unregister_filesystem(&hmdfs_fs_type);
 	hmdfs_destroy_caches();
 	hmdfs_err("hmdfs init failed!");
@@ -1053,6 +1059,7 @@ static void __exit hmdfs_exit(void)
 {
 	hmdfs_destroy_debugfs_root();
 	hmdfs_sysfs_exit();
+	hmdfs_exit_configfs();
 	unregister_filesystem(&hmdfs_fs_type);
 	ida_destroy(&hmdfs_sb_seq);
 	hmdfs_destroy_caches();
