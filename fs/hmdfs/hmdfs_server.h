@@ -12,6 +12,14 @@
 #include "comm/transport.h"
 #include "comm/socket_adapter.h"
 
+#define DATA_SEC_LEVEL0 	0
+#define DATA_SEC_LEVEL1 	1
+#define DATA_SEC_LEVEL2 	2
+#define DATA_SEC_LEVEL3 	3
+#define DATA_SEC_LEVEL4 	4
+#define DATA_SEC_LEVEL_LABEL 	"user.security"
+#define DATA_SEC_LEVEL_LENGTH 	10
+
 static inline void hmdfs_send_err_response(struct hmdfs_peer *con,
 					   struct hmdfs_head_cmd *cmd, int err)
 {

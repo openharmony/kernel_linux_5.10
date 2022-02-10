@@ -48,7 +48,7 @@ static void ctrl_cmd_update_socket_handler(const char *buf, size_t len,
 	}
 	memcpy(&cmd, buf, sizeof(cmd));
 
-	node = hmdfs_get_peer(sbi, cmd.cid);
+	node = hmdfs_get_peer(sbi, cmd.cid, cmd.devsl);
 	if (unlikely(!node)) {
 		hmdfs_err("failed to update ctrl node: cannot get peer");
 		goto out;
@@ -70,6 +70,28 @@ out:
 		connection_put(conn);
 	if (node)
 		peer_put(node);
+}
+
+static void ctrl_cmd_update_devsl_handler(const char *buf, size_t len,
+				      struct hmdfs_sb_info *sbi)
+{
+	struct update_devsl_param cmd;
+	struct hmdfs_peer *node = NULL;
+
+	if (unlikely(!buf || len != sizeof(cmd))) {
+		hmdfs_err("Recved a invalid userbuf");
+		return;
+	}
+	memcpy(&cmd, buf, sizeof(cmd));
+
+	node = hmdfs_lookup_from_cid(sbi, cmd.cid);
+	if (unlikely(!node)) {
+		hmdfs_err("failed to update devsl: cannot get peer");
+		return;
+	}
+	hmdfs_info("Found peer: device_id = %llu", node->device_id);
+	node->devsl = cmd.devsl;
+	peer_put(node);
 }
 
 static inline void hmdfs_disconnect_node_marked(struct hmdfs_peer *conn)
@@ -152,6 +174,7 @@ typedef void (*ctrl_cmd_handler)(const char *buf, size_t len,
 
 static const ctrl_cmd_handler cmd_handler[CMD_CNT] = {
 	[CMD_UPDATE_SOCKET] = ctrl_cmd_update_socket_handler,
+	[CMD_UPDATE_DEVSL] = ctrl_cmd_update_devsl_handler,
 	[CMD_OFF_LINE] = ctrl_cmd_off_line_handler,
 	[CMD_OFF_LINE_ALL] = ctrl_cmd_off_line_all_handler,
 };
@@ -179,8 +202,10 @@ static const char *cmd2str(int cmd)
 	case 0:
 		return "CMD_UPDATE_SOCKET";
 	case 1:
-		return "CMD_OFF_LINE";
+		return "CMD_UPDATE_DEVSL";
 	case 2:
+		return "CMD_OFF_LINE";
+	case 3:
 		return "CMD_OFF_LINE_ALL";
 	default:
 		return "illegal cmd";
