@@ -41,7 +41,7 @@ bool init_space(struct hp_space *spc, u64 dev_size, u32 ext_size)
 		return false;
 	}
 	spc->ext_size = ext_size;
-	spc->nr_ext = dev_size / ext_size;
+	spc->nr_ext = div_u64(dev_size, ext_size);
 	atomic_set(&spc->last_alloc_bit, 0);
 	atomic_set(&spc->nr_alloced, 0);
 	init_waitqueue_head(&spc->empty_wq);

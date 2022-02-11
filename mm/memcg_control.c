@@ -339,11 +339,11 @@ static u64 memcg_ub_ufs2zram_ratio_read(struct cgroup_subsys_state *css, struct 
 static int memcg_force_swapin_write(struct cgroup_subsys_state *css, struct cftype *cft, u64 val)
 {
 	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
-	unsigned long size;
+	u64 size;
 	const unsigned int ratio = 100;
 
 	size = memcg_data_size(memcg, SWAP_SIZE);
-	size = atomic64_read(&memcg->memcg_reclaimed.ub_ufs2zram_ratio) * size / ratio;
+	size = div_u64(atomic64_read(&memcg->memcg_reclaimed.ub_ufs2zram_ratio) * size, ratio);
 
 	swapin_memcg(memcg, size);
 
