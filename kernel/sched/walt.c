@@ -23,6 +23,7 @@
 #include <trace/events/sched.h>
 #include "sched.h"
 #include "walt.h"
+#include "core_ctl.h"
 #define CREATE_TRACE_POINTS
 #include <trace/events/walt.h>
 #undef CREATE_TRACE_POINTS
@@ -1681,6 +1682,9 @@ void walt_irq_work(struct irq_work *irq_work)
 
 	for_each_cpu(cpu, cpu_possible_mask)
 		raw_spin_unlock(&cpu_rq(cpu)->lock);
+
+	if (!is_migration)
+		core_ctl_check(this_rq()->window_start);
 }
 
 static void walt_init_once(void)

@@ -442,7 +442,11 @@ static int __stop_cpus(const struct cpumask *cpumask,
  * @cpumask were offline; otherwise, 0 if all executions of @fn
  * returned 0, any non zero return value if any returned non zero.
  */
+#ifdef CONFIG_CPU_ISOLATION_OPT
+int stop_cpus(const struct cpumask *cpumask, cpu_stop_fn_t fn, void *arg)
+#else
 static int stop_cpus(const struct cpumask *cpumask, cpu_stop_fn_t fn, void *arg)
+#endif
 {
 	int ret;
 

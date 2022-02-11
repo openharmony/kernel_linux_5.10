@@ -1921,6 +1921,65 @@ signed long __sched schedule_timeout_idle(signed long timeout)
 EXPORT_SYMBOL(schedule_timeout_idle);
 
 #ifdef CONFIG_HOTPLUG_CPU
+
+#ifdef CONFIG_CPU_ISOLATION_OPT
+static void migrate_timer_list(struct timer_base *new_base,
+			       struct hlist_head *head, bool remove_pinned)
+{
+	struct timer_list *timer;
+	int cpu = new_base->cpu;
+	struct hlist_node *n;
+	int is_pinned;
+
+	hlist_for_each_entry_safe(timer, n, head, entry) {
+		is_pinned = timer->flags & TIMER_PINNED;
+		if (!remove_pinned && is_pinned)
+			continue;
+
+		detach_if_pending(timer, get_timer_base(timer->flags), false);
+		timer->flags = (timer->flags & ~TIMER_BASEMASK) | cpu;
+		internal_add_timer(new_base, timer);
+	}
+}
+
+static void __migrate_timers(unsigned int cpu, bool remove_pinned)
+{
+	struct timer_base *old_base;
+	struct timer_base *new_base;
+	unsigned long flags;
+	int b, i;
+
+	for (b = 0; b < NR_BASES; b++) {
+		old_base = per_cpu_ptr(&timer_bases[b], cpu);
+		new_base = get_cpu_ptr(&timer_bases[b]);
+		/*
+		 * The caller is globally serialized and nobody else
+		 * takes two locks at once, deadlock is not possible.
+		 */
+		raw_spin_lock_irqsave(&new_base->lock, flags);
+		raw_spin_lock_nested(&old_base->lock, SINGLE_DEPTH_NESTING);
+
+		/*
+		 * The current CPUs base clock might be stale. Update it
+		 * before moving the timers over.
+		 */
+		forward_timer_base(new_base);
+
+		if (!cpu_online(cpu))
+			BUG_ON(old_base->running_timer);
+
+		for (i = 0; i < WHEEL_SIZE; i++)
+			migrate_timer_list(new_base, old_base->vectors + i,
+					   remove_pinned);
+
+		raw_spin_unlock(&old_base->lock);
+		raw_spin_unlock_irqrestore(&new_base->lock, flags);
+		put_cpu_ptr(&timer_bases);
+	}
+}
+
+#else
+
 static void migrate_timer_list(struct timer_base *new_base, struct hlist_head *head)
 {
 	struct timer_list *timer;
@@ -1933,6 +1992,8 @@ static void migrate_timer_list(struct timer_base *new_base, struct hlist_head *h
 		internal_add_timer(new_base, timer);
 	}
 }
+
+#endif  /* CONFIG_CPU_ISOLATION_OPT */
 
 int timers_prepare_cpu(unsigned int cpu)
 {
@@ -1948,6 +2009,21 @@ int timers_prepare_cpu(unsigned int cpu)
 	}
 	return 0;
 }
+
+#ifdef CONFIG_CPU_ISOLATION_OPT
+int timers_dead_cpu(unsigned int cpu)
+{
+	BUG_ON(cpu_online(cpu));
+	__migrate_timers(cpu, true);
+	return 0;
+}
+
+void timer_quiesce_cpu(void *cpup)
+{
+	__migrate_timers(*(unsigned int *)cpup, false);
+}
+
+#else
 
 int timers_dead_cpu(unsigned int cpu)
 {
@@ -1984,6 +2060,8 @@ int timers_dead_cpu(unsigned int cpu)
 	}
 	return 0;
 }
+
+#endif /* CONFIG_CPU_ISOLATION_OPT */
 
 #endif /* CONFIG_HOTPLUG_CPU */
 

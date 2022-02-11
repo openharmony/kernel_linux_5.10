@@ -140,6 +140,10 @@ extern atomic_long_t calc_load_tasks;
 extern void calc_global_load_tick(struct rq *this_rq);
 extern long calc_load_fold_active(struct rq *this_rq, long adjust);
 
+#ifdef CONFIG_SMP
+extern void init_sched_groups_capacity(int cpu, struct sched_domain *sd);
+#endif
+
 extern void call_trace_sched_update_nr_running(struct rq *rq, int count);
 /*
  * Helpers for converting nanosecond timing to jiffy resolution
@@ -2957,6 +2961,11 @@ static inline unsigned long cpu_util_freq_walt(int cpu)
 
 	return (util >= capacity) ? capacity : util;
 }
+
+static inline bool hmp_capable(void)
+{
+	return max_possible_capacity != min_max_possible_capacity;
+}
 #else /* CONFIG_SCHED_WALT */
 static inline void walt_fixup_cum_window_demand(struct rq *rq,
 						s64 scaled_delta) { }
@@ -2972,4 +2981,35 @@ static inline int is_reserved(int cpu)
 }
 
 static inline void clear_reserved(int cpu) { }
+
+static inline bool hmp_capable(void)
+{
+	return false;
+}
 #endif /* CONFIG_SCHED_WALT */
+
+struct sched_avg_stats {
+	int nr;
+	int nr_misfit;
+	int nr_max;
+	int nr_scaled;
+};
+#ifdef CONFIG_SCHED_RUNNING_AVG
+extern void sched_get_nr_running_avg(struct sched_avg_stats *stats);
+#else
+static inline void sched_get_nr_running_avg(struct sched_avg_stats *stats) { }
+#endif
+
+#ifdef CONFIG_CPU_ISOLATION_OPT
+extern int group_balance_cpu_not_isolated(struct sched_group *sg);
+#else
+static inline int group_balance_cpu_not_isolated(struct sched_group *sg)
+{
+	return group_balance_cpu(sg);
+}
+#endif /* CONFIG_CPU_ISOLATION_OPT */
+
+#ifdef CONFIG_HOTPLUG_CPU
+extern void migrate_tasks(struct rq *dead_rq, struct rq_flags *rf,
+					bool migrate_pinned_tasks);
+#endif

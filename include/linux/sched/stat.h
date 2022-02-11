@@ -21,6 +21,15 @@ extern bool single_task_running(void);
 extern unsigned long nr_iowait(void);
 extern unsigned long nr_iowait_cpu(int cpu);
 
+#ifdef CONFIG_SCHED_WALT
+extern unsigned int sched_get_cpu_util(int cpu);
+#else
+static inline unsigned int sched_get_cpu_util(int cpu)
+{
+	return 0;
+}
+#endif
+
 static inline int sched_info_on(void)
 {
 #ifdef CONFIG_SCHEDSTATS
