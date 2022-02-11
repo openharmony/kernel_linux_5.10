@@ -39,6 +39,7 @@ struct hpio {
 	hp_endio endio;
 	struct work_struct endio_work;
 
+	struct bio *bio;
 	struct list_head list;
 };
 
