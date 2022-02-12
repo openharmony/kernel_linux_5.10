@@ -20,6 +20,7 @@ enum {
 	OPT_VIEW_TYPE,
 	OPT_NO_OFFLINE_STASH,
 	OPT_NO_DENTRY_CACHE,
+	OPT_USER_ID,
 	OPT_ERR,
 };
 
@@ -31,6 +32,7 @@ static match_table_t hmdfs_tokens = {
 	{ OPT_VIEW_TYPE, "merge" },
 	{ OPT_NO_OFFLINE_STASH, "no_offline_stash" },
 	{ OPT_NO_DENTRY_CACHE, "no_dentry_cache" },
+	{ OPT_USER_ID, "user_id=%s"},
 	{ OPT_ERR, NULL },
 };
 
@@ -74,6 +76,7 @@ int hmdfs_parse_options(struct hmdfs_sb_info *sbi, const char *data)
 	char *options_src = NULL;
 	substring_t args[MAX_OPT_ARGS];
 	unsigned long value = DEAULT_RA_PAGES;
+	unsigned int user_id = 0;
 	struct super_block *sb = sbi->sb;
 	int err = 0;
 
@@ -100,10 +103,10 @@ int hmdfs_parse_options(struct hmdfs_sb_info *sbi, const char *data)
 			name = match_strdup(&args[0]);
 			if (name) {
 				err = kstrtoul(name, 10, &value);
-				if (err)
-					goto out;
 				kfree(name);
 				name = NULL;
+				if (err)
+					goto out;
 			}
 			break;
 		case OPT_LOCAL_DST:
@@ -127,6 +130,17 @@ int hmdfs_parse_options(struct hmdfs_sb_info *sbi, const char *data)
 			break;
 		case OPT_NO_DENTRY_CACHE:
 			sbi->s_dentry_cache = false;
+			break;
+		case OPT_USER_ID:
+			name = match_strdup(&args[0]);
+			if (name) {
+				err = kstrtouint(name, 10, &user_id);
+				kfree(name);
+				name = NULL;
+				if (err)
+					goto out;
+				sbi->user_id = user_id;
+			}
 			break;
 		default:
 			err = -EINVAL;

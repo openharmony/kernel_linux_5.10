@@ -893,14 +893,6 @@ int hmdfs_permission(struct inode *inode, int mask)
 		mode >>= 6;
 	} else if (in_group_p(inode->i_gid)) {
 		mode >>= 3;
-	} else if (is_pkg_auth(hii->perm)) {
-		kuid_t bid = get_bid_from_uid(cur_uid);
-
-		if (uid_eq(bid, inode->i_uid))
-			return 0;
-	} else if (is_system_auth(hii->perm)) {
-		if (in_group_p(USER_DATA_RW_GID))
-			return 0;
 	}
 
 	if ((mask & ~mode & (MAY_READ | MAY_WRITE | MAY_EXEC)) == 0)

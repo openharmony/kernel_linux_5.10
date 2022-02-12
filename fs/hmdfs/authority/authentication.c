@@ -99,7 +99,8 @@ const struct cred *hmdfs_override_dir_fsids(struct inode *dir,
 			 * local uninstall.
 			 * Set appid + media_rw for local install.
 			 */
-			int bid = get_bid(dentry->d_name.name);
+			int bid = get_bundle_uid(hmdfs_sb(dentry->d_sb),
+				dentry->d_name.name);
 
 			if (bid != 0) {
 				cred->fsuid = KUIDT_INIT(bid);
@@ -359,13 +360,15 @@ void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child,
 
 	switch (info->perm & HMDFS_DIR_TYPE_MASK) {
 	case HMDFS_DIR_PKG:
-		bid = get_bid(name);
+		bid = get_bundle_uid(hmdfs_sb(parent_inode->i_sb), name);
 		if (bid != child->i_uid.val || bid != child->i_gid.val)
-			fixup_ownership_user_group(child, lower_dentry, bid, bid);
+			fixup_ownership_user_group(child, lower_dentry, bid,
+				bid);
 
 		break;
 	case HMDFS_DIR_DATA:
 	case HMDFS_FILE_PKG_SUB:
+	case HMDFS_DIR_PKG_SUB:
 	case HMDFS_DIR_DEFAULT:
 	case HMDFS_FILE_DEFAULT:
 	case HMDFS_DIR_PUBLIC:
@@ -420,7 +423,8 @@ void check_and_fixup_ownership_remote(struct inode *dir,
 			 * local uninstall.
 			 * Set appid + media_rw for local install.
 			 */
-			int bid = get_bid(dentry->d_name.name);
+			int bid = get_bundle_uid(hmdfs_sb(dentry->d_sb),
+				dentry->d_name.name);
 			if (bid != 0) {
 				dinode->i_uid = KUIDT_INIT(bid);
 				dinode->i_gid = KGIDT_INIT(bid);
