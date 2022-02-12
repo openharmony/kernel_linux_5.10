@@ -174,14 +174,6 @@ static inline bool is_system_auth(__u16 perm)
 
 #define HMDFS_ALL_MASK (HMDFS_MOUNT_POINT_MASK | AUTH_MASK | HMDFS_DIR_TYPE_MASK | HMDFS_PERM_MASK)
 
-static inline kuid_t get_bid_from_uid(kuid_t uid)
-{
-	kuid_t bid;
-
-	bid.val = uid.val % BASE_USER_RANGE;
-	return bid;
-}
-
 static inline void set_inode_gid(struct inode *inode, kgid_t gid)
 {
 	inode->i_gid = gid;
@@ -259,6 +251,11 @@ extern int get_bid(const char *bname);
 extern int __init hmdfs_init_configfs(void);
 extern void hmdfs_exit_configfs(void);
 
+static inline int get_bundle_uid(struct hmdfs_sb_info *sbi, const char *bname)
+{
+	return sbi->user_id * BASE_USER_RANGE + get_bid(bname);
+}
+
 #else
 
 static inline
@@ -331,7 +328,6 @@ void hmdfs_check_cred(const struct cred *cred)
 {
 }
 
-static inline int get_bid(const char *bname) { return 0; }
 static inline int __init hmdfs_init_configfs(void) { return 0; }
 static inline void hmdfs_exit_configfs(void) {}
 

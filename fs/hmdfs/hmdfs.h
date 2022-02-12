@@ -190,6 +190,9 @@ struct hmdfs_sb_info {
 	wait_queue_head_t async_readdir_wq;
 	/* don't allow async readdir */
 	bool async_readdir_prohibit;
+
+	/* multi user */
+	unsigned int user_id;
 };
 
 static inline struct hmdfs_sb_info *hmdfs_sb(struct super_block *sb)

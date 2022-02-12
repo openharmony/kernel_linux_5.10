@@ -373,6 +373,7 @@ static int hmdfs_show_options(struct seq_file *m, struct dentry *root)
 		seq_puts(m, ",merge_disable");
 
 	seq_printf(m, ",ra_pages=%lu", root->d_sb->s_bdi->ra_pages);
+	seq_printf(m, ",user_id=%u", sbi->user_id);
 
 	if (sbi->cache_dir)
 		seq_printf(m, ",cache_dir=%s", sbi->cache_dir);
