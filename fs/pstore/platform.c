@@ -435,6 +435,9 @@ void pstore_blackbox_dump(struct kmsg_dumper *dumper,
 	const char *why;
 	int        ret;
 
+	if (!pstore_blk_ready)
+		return;
+
 	why = kmsg_dump_reason_str(reason);
 
 	if (down_trylock(&psinfo->buf_lock)) {
