@@ -13,6 +13,7 @@
 
 enum CTRL_NODE_CMD {
 	CMD_UPDATE_SOCKET = 0,
+	CMD_UPDATE_DEVSL,
 	CMD_OFF_LINE,
 	CMD_OFF_LINE_ALL,
 	CMD_CNT,
@@ -21,10 +22,17 @@ enum CTRL_NODE_CMD {
 struct update_socket_param {
 	int32_t cmd;
 	int32_t newfd;
+	uint32_t devsl;
 	uint8_t status;
 	uint8_t masterkey[HMDFS_KEY_SIZE];
 	uint8_t cid[HMDFS_CID_SIZE];
 } __packed;
+
+struct update_devsl_param {
+    int32_t cmd;
+    uint32_t devsl;
+    uint8_t cid[HMDFS_CID_SIZE];
+} __attribute__((packed));
 
 struct offline_param {
 	int32_t cmd;

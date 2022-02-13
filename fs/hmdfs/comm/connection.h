@@ -213,6 +213,7 @@ struct hmdfs_peer {
 	/* sysfs */
 	struct kobject kobj;
 	struct completion kobj_unregister;
+	uint32_t devsl;
 };
 
 #define HMDFS_DEVID_LOCAL 0
@@ -297,7 +298,8 @@ struct connection *get_conn_impl(struct hmdfs_peer *node, int connect_type);
 
 void set_conn_sock_quickack(struct hmdfs_peer *node);
 
-struct hmdfs_peer *hmdfs_get_peer(struct hmdfs_sb_info *sbi, uint8_t *cid);
+struct hmdfs_peer *hmdfs_get_peer(struct hmdfs_sb_info *sbi, uint8_t *cid,
+	uint32_t devsl);
 
 struct hmdfs_peer *hmdfs_lookup_from_devid(struct hmdfs_sb_info *sbi,
 					   uint64_t device_id);

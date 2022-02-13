@@ -220,6 +220,74 @@ static int hmdfs_get_inode_by_name(struct hmdfs_peer *con, const char *filename,
 	return 0;
 }
 
+static const char *datasl_str[] = {
+	"s0", "s1", "s2", "s3", "s4"
+};
+
+static int parse_data_sec_level(const char *sl_value, size_t sl_value_len)
+{
+	int i;
+
+	for (i = 0; i <= sizeof(datasl_str) / sizeof(datasl_str[0]); i++) {
+		if (!strncmp(sl_value, datasl_str[i], strlen(datasl_str[i])))
+			return i + DATA_SEC_LEVEL0;
+	}
+
+	return DATA_SEC_LEVEL3;
+}
+
+static int check_sec_level(struct hmdfs_peer *node, const char *file_name)
+{
+	int err;
+	int ret = 0;
+	struct path root_path;
+	struct path file_path;
+	char *value;
+	size_t value_len = DATA_SEC_LEVEL_LENGTH;
+
+	if (node->devsl <= 0) {
+		ret = -EACCES;
+		goto out_free;
+	}
+
+	value = kzalloc(value_len, GFP_KERNEL);
+	if (!value) {
+		ret = -ENOMEM;
+		goto out_free;
+	}
+
+	err = kern_path(node->sbi->local_dst, LOOKUP_DIRECTORY, &root_path);
+	if (err) {
+		hmdfs_err("get root path error");
+		ret = err;
+		goto out_free;
+	}
+
+	err = vfs_path_lookup(root_path.dentry, root_path.mnt, file_name, 0,
+		&file_path);
+	if (err) {
+		hmdfs_err("get file path error");
+		ret = err;
+		goto out_err;
+	}
+
+	err = vfs_getxattr(file_path.dentry, DATA_SEC_LEVEL_LABEL, value,
+		value_len);
+	if (err <= 0 && node->devsl >= DATA_SEC_LEVEL3)
+		goto out;
+	if (err > 0 && node->devsl >= parse_data_sec_level(value, err))
+		goto out;
+
+	ret = -EACCES;
+out:
+	path_put(&file_path);
+out_err:
+	path_put(&root_path);
+out_free:
+	kfree(value);
+	return ret;
+}
+
 static struct file *hmdfs_open_file(struct hmdfs_peer *con,
 				    const char *filename, uint8_t file_type,
 				    int *file_id)
@@ -230,6 +298,11 @@ static struct file *hmdfs_open_file(struct hmdfs_peer *con,
 	if (!filename) {
 		hmdfs_err("filename is NULL");
 		return ERR_PTR(-EINVAL);
+	}
+
+	if (check_sec_level(con, filename)) {
+		hmdfs_err("devsl permission denied");
+		return ERR_PTR(-EACCES);
 	}
 
 	if (hm_islnk(file_type))

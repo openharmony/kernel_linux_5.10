@@ -1092,9 +1092,8 @@ static struct hmdfs_peer *add_peer_unsafe(struct hmdfs_sb_info *sbi,
 	return peer2add;
 }
 
-static struct hmdfs_peer *
-alloc_peer(struct hmdfs_sb_info *sbi, uint8_t *cid,
-	   const struct connection_operations *conn_operations)
+static struct hmdfs_peer *alloc_peer(struct hmdfs_sb_info *sbi, uint8_t *cid,
+	const struct connection_operations *conn_operations, uint32_t devsl)
 {
 	struct hmdfs_peer *node = kzalloc(sizeof(*node), GFP_KERNEL);
 
@@ -1178,6 +1177,7 @@ alloc_peer(struct hmdfs_sb_info *sbi, uint8_t *cid,
 	init_waitqueue_head(&node->rebuild_inode_status_wq);
 	INIT_LIST_HEAD(&node->stashed_inode_list);
 	node->need_rebuild_stash_list = false;
+	node->devsl = devsl;
 
 	return node;
 
@@ -1206,7 +1206,8 @@ out_err:
 	return NULL;
 }
 
-struct hmdfs_peer *hmdfs_get_peer(struct hmdfs_sb_info *sbi, uint8_t *cid)
+struct hmdfs_peer *hmdfs_get_peer(struct hmdfs_sb_info *sbi, uint8_t *cid,
+	uint32_t devsl)
 {
 	struct hmdfs_peer *peer = NULL, *on_sbi_peer = NULL;
 	const struct connection_operations *conn_opr_ptr = NULL;
@@ -1225,7 +1226,7 @@ struct hmdfs_peer *hmdfs_get_peer(struct hmdfs_sb_info *sbi, uint8_t *cid)
 		hmdfs_info("Fatal! Cannot get peer operation");
 		goto out;
 	}
-	peer = alloc_peer(sbi, cid, conn_opr_ptr);
+	peer = alloc_peer(sbi, cid, conn_opr_ptr, devsl);
 	if (unlikely(!peer)) {
 		hmdfs_info("Failed to alloc a peer");
 		goto out;
