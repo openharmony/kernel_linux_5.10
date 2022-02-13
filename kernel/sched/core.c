@@ -7656,6 +7656,7 @@ void __init sched_init(void)
 		atomic_set(&rq->nr_iowait, 0);
 	}
 
+	BUG_ON(alloc_related_thread_groups());
 	set_load_weight(&init_task, false);
 
 	/*
@@ -8969,6 +8970,10 @@ void sched_exit(struct task_struct *p)
 	struct rq_flags rf;
 	struct rq *rq;
 	u64 wallclock;
+
+#ifdef CONFIG_SCHED_RTG
+	sched_set_group_id(p, 0);
+#endif
 
 	rq = task_rq_lock(p, &rf);
 
