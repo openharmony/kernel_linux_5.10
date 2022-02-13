@@ -24,6 +24,7 @@
 #include "sched.h"
 #include "walt.h"
 #include "core_ctl.h"
+#include "rtg/rtg.h"
 #define CREATE_TRACE_POINTS
 #include <trace/events/walt.h>
 #undef CREATE_TRACE_POINTS
@@ -1159,6 +1160,10 @@ void init_new_task_load(struct task_struct *p)
 	u32 init_load_windows = sched_init_task_load_windows;
 	u32 init_load_windows_scaled = sched_init_task_load_windows_scaled;
 	u32 init_load_pct = current->init_load_pct;
+
+#ifdef CONFIG_SCHED_RTG
+	init_task_rtg(p);
+#endif
 
 	p->last_sleep_ts = 0;
 	p->init_load_pct = 0;

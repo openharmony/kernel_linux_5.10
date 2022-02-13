@@ -29,6 +29,7 @@
 #include "pelt.h"
 #include "smp.h"
 #include "walt.h"
+#include "rtg/rtg.h"
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -3207,6 +3208,9 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 #ifdef CONFIG_SMP
 	p->wake_entry.u_flags = CSD_TYPE_TTWU;
 #endif
+#ifdef CONFIG_SCHED_RTG
+	p->rtg_depth = 0;
+#endif
 }
 
 DEFINE_STATIC_KEY_FALSE(sched_numa_balancing);
@@ -3350,7 +3354,14 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	if (unlikely(p->sched_reset_on_fork)) {
 		if (task_has_dl_policy(p) || task_has_rt_policy(p)) {
 			p->policy = SCHED_NORMAL;
+#ifdef CONFIG_SCHED_RTG
+			if (current->rtg_depth != 0)
+				p->static_prio = current->static_prio;
+			else
+				p->static_prio = NICE_TO_PRIO(0);
+#else
 			p->static_prio = NICE_TO_PRIO(0);
+#endif
 			p->rt_priority = 0;
 		} else if (PRIO_TO_NICE(p->static_prio) < 0)
 			p->static_prio = NICE_TO_PRIO(0);

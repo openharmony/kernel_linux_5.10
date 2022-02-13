@@ -1,0 +1,10 @@
+menu "Related Thread Group"
+
+config SCHED_RTG
+	bool "Related Thread Group"
+	depends on SCHED_WALT
+	default n
+	help
+	  Set related threads into a group.
+
+endmenu

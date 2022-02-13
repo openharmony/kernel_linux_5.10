@@ -34,6 +34,7 @@
 #include <linux/rseq.h>
 #include <linux/seqlock.h>
 #include <linux/kcsan.h>
+#include <linux/sched/rtg.h>
 
 /* task_struct member predeclarations (sorted alphabetically): */
 struct audit_context;
@@ -799,6 +800,12 @@ struct task_struct {
 	 */
 	u32 init_load_pct;
 	u64 last_sleep_ts;
+#endif
+
+#ifdef CONFIG_SCHED_RTG
+	int rtg_depth;
+	struct related_thread_group	*grp;
+	struct list_head		grp_list;
 #endif
 
 #ifdef CONFIG_CGROUP_SCHED
