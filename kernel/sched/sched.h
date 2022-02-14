@@ -1047,6 +1047,9 @@ struct rq {
 	/* For active balancing */
 	int			active_balance;
 	int			push_cpu;
+#ifdef CONFIG_SCHED_EAS
+	struct task_struct	*push_task;
+#endif
 	struct cpu_stop_work	active_balance_work;
 
 	/* CPU of this runqueue: */
@@ -1925,6 +1928,9 @@ struct sched_class {
 	void (*fixup_walt_sched_stats)(struct rq *rq, struct task_struct *p,
 					u16 updated_demand_scaled);
 #endif
+#ifdef CONFIG_SCHED_EAS
+	void  (*check_for_migration)(struct rq *rq, struct task_struct *p);
+#endif
 } __aligned(STRUCT_ALIGNMENT); /* STRUCT_ALIGN(), vmlinux.lds.h */
 
 static inline void put_prev_task(struct rq *rq, struct task_struct *prev)
@@ -2768,6 +2774,7 @@ extern bool task_fits_max(struct task_struct *p, int cpu);
 extern unsigned long capacity_spare_without(int cpu, struct task_struct *p);
 extern int update_preferred_cluster(struct related_thread_group *grp,
 			struct task_struct *p, u32 old_load, bool from_tick);
+extern struct cpumask *find_rtg_target(struct task_struct *p);
 #endif
 
 #ifdef CONFIG_SCHED_WALT

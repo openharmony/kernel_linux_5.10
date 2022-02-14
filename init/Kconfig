@@ -860,6 +860,12 @@ config UCLAMP_BUCKETS_COUNT
 
 source "kernel/sched/rtg/Kconfig"
 
+config SCHED_EAS
+	bool "EAS scheduler optimization"
+	default n
+	help
+	  Check and migrate the CFS process to a more suitable CPU in the tick.
+
 endmenu
 
 #
