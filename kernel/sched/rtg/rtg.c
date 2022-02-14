@@ -17,6 +17,7 @@
 #define DEFAULT_GROUP_RATE		60 /* 60FPS */
 #define DEFAULT_UTIL_INVALID_INTERVAL	(~0U) /* ns */
 #define DEFAULT_UTIL_UPDATE_TIMEOUT	20000000  /* ns */
+#define DEFAULT_FREQ_UPDATE_INTERVAL	8000000  /* ns */
 
 struct related_thread_group *related_thread_groups[MAX_NUM_CGROUP_COLOC_ID];
 static DEFINE_RWLOCK(related_thread_group_lock);
@@ -62,6 +63,7 @@ int alloc_related_thread_groups(void)
 		grp->util_invalid_interval = DEFAULT_UTIL_INVALID_INTERVAL;
 		grp->util_update_timeout = DEFAULT_UTIL_UPDATE_TIMEOUT;
 		grp->max_boost = 0;
+		grp->freq_update_interval = DEFAULT_FREQ_UPDATE_INTERVAL;
 		raw_spin_lock_init(&grp->lock);
 
 		related_thread_groups[i] = grp;
@@ -780,7 +782,7 @@ group_should_invalid_util(struct related_thread_group *grp, u64 now)
 	if (grp->util_invalid_interval == DEFAULT_UTIL_INVALID_INTERVAL)
 		return false;
 
-	return true;
+	return (now - grp->last_freq_update_time >= grp->util_invalid_interval);
 }
 
 static inline bool valid_normalized_util(struct related_thread_group *grp)
@@ -870,13 +872,34 @@ static struct sched_cluster *best_cluster(struct related_thread_group *grp)
 	return max_cluster;
 }
 
+static bool group_should_update_freq(struct related_thread_group *grp,
+			      int cpu, unsigned int flags, u64 now)
+{
+	if (!grp)
+		return true;
+
+	if (flags & RTG_FREQ_FORCE_UPDATE) {
+		return true;
+	} else if (flags & RTG_FREQ_NORMAL_UPDATE) {
+		if (now - grp->last_freq_update_time >=
+		    grp->freq_update_interval)
+			return true;
+	}
+
+	return false;
+}
+
 int sched_set_group_normalized_util(unsigned int grp_id, unsigned long util,
 				    unsigned int flag)
 {
 	struct related_thread_group *grp = NULL;
+	bool need_update_prev_freq = false;
+	bool need_update_next_freq = false;
 	u64 now;
 	unsigned long flags;
 	struct sched_cluster *preferred_cluster = NULL;
+	int prev_cpu;
+	int next_cpu;
 
 	grp = lookup_related_thread_group(grp_id);
 	if (!grp) {
@@ -896,15 +919,62 @@ int sched_set_group_normalized_util(unsigned int grp_id, unsigned long util,
 	preferred_cluster = best_cluster(grp);
 
 	/* update prev_cluster force when preferred_cluster changed */
-	if (!grp->preferred_cluster)
+	if (!grp->preferred_cluster) {
 		grp->preferred_cluster = preferred_cluster;
-	else if (grp->preferred_cluster != preferred_cluster)
+	} else if (grp->preferred_cluster != preferred_cluster) {
+		prev_cpu = cpumask_first(&grp->preferred_cluster->cpus);
 		grp->preferred_cluster = preferred_cluster;
+
+		need_update_prev_freq = true;
+	}
+
+	if (grp->preferred_cluster != NULL)
+		next_cpu = cpumask_first(&grp->preferred_cluster->cpus);
+	else
+		next_cpu = 0;
 
 	now = ktime_get_ns();
 	grp->last_util_update_time = now;
+	need_update_next_freq =
+		group_should_update_freq(grp, next_cpu, flag, now);
+	if (need_update_next_freq)
+		grp->last_freq_update_time = now;
 
 	raw_spin_unlock_irqrestore(&grp->lock, flags);
+
+	if (need_update_prev_freq)
+		cpufreq_update_util(cpu_rq(prev_cpu),
+				SCHED_CPUFREQ_FORCE_UPDATE | SCHED_CPUFREQ_WALT);
+
+	if (need_update_next_freq)
+		cpufreq_update_util(cpu_rq(next_cpu),
+				SCHED_CPUFREQ_FORCE_UPDATE | SCHED_CPUFREQ_WALT);
+
+	return 0;
+}
+
+int sched_set_group_freq_update_interval(unsigned int grp_id, unsigned int interval)
+{
+	struct related_thread_group *grp = NULL;
+	unsigned long flag;
+
+	if ((signed int)interval <= 0)
+		return -EINVAL;
+
+	/* DEFAULT_CGROUP_COLOC_ID is a reserved id */
+	if (grp_id == DEFAULT_CGROUP_COLOC_ID ||
+	    grp_id >= MAX_NUM_CGROUP_COLOC_ID)
+		return -EINVAL;
+
+	grp = lookup_related_thread_group(grp_id);
+	if (!grp) {
+		pr_err("set update interval for group %d fail\n", grp_id);
+		return -ENODEV;
+	}
+
+	raw_spin_lock_irqsave(&grp->lock, flag);
+	grp->freq_update_interval = interval * NSEC_PER_MSEC;
+	raw_spin_unlock_irqrestore(&grp->lock, flag);
 
 	return 0;
 }
@@ -922,7 +992,8 @@ static void print_rtg_info(struct seq_file *file,
 	const struct related_thread_group *grp)
 {
 	seq_printf_rtg(file, "RTG_ID          : %d\n", grp->id);
-	seq_printf_rtg(file, "RTG_INTERVAL    : INVALID:%lums\n",
+	seq_printf_rtg(file, "RTG_INTERVAL    : UPDATE:%lums#INVALID:%lums\n",
+		grp->freq_update_interval / NSEC_PER_MSEC,
 		grp->util_invalid_interval / NSEC_PER_MSEC);
 	seq_printf_rtg(file, "RTG_CLUSTER     : %d\n",
 		grp->preferred_cluster ? grp->preferred_cluster->id : -1);

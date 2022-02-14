@@ -33,6 +33,10 @@ int sched_set_group_util_invalid_interval(unsigned int grp_id,
 					  unsigned int interval);
 int sched_set_group_normalized_util(unsigned int grp_id, unsigned long util,
 				    unsigned int flag);
+void sched_get_max_group_util(const struct cpumask *query_cpus,
+			      unsigned long *util, unsigned int *freq);
+int sched_set_group_freq_update_interval(unsigned int grp_id,
+					 unsigned int interval);
 #else
 static inline int alloc_related_thread_groups(void) { return 0; }
 static inline int sched_set_group_preferred_cluster(unsigned int grp_id,
@@ -44,6 +48,10 @@ static inline int sched_set_group_normalized_util(unsigned int grp_id, unsigned 
 				    unsigned int flag)
 {
 	return 0;
+}
+static inline void sched_get_max_group_util(const struct cpumask *query_cpus,
+			      unsigned long *util, unsigned int *freq)
+{
 }
 #endif /* CONFIG_SCHED_RTG */
 #endif

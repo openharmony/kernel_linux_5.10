@@ -44,11 +44,18 @@ struct related_thread_group {
 	int max_boost;
 	unsigned long util_invalid_interval; /* in nanoseconds */
 	unsigned long util_update_timeout; /* in nanoseconds */
+	unsigned long freq_update_interval; /* in nanoseconds */
 	u64 last_util_update_time;
+	u64 last_freq_update_time;
 };
 
 struct rtg_class {
 	void (*sched_update_rtg_tick)(struct related_thread_group *grp);
+};
+
+enum rtg_freq_update_flags {
+	RTG_FREQ_FORCE_UPDATE = (1 << 0),
+	RTG_FREQ_NORMAL_UPDATE = (1 << 1),
 };
 
 int sched_set_group_id(struct task_struct *p, unsigned int group_id);
