@@ -8,13 +8,16 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  *
  */
 
+#define pr_fmt(fmt) "hievent_driver " fmt
+
 #include "hievent_driver.h"
 
+#include <linux/device.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -31,32 +34,22 @@
 #include <linux/list.h>
 #include <linux/wait.h>
 
-#ifndef HIEVENTDEV_MAJOR
-#define HIEVENTDEV_MAJOR 241
-#endif
+static struct class *hievent_class;
+static dev_t hievent_devno;
 
-#ifndef HIEVENT_NR_DEVS
-#define HIEVENT_NR_DEVS 2
-#endif
-
-static int hievent_major = HIEVENTDEV_MAJOR;
-
-static struct cdev hievent_cdev;
-
-#define HIEVENT_BUFFER ((size_t)1024)
-#define HIEVENT_DRIVER "/dev/hwlog_exception"
+#define HIEVENT_BUFFER ((size_t)CONFIG_BBOX_BUFFER_SIZE)
+#define HIEVENT_DRIVER "/dev/bbox"
+#define HIEVENT_DEV_NAME "bbox"
+#define HIEVENT_DEV_NR 1
 
 struct hievent_entry {
 	unsigned short len;
 	unsigned short header_size;
-	int pid;
-	int tid;
-	int sec;
-	int nsec;
 	char msg[0];
 };
 
 struct hievent_char_device {
+	struct cdev devm;
 	int flag;
 	struct mutex mtx; /* lock to protect read/write buffer */
 	unsigned char *buffer;
@@ -159,21 +152,12 @@ static ssize_t hievent_read(struct file *file, char __user *user_buf,
 	}
 
 	hievent_buffer_dec(sizeof(header));
-	retval = copy_to_user((unsigned char *)user_buf,
-			      (unsigned char *)&header,
-			      min(count, sizeof(header)));
+
+	retval = hievent_read_ring_buffer((unsigned char __user *)(user_buf), header.len);
 	if (retval < 0) {
 		retval = -EINVAL;
 		goto out;
 	}
-
-	retval = hievent_read_ring_buffer((unsigned char *)(user_buf +
-					  sizeof(header)), header.len);
-	if (retval < 0) {
-		retval = -EINVAL;
-		goto out;
-	}
-
 	hievent_buffer_dec(header.len);
 
 	retval = header.len + sizeof(header);
@@ -210,26 +194,7 @@ static int hievent_write_ring_head_buffer(const unsigned char *buffer,
 
 static void hievent_head_init(struct hievent_entry * const header, size_t len)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
-#define NANOSEC_PER_MIRCOSEC 1000
-	struct timeval now = { 0 };
-
-	do_gettimeofday(&now);
-
-	header->sec = now.tv_sec;
-	header->nsec = now.tv_usec * NANOSEC_PER_MIRCOSEC;
-#else
-	struct timespec64 now = { 0 };
-
-	ktime_get_real_ts64(&now);
-
-	header->sec = now.tv_sec;
-	header->nsec = now.tv_nsec;
-#endif
-
 	header->len = (unsigned short)len;
-	header->pid = current->pid;
-	header->tid = 0;
 	header->header_size = sizeof(struct hievent_entry);
 }
 
@@ -265,7 +230,6 @@ int hievent_write_internal(const char *buffer, size_t buf_len)
 	hievent_cover_old_log(buf_len);
 
 	hievent_head_init(&header, buf_len);
-
 	retval = hievent_write_ring_head_buffer((unsigned char *)&header,
 						sizeof(header));
 	if (retval) {
@@ -293,15 +257,17 @@ out:
 	return retval;
 }
 
-static unsigned int hievent_poll(struct file *filep,
-				 struct poll_table_struct *fds)
+static unsigned int hievent_poll(struct file *filep, poll_table *wait)
 {
-	(void)filep;
-	(void)fds;
+	unsigned int mask = 0;
 
-	wait_event_interruptible(hievent_dev.wq, (hievent_dev.size > 0));
+	poll_wait(filep, &hievent_dev.wq, wait);
+	if (hievent_dev.size > 0) {
+		mask |= POLLIN | POLLRDNORM;
+		return mask;
+	}
 
-	return (POLLOUT | POLLWRNORM);
+	return 0;
 }
 
 static ssize_t hievent_write_iter(struct kiocb *iocb, struct iov_iter *from)
@@ -310,14 +276,16 @@ static ssize_t hievent_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	unsigned char *temp_buffer = NULL;
 	const struct iovec *iov = from->iov;
 	int retval;
-	int buf_len;
-
+	size_t buf_len;
 	(void)iocb;
-	if (from->nr_segs != 3) { /* must contain 3 segments */
+
+	if (from->nr_segs != 2) { /* must contain 2 segments */
+		pr_err("invalid nr_segs: %ld", from->nr_segs);
 		retval = -EINVAL;
 		goto out;
 	}
 
+	/* seg 0 info is checkcode*/
 	retval = copy_from_user(&check_code, iov[0].iov_base,
 				sizeof(check_code));
 	if (retval || check_code != CHECK_CODE) {
@@ -325,8 +293,8 @@ static ssize_t hievent_write_iter(struct kiocb *iocb, struct iov_iter *from)
 		goto out;
 	}
 
-	/* seg 1 && 2 is head info */
-	buf_len = iov[1].iov_len + iov[2].iov_len;
+	/* seg 1 info */
+	buf_len = iov[1].iov_len;
 	if (buf_len > HIEVENT_BUFFER - sizeof(struct hievent_entry)) {
 		retval = -ENOMEM;
 		goto out;
@@ -344,20 +312,11 @@ static ssize_t hievent_write_iter(struct kiocb *iocb, struct iov_iter *from)
 		goto free_mem;
 	}
 
-	/* 1 2 head info */
-	retval = copy_from_user(temp_buffer + iov[1].iov_len, iov[2].iov_base,
-				iov[2].iov_len);
-	if (retval) {
-		retval = -EIO;
-		goto free_mem;
-	}
-
 	retval = hievent_write_internal(temp_buffer, buf_len);
-	if (retval) {
+	if (retval < 0) {
 		retval = -EIO;
 		goto free_mem;
 	}
-
 	retval = buf_len + iov[0].iov_len;
 
 free_mem:
@@ -373,11 +332,11 @@ static const struct file_operations hievent_fops = {
 	.write_iter = hievent_write_iter, /* write_iter */
 };
 
-static void hievent_device_init(void)
+static int hievent_device_init(void)
 {
 	hievent_dev.buffer = kmalloc(HIEVENT_BUFFER, GFP_KERNEL);
 	if (!hievent_dev.buffer)
-		return;
+		return -ENOMEM;
 
 	init_waitqueue_head(&hievent_dev.wq);
 	mutex_init(&hievent_dev.mtx);
@@ -385,31 +344,69 @@ static void hievent_device_init(void)
 	hievent_dev.head_offset = 0;
 	hievent_dev.size = 0;
 	hievent_dev.count = 0;
+
+	return 0;
 }
 
 static int __init hieventdev_init(void)
 {
 	int result;
-	dev_t devno = MKDEV(hievent_major, 0);
+	struct device *dev_ret = NULL;
 
-	result = register_chrdev_region(devno, 2, "hwlog_exception");
-	if (result < 0)
-		return result;
+	result = alloc_chrdev_region(&hievent_devno, 0, HIEVENT_DEV_NR, HIEVENT_DEV_NAME);
+	if (result < 0) {
+		pr_err("register %s failed", HIEVENT_DRIVER);
+		return -ENODEV;
+	}
 
-	cdev_init(&hievent_cdev, &hievent_fops);
-	hievent_cdev.owner = THIS_MODULE;
-	hievent_cdev.ops = &hievent_fops;
+	cdev_init(&hievent_dev.devm, &hievent_fops);
+	hievent_dev.devm.owner = THIS_MODULE;
 
-	cdev_add(&hievent_cdev, MKDEV(hievent_major, 0), HIEVENT_NR_DEVS);
+	result = cdev_add(&hievent_dev.devm, hievent_devno, HIEVENT_DEV_NR);
+	if (result < 0) {
+		pr_err("cdev_add failed");
+		goto unreg_dev;
+	}
 
-	hievent_device_init();
+	result = hievent_device_init();
+	if (result < 0) {
+		pr_err("hievent_device_init failed");
+		goto del_dev;
+	}
+
+	hievent_class = class_create(THIS_MODULE, HIEVENT_DEV_NAME);
+	if (IS_ERR(hievent_class)) {
+		pr_err("class_create failed");
+		goto del_buffer;
+	}
+
+	dev_ret = device_create(hievent_class, 0, hievent_devno, 0, HIEVENT_DEV_NAME);
+	if (IS_ERR(dev_ret)) {
+		pr_err("device_create failed");
+		goto del_class;
+	}
+
 	return 0;
+
+del_class:
+	class_destroy(hievent_class);
+del_buffer:
+	kfree(hievent_dev.buffer);
+del_dev:
+	cdev_del(&hievent_dev.devm);
+unreg_dev:
+	unregister_chrdev_region(hievent_devno, HIEVENT_DEV_NR);
+
+	return -ENODEV;
 }
 
 static void __exit hievent_exit_module(void)
 {
-	cdev_del(&hievent_cdev);
-	unregister_chrdev_region(MKDEV(hievent_major, 0), HIEVENT_NR_DEVS);
+	device_destroy(hievent_class, hievent_devno);
+	class_destroy(hievent_class);
+	kfree(hievent_dev.buffer);
+	cdev_del(&hievent_dev.devm);
+	unregister_chrdev_region(hievent_devno, HIEVENT_DEV_NR);
 }
 
 static int __init hievent_init_module(void)

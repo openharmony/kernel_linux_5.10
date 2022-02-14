@@ -1,2 +1,1 @@
-
 obj-$(CONFIG_HIEVENT)		+= hievent_driver.o
