@@ -139,7 +139,7 @@ static u32 move_obj_to_hpio(struct zram *zram, u32 index, u16 gid,
 	wbgrp_obj_stats_inc(zram->zgrp, gid, eid, size);
 	zgrp_obj_stats_dec(zram->zgrp, gid, size);
 	pr_info("move obj %u of group %u to hpio %p of eid %u, size = %u, offset = %u\n",
-		index, gid, hpio, eid, size);
+		index, gid, hpio, eid, size, offset);
 unlock:
 	zram_slot_unlock(zram, index);
 
@@ -188,7 +188,7 @@ move:
 	wbgrp_obj_stats_dec(zram->zgrp, gid, eid, size);
 	zgrp_obj_stats_inc(zram->zgrp, gid, size);
 	pr_info("move obj %u of group %u from hpio %p of eid %u, size = %u, offset = %u\n",
-		index, gid, hpio, eid, size);
+		index, gid, hpio, eid, size, offset);
 unlock:
 	zram_slot_unlock(zram, index);
 }
