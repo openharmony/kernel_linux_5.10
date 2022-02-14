@@ -32,6 +32,13 @@ config BLACKBOX_STORAGE_BY_MEMORY
 		panic occurs. It depends on supporting warm reset and disabling erase
 		ddr when warm reset.
 
+config BLACKBOX_USE_PSTORE_BLK_DEBUG
+	bool "blackbox use pstore blk for debug"
+	depends on BLACKBOX
+	default n
+	help
+		If Y, this enables pstore blk for blackbox.
+
 config BLACKBOX_STORAGE_BY_PSTORE_BLK
 	tristate "blackbox fault log storage by pstore blk"
 	depends on BLACKBOX
