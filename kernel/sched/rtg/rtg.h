@@ -8,6 +8,9 @@
 #include <linux/types.h>
 #include <linux/sched.h>
 
+#define for_each_sched_cluster_reverse(cluster) \
+	list_for_each_entry_reverse(cluster, &cluster_head, list)
+
 #ifdef CONFIG_SCHED_RTG
 void init_task_rtg(struct task_struct *p);
 int alloc_related_thread_groups(void);
@@ -22,7 +25,16 @@ int sched_set_group_window_rollover(unsigned int grp_id);
 struct group_cpu_time *group_update_cpu_time(struct rq *rq,
 	struct related_thread_group *grp);
 void sched_update_rtg_tick(struct task_struct *p);
+int preferred_cluster(struct sched_cluster *cluster, struct task_struct *p);
+int sched_set_group_preferred_cluster(unsigned int grp_id, int sched_cluster_id);
+struct cpumask *find_rtg_target(struct task_struct *p);
+int find_rtg_cpu(struct task_struct *p);
 #else
 static inline int alloc_related_thread_groups(void) { return 0; }
+static inline int sched_set_group_preferred_cluster(unsigned int grp_id,
+						    int sched_cluster_id)
+{
+	return 0;
+}
 #endif /* CONFIG_SCHED_RTG */
 #endif

@@ -4,6 +4,7 @@
  *
  */
 #include <linux/sched.h>
+#include <linux/cpumask.h>
 #include <trace/events/walt.h>
 
 #include "../sched.h"
@@ -182,6 +183,8 @@ static void transfer_busy_time(struct rq *rq, struct related_thread_group *grp,
 	trace_sched_migration_update_sum(p, migrate_type, rq);
 }
 
+static void _set_preferred_cluster(struct related_thread_group *grp,
+				   int sched_cluster_id);
 static void remove_task_from_group(struct task_struct *p)
 {
 	struct related_thread_group *grp = p->grp;
@@ -207,6 +210,8 @@ static void remove_task_from_group(struct task_struct *p)
 
 	if (!list_empty(&grp->tasks))
 		empty_group = false;
+	else
+		_set_preferred_cluster(grp, -1);
 
 	raw_spin_unlock_irqrestore(&grp->lock, irqflag);
 	__task_rq_unlock(rq, &flag);
@@ -519,6 +524,185 @@ void sched_update_rtg_tick(struct task_struct *p)
 	rcu_read_unlock();
 }
 
+int preferred_cluster(struct sched_cluster *cluster, struct task_struct *p)
+{
+	struct related_thread_group *grp = NULL;
+	int rc = 1;
+
+	rcu_read_lock();
+
+	grp = task_related_thread_group(p);
+	if (grp != NULL)
+		rc = (grp->preferred_cluster == cluster);
+
+	rcu_read_unlock();
+	return rc;
+}
+
+unsigned int get_cluster_grp_running(int cluster_id)
+{
+	struct related_thread_group *grp = NULL;
+	unsigned int total_grp_running = 0;
+	unsigned long flag, rtg_flag;
+	unsigned int i;
+
+	read_lock_irqsave(&related_thread_group_lock, rtg_flag);
+
+	/* grp_id 0 is used for exited tasks */
+	for (i = 1; i < MAX_NUM_CGROUP_COLOC_ID; i++) {
+		grp = lookup_related_thread_group(i);
+		if (!grp)
+			continue;
+
+		raw_spin_lock_irqsave(&grp->lock, flag);
+		if (grp->preferred_cluster != NULL &&
+		    grp->preferred_cluster->id == cluster_id)
+			total_grp_running += grp->nr_running;
+		raw_spin_unlock_irqrestore(&grp->lock, flag);
+	}
+	read_unlock_irqrestore(&related_thread_group_lock, rtg_flag);
+
+	return total_grp_running;
+}
+
+static void _set_preferred_cluster(struct related_thread_group *grp,
+				   int sched_cluster_id)
+{
+	struct sched_cluster *cluster = NULL;
+	struct sched_cluster *cluster_found = NULL;
+
+	if (sched_cluster_id == -1) {
+		grp->preferred_cluster = NULL;
+		return;
+	}
+
+	for_each_sched_cluster_reverse(cluster) {
+		if (cluster->id == sched_cluster_id) {
+			cluster_found = cluster;
+			break;
+		}
+	}
+
+	if (cluster_found != NULL)
+		grp->preferred_cluster = cluster_found;
+	else
+		pr_err("cannot found sched_cluster_id=%d\n", sched_cluster_id);
+}
+
+/*
+ * sched_cluster_id == -1: grp will set to NULL
+ */
+static void set_preferred_cluster(struct related_thread_group *grp,
+				  int sched_cluster_id)
+{
+	unsigned long flag;
+
+	raw_spin_lock_irqsave(&grp->lock, flag);
+	_set_preferred_cluster(grp, sched_cluster_id);
+	raw_spin_unlock_irqrestore(&grp->lock, flag);
+}
+
+int sched_set_group_preferred_cluster(unsigned int grp_id, int sched_cluster_id)
+{
+	struct related_thread_group *grp = NULL;
+
+	/* DEFAULT_CGROUP_COLOC_ID is a reserved id */
+	if (grp_id == DEFAULT_CGROUP_COLOC_ID ||
+	    grp_id >= MAX_NUM_CGROUP_COLOC_ID)
+		return -EINVAL;
+
+	grp = lookup_related_thread_group(grp_id);
+	if (!grp) {
+		pr_err("set preferred cluster for group %d fail\n", grp_id);
+		return -ENODEV;
+	}
+	set_preferred_cluster(grp, sched_cluster_id);
+
+	return 0;
+}
+
+struct cpumask *find_rtg_target(struct task_struct *p)
+{
+	struct related_thread_group *grp = NULL;
+	struct sched_cluster *preferred_cluster = NULL;
+	struct cpumask *rtg_target = NULL;
+
+	rcu_read_lock();
+	grp = task_related_thread_group(p);
+	rcu_read_unlock();
+
+	if (!grp)
+		return NULL;
+
+	preferred_cluster = grp->preferred_cluster;
+	if (!preferred_cluster)
+		return NULL;
+
+	rtg_target = &preferred_cluster->cpus;
+	if (!task_fits_max(p, cpumask_first(rtg_target)))
+		return NULL;
+
+	return rtg_target;
+}
+
+int find_rtg_cpu(struct task_struct *p)
+{
+	int i;
+	cpumask_t search_cpus = CPU_MASK_NONE;
+	int max_spare_cap_cpu = -1;
+	unsigned long max_spare_cap = 0;
+	int idle_backup_cpu = -1;
+	struct cpumask *preferred_cpus = find_rtg_target(p);
+
+	if (!preferred_cpus)
+		return -1;
+
+	cpumask_and(&search_cpus, p->cpus_ptr, cpu_online_mask);
+#ifdef CONFIG_CPU_ISOLATION_OPT
+	cpumask_andnot(&search_cpus, &search_cpus, cpu_isolated_mask);
+#endif
+
+	/* search the perferred idle cpu */
+	for_each_cpu_and(i, &search_cpus, preferred_cpus) {
+		if (is_reserved(i))
+			continue;
+
+		if (idle_cpu(i) || (i == task_cpu(p) && p->state == TASK_RUNNING))
+			return i;
+	}
+
+	for_each_cpu(i, &search_cpus) {
+		unsigned long spare_cap;
+
+		if (sched_cpu_high_irqload(i))
+			continue;
+
+		if (is_reserved(i))
+			continue;
+
+		/* take the Active LB CPU as idle_backup_cpu */
+		if (idle_cpu(i) || (i == task_cpu(p) && p->state == TASK_RUNNING)) {
+			/* find the idle_backup_cpu with max capacity */
+			if (idle_backup_cpu == -1 ||
+				capacity_orig_of(i) > capacity_orig_of(idle_backup_cpu))
+				idle_backup_cpu = i;
+
+			continue;
+		}
+
+		spare_cap = capacity_spare_without(i, p);
+		if (spare_cap > max_spare_cap) {
+			max_spare_cap = spare_cap;
+			max_spare_cap_cpu = i;
+		}
+	}
+
+	if (idle_backup_cpu != -1)
+		return idle_backup_cpu;
+
+	return max_spare_cap_cpu;
+}
+
 #ifdef CONFIG_SCHED_RTG_DEBUG
 #define seq_printf_rtg(m, x...) \
 do { \
@@ -532,6 +716,8 @@ static void print_rtg_info(struct seq_file *file,
 	const struct related_thread_group *grp)
 {
 	seq_printf_rtg(file, "RTG_ID          : %d\n", grp->id);
+	seq_printf_rtg(file, "RTG_CLUSTER     : %d\n",
+		grp->preferred_cluster ? grp->preferred_cluster->id : -1);
 }
 
 static char rtg_task_state_to_char(const struct task_struct *tsk)

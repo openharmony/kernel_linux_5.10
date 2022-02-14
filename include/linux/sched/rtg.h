@@ -40,6 +40,7 @@ struct related_thread_group {
 	/* rtg window information for WALT */
 	unsigned int window_size;
 	const struct rtg_class *rtg_class;
+	struct sched_cluster *preferred_cluster;
 };
 
 struct rtg_class {

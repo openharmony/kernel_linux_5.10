@@ -45,6 +45,11 @@ static inline struct sched_cluster *cpu_cluster(int cpu)
 	return cpu_rq(cpu)->cluster;
 }
 
+static inline int same_cluster(int src_cpu, int dst_cpu)
+{
+	return cpu_rq(src_cpu)->cluster == cpu_rq(dst_cpu)->cluster;
+}
+
 static inline u64 scale_exec_time(u64 delta, struct rq *rq)
 {
 	unsigned long capcurr = capacity_curr_of(cpu_of(rq));
@@ -243,6 +248,7 @@ static inline int sched_cpu_high_irqload(int cpu)
 {
 	return 0;
 }
+static inline int same_cluster(int src_cpu, int dst_cpu) { return 1; }
 #endif /* CONFIG_SCHED_WALT */
 
 #endif /* __WALT_H */
