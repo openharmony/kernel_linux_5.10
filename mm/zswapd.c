@@ -127,7 +127,7 @@ static u64 swapout(u64 req_size)
 	struct mem_cgroup *memcg = NULL;
 	u64 write_size = 0;
 
-	while ((memcg = get_next_memcg(memcg))) {
+	while ((memcg = get_next_memcg(memcg)) != NULL) {
 		write_size += swapout_memcg(memcg, req_size - write_size);
 		if (write_size >= req_size)
 			break;
@@ -141,7 +141,7 @@ static unsigned long long get_zram_used_pages(void)
 	struct mem_cgroup *memcg = NULL;
 	unsigned long long zram_pages = 0;
 
-	while ((memcg = get_next_memcg(memcg)))
+	while ((memcg = get_next_memcg(memcg)) != NULL)
 		zram_pages += memcg_data_size(memcg, CACHE_PAGE);
 
 	return zram_pages;
@@ -152,7 +152,7 @@ static unsigned long long get_eswap_used_pages(void)
 	struct mem_cgroup *memcg = NULL;
 	unsigned long long eswap_pages = 0;
 
-	while ((memcg = get_next_memcg(memcg)))
+	while ((memcg = get_next_memcg(memcg)) != NULL)
 		eswap_pages += memcg_data_size(memcg, SWAP_PAGE);
 
 	return eswap_pages;
@@ -163,7 +163,7 @@ static unsigned long long get_zram_pagefault(void)
 	struct mem_cgroup *memcg = NULL;
 	unsigned long long cache_fault = 0;
 
-	while ((memcg = get_next_memcg(memcg)))
+	while ((memcg = get_next_memcg(memcg)) != NULL)
 		cache_fault += memcg_data_size(memcg, CACHE_FAULT);
 
 	return cache_fault;
@@ -236,7 +236,7 @@ static void snapshot_anon_refaults(void)
 {
 	struct mem_cgroup *memcg = NULL;
 
-	while (memcg = get_next_memcg(memcg))
+	while ((memcg = get_next_memcg(memcg)) != NULL)
 		memcg->memcg_reclaimed.reclaimed_pagefault = memcg_data_size(memcg, CACHE_FAULT);
 
 	last_anon_pagefault = get_zram_pagefault();
@@ -398,7 +398,7 @@ int get_zram_current_watermark(void)
 	/* page to ratio */
 	diff_buffers = div64_s64(diff_buffers * percent_constant, nr_total);
 
-	return min(zram_wm_ratio, zram_wm_ratio - diff_buffers);
+	return min((long long)zram_wm_ratio, zram_wm_ratio - diff_buffers);
 }
 
 bool zram_watermark_ok(void)
@@ -572,7 +572,7 @@ static bool zswapd_shrink_anon(pg_data_t *pgdat, struct scan_control *sc)
 	struct mem_cgroup *memcg = NULL;
 	unsigned long nr[NR_LRU_LISTS];
 
-	while ((memcg = get_next_memcg(memcg))) {
+	while ((memcg = get_next_memcg(memcg)) != NULL) {
 		struct lruvec *lruvec = mem_cgroup_lruvec(memcg, pgdat);
 		u64 nr_active, nr_inactive, nr_zram, nr_eswap, zram_ratio;
 
@@ -634,7 +634,7 @@ static u64 __calc_nr_to_reclaim(void)
 		reclaim_size = high_buffers - buffers;
 
 	/* once max reclaim target is max_reclaim_size */
-	reclaim_size = min(reclaim_size, max_reclaim_size);
+	reclaim_size = min(reclaim_size, (u64)max_reclaim_size);
 
 	/* MB to pages */
 	return div_u64(reclaim_size * SZ_1M, PAGE_SIZE);

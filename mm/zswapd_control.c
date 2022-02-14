@@ -517,50 +517,6 @@ static int memcg_active_app_info_list_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-static int report_app_info_show(struct seq_file *m, void *v)
-{
-	struct mem_cgroup_per_node *mz = NULL;
-	struct mem_cgroup *memcg = NULL;
-	struct lruvec *lruvec = NULL;
-	unsigned long eswap_size;
-	unsigned long zram_size;
-	unsigned long anon_size;
-
-	while ((memcg = get_next_memcg(memcg))) {
-		u64 score = atomic64_read(&memcg->memcg_reclaimed.app_score);
-
-		mz = mem_cgroup_nodeinfo(memcg, 0);
-		if (!mz) {
-			get_next_memcg_break(memcg);
-			return 0;
-		}
-
-		lruvec = &mz->lruvec;
-		if (!lruvec) {
-			get_next_memcg_break(memcg);
-			return 0;
-		}
-
-		anon_size = lruvec_lru_size(lruvec, LRU_ACTIVE_ANON,
-			MAX_NR_ZONES) + lruvec_lru_size(lruvec,
-			LRU_INACTIVE_ANON, MAX_NR_ZONES);
-		eswap_size = memcg_data_size(memcg, SWAP_SIZE);
-		zram_size = memcg_data_size(memcg, CACHE_SIZE);
-
-		if (anon_size + zram_size + eswap_size == 0)
-			continue;
-
-		anon_size *= PAGE_SIZE / SZ_1K;
-		zram_size *= PAGE_SIZE / SZ_1K;
-		eswap_size *= PAGE_SIZE / SZ_1K;
-
-		seq_printf(m, "%s, %llu, %lu, %lu, %lu\n",
-			strlen(memcg->name) ? memcg->name : "root",
-			score, anon_size, zram_size, eswap_size);
-	}
-	return 0;
-}
-
 #ifdef CONFIG_HYPERHOLD_DEBUG
 static int avail_buffers_params_show(struct seq_file *m, void *v)
 {
