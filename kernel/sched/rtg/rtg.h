@@ -37,6 +37,12 @@ void sched_get_max_group_util(const struct cpumask *query_cpus,
 			      unsigned long *util, unsigned int *freq);
 int sched_set_group_freq_update_interval(unsigned int grp_id,
 					 unsigned int interval);
+#ifdef CONFIG_SCHED_RTG_CGROUP
+int sync_cgroup_colocation(struct task_struct *p, bool insert);
+void add_new_task_to_grp(struct task_struct *new);
+#else
+static inline void add_new_task_to_grp(struct task_struct *new) {}
+#endif /* CONFIG_SCHED_RTG_CGROUP */
 #else
 static inline int alloc_related_thread_groups(void) { return 0; }
 static inline int sched_set_group_preferred_cluster(unsigned int grp_id,
@@ -53,5 +59,6 @@ static inline void sched_get_max_group_util(const struct cpumask *query_cpus,
 			      unsigned long *util, unsigned int *freq)
 {
 }
+static inline void add_new_task_to_grp(struct task_struct *new) {}
 #endif /* CONFIG_SCHED_RTG */
 #endif

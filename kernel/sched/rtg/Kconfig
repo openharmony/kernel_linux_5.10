@@ -14,4 +14,12 @@ config SCHED_RTG_DEBUG
 	help
 	  If set, debug node will show rtg threads
 
+config SCHED_RTG_CGROUP
+	bool "enable DEFAULT_CGROUP_COLOC RTG"
+	depends on SCHED_RTG
+	default n
+	help
+	  If set, support for adding the tasks which belong to
+	  co-located cgroup to DEFAULT_CGROUP_COLOC RTG.
+
 endmenu

@@ -301,10 +301,18 @@ static int __sched_set_group_id(struct task_struct *p, unsigned int group_id)
 	 * In other cases, Switching from one group to another directly is not permitted.
 	 */
 	if (old_grp && group_id) {
-		pr_err("%s[%d] switching group from %d to %d failed.\n",
-		       p->comm, p->pid, old_grp->id, group_id);
-		rc = -EINVAL;
-		goto done;
+#ifdef CONFIG_SCHED_RTG_CGROUP
+		if (old_grp->id == DEFAULT_CGROUP_COLOC_ID) {
+			remove_task_from_group(p);
+		} else {
+#endif
+			pr_err("%s[%d] switching group from %d to %d failed.\n",
+			       p->comm, p->pid, old_grp->id, group_id);
+			rc = -EINVAL;
+			goto done;
+#ifdef CONFIG_SCHED_RTG_CGROUP
+		}
+#endif
 	}
 
 	if (!group_id) {
@@ -978,6 +986,115 @@ int sched_set_group_freq_update_interval(unsigned int grp_id, unsigned int inter
 
 	return 0;
 }
+
+#ifdef CONFIG_SCHED_RTG_CGROUP
+#ifdef CONFIG_UCLAMP_TASK_GROUP
+static inline bool uclamp_task_colocated(struct task_struct *p)
+{
+	struct cgroup_subsys_state *css;
+	struct task_group *tg;
+	bool colocate;
+
+	rcu_read_lock();
+	css = task_css(p, cpu_cgrp_id);
+	if (!css) {
+		rcu_read_unlock();
+		return false;
+	}
+	tg = container_of(css, struct task_group, css);
+	colocate = tg->colocate;
+	rcu_read_unlock();
+
+	return colocate;
+}
+#else
+static inline bool uclamp_task_colocated(struct task_struct *p)
+{
+	return false;
+}
+#endif /* CONFIG_UCLAMP_TASK_GROUP */
+
+void add_new_task_to_grp(struct task_struct *new)
+{
+	struct related_thread_group *grp = NULL;
+	unsigned long flag;
+
+	/*
+	 * If the task does not belong to colocated schedtune
+	 * cgroup, nothing to do. We are checking this without
+	 * lock. Even if there is a race, it will be added
+	 * to the co-located cgroup via cgroup attach.
+	 */
+	if (!uclamp_task_colocated(new))
+		return;
+
+	grp = lookup_related_thread_group(DEFAULT_CGROUP_COLOC_ID);
+	write_lock_irqsave(&related_thread_group_lock, flag);
+
+	/*
+	 * It's possible that someone already added the new task to the
+	 * group. or it might have taken out from the colocated schedtune
+	 * cgroup. check these conditions under lock.
+	 */
+	if (!uclamp_task_colocated(new) || new->grp) {
+		write_unlock_irqrestore(&related_thread_group_lock, flag);
+		return;
+	}
+
+	raw_spin_lock(&grp->lock);
+
+	rcu_assign_pointer(new->grp, grp);
+	list_add(&new->grp_list, &grp->tasks);
+
+	raw_spin_unlock(&grp->lock);
+	write_unlock_irqrestore(&related_thread_group_lock, flag);
+}
+
+
+/*
+ * We create a default colocation group at boot. There is no need to
+ * synchronize tasks between cgroups at creation time because the
+ * correct cgroup hierarchy is not available at boot. Therefore cgroup
+ * colocation is turned off by default even though the colocation group
+ * itself has been allocated. Furthermore this colocation group cannot
+ * be destroyted once it has been created. All of this has been as part
+ * of runtime optimizations.
+ *
+ * The job of synchronizing tasks to the colocation group is done when
+ * the colocation flag in the cgroup is turned on.
+ */
+static int __init create_default_coloc_group(void)
+{
+	struct related_thread_group *grp = NULL;
+	unsigned long flags;
+
+	grp = lookup_related_thread_group(DEFAULT_CGROUP_COLOC_ID);
+	write_lock_irqsave(&related_thread_group_lock, flags);
+	list_add(&grp->list, &active_related_thread_groups);
+	write_unlock_irqrestore(&related_thread_group_lock, flags);
+
+	return 0;
+}
+late_initcall(create_default_coloc_group);
+
+int sync_cgroup_colocation(struct task_struct *p, bool insert)
+{
+	unsigned int grp_id = insert ? DEFAULT_CGROUP_COLOC_ID : 0;
+	unsigned int old_grp_id;
+
+	if (p) {
+		old_grp_id = sched_get_group_id(p);
+		/*
+		 * If the task is already in a group which is not DEFAULT_CGROUP_COLOC_ID,
+		 * we should not change the group id during switch to background.
+		 */
+		if ((old_grp_id != DEFAULT_CGROUP_COLOC_ID) && (grp_id == 0))
+			return 0;
+	}
+
+	return __sched_set_group_id(p, grp_id);
+}
+#endif /* CONFIG_SCHED_RTG_CGROUP */
 
 #ifdef CONFIG_SCHED_RTG_DEBUG
 #define seq_printf_rtg(m, x...) \
