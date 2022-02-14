@@ -1077,7 +1077,10 @@ struct rq {
 	u64 nt_prev_runnable_sum;
 	u64 cum_window_demand_scaled;
 	struct load_subtractions load_subs[NUM_TRACKED_WINDOWS];
+#ifdef CONFIG_SCHED_RTG
+	struct group_cpu_time grp_time;
 #endif
+#endif /* CONFIG_SCHED_WALT */
 
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
 	u64			prev_irq_time;

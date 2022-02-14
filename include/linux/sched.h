@@ -223,6 +223,12 @@ enum task_event {
 	IRQ_UPDATE      = 5,
 };
 
+/* Note: this need to be in sync with migrate_type_names array */
+enum migrate_types {
+	GROUP_TO_RQ,
+	RQ_TO_GROUP,
+};
+
 #ifdef CONFIG_CPU_ISOLATION_OPT
 extern int sched_isolate_count(const cpumask_t *mask, bool include_offline);
 extern int sched_isolate_cpu(int cpu);

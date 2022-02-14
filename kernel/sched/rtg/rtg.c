@@ -4,9 +4,16 @@
  *
  */
 #include <linux/sched.h>
+#include <trace/events/walt.h>
 
 #include "../sched.h"
 #include "rtg.h"
+#include "../walt.h"
+
+#define ADD_TASK	0
+#define REM_TASK	1
+
+#define DEFAULT_GROUP_RATE		60 /* 60FPS */
 
 struct related_thread_group *related_thread_groups[MAX_NUM_CGROUP_COLOC_ID];
 static DEFINE_RWLOCK(related_thread_group_lock);
@@ -48,6 +55,7 @@ int alloc_related_thread_groups(void)
 		grp->id = i;
 		INIT_LIST_HEAD(&grp->tasks);
 		INIT_LIST_HEAD(&grp->list);
+		grp->window_size = NSEC_PER_SEC / DEFAULT_GROUP_RATE;
 		raw_spin_lock_init(&grp->lock);
 
 		related_thread_groups[i] = grp;
@@ -69,6 +77,111 @@ err:
 	return ret;
 }
 
+/*
+ * Task's cpu usage is accounted in:
+ *	rq->curr/prev_runnable_sum,  when its ->grp is NULL
+ *	grp->cpu_time[cpu]->curr/prev_runnable_sum, when its ->grp is !NULL
+ *
+ * Transfer task's cpu usage between those counters when transitioning between
+ * groups
+ */
+static void transfer_busy_time(struct rq *rq, struct related_thread_group *grp,
+				struct task_struct *p, int event)
+{
+	u64 wallclock;
+	struct group_cpu_time *cpu_time;
+	u64 *src_curr_runnable_sum, *dst_curr_runnable_sum;
+	u64 *src_prev_runnable_sum, *dst_prev_runnable_sum;
+	u64 *src_nt_curr_runnable_sum, *dst_nt_curr_runnable_sum;
+	u64 *src_nt_prev_runnable_sum, *dst_nt_prev_runnable_sum;
+	int migrate_type;
+	int cpu = cpu_of(rq);
+	bool new_task;
+	int i;
+
+	wallclock = sched_ktime_clock();
+
+	update_task_ravg(rq->curr, rq, TASK_UPDATE, wallclock, 0);
+	update_task_ravg(p, rq, TASK_UPDATE, wallclock, 0);
+	new_task = is_new_task(p);
+
+	cpu_time = &rq->grp_time;
+	if (event == ADD_TASK) {
+		migrate_type = RQ_TO_GROUP;
+
+		src_curr_runnable_sum = &rq->curr_runnable_sum;
+		dst_curr_runnable_sum = &cpu_time->curr_runnable_sum;
+		src_prev_runnable_sum = &rq->prev_runnable_sum;
+		dst_prev_runnable_sum = &cpu_time->prev_runnable_sum;
+
+		src_nt_curr_runnable_sum = &rq->nt_curr_runnable_sum;
+		dst_nt_curr_runnable_sum = &cpu_time->nt_curr_runnable_sum;
+		src_nt_prev_runnable_sum = &rq->nt_prev_runnable_sum;
+		dst_nt_prev_runnable_sum = &cpu_time->nt_prev_runnable_sum;
+
+		*src_curr_runnable_sum -= p->ravg.curr_window_cpu[cpu];
+		*src_prev_runnable_sum -= p->ravg.prev_window_cpu[cpu];
+		if (new_task) {
+			*src_nt_curr_runnable_sum -=
+					p->ravg.curr_window_cpu[cpu];
+			*src_nt_prev_runnable_sum -=
+					p->ravg.prev_window_cpu[cpu];
+		}
+
+		update_cluster_load_subtractions(p, cpu,
+				rq->window_start, new_task);
+
+	} else {
+		migrate_type = GROUP_TO_RQ;
+
+		src_curr_runnable_sum = &cpu_time->curr_runnable_sum;
+		dst_curr_runnable_sum = &rq->curr_runnable_sum;
+		src_prev_runnable_sum = &cpu_time->prev_runnable_sum;
+		dst_prev_runnable_sum = &rq->prev_runnable_sum;
+
+		src_nt_curr_runnable_sum = &cpu_time->nt_curr_runnable_sum;
+		dst_nt_curr_runnable_sum = &rq->nt_curr_runnable_sum;
+		src_nt_prev_runnable_sum = &cpu_time->nt_prev_runnable_sum;
+		dst_nt_prev_runnable_sum = &rq->nt_prev_runnable_sum;
+
+		*src_curr_runnable_sum -= p->ravg.curr_window;
+		*src_prev_runnable_sum -= p->ravg.prev_window;
+		if (new_task) {
+			*src_nt_curr_runnable_sum -= p->ravg.curr_window;
+			*src_nt_prev_runnable_sum -= p->ravg.prev_window;
+		}
+
+		/*
+		 * Need to reset curr/prev windows for all CPUs, not just the
+		 * ones in the same cluster. Since inter cluster migrations
+		 * did not result in the appropriate book keeping, the values
+		 * per CPU would be inaccurate.
+		 */
+		for_each_possible_cpu(i) {
+			p->ravg.curr_window_cpu[i] = 0;
+			p->ravg.prev_window_cpu[i] = 0;
+		}
+	}
+
+	*dst_curr_runnable_sum += p->ravg.curr_window;
+	*dst_prev_runnable_sum += p->ravg.prev_window;
+	if (new_task) {
+		*dst_nt_curr_runnable_sum += p->ravg.curr_window;
+		*dst_nt_prev_runnable_sum += p->ravg.prev_window;
+	}
+
+	/*
+	 * When a task enter or exits a group, it's curr and prev windows are
+	 * moved to a single CPU. This behavior might be sub-optimal in the
+	 * exit case, however, it saves us the overhead of handling inter
+	 * cluster migration fixups while the task is part of a related group.
+	 */
+	p->ravg.curr_window_cpu[cpu] = p->ravg.curr_window;
+	p->ravg.prev_window_cpu[cpu] = p->ravg.prev_window;
+
+	trace_sched_migration_update_sum(p, migrate_type, rq);
+}
+
 static void remove_task_from_group(struct task_struct *p)
 {
 	struct related_thread_group *grp = p->grp;
@@ -78,6 +191,7 @@ static void remove_task_from_group(struct task_struct *p)
 	unsigned long irqflag;
 
 	rq = __task_rq_lock(p, &flag);
+	transfer_busy_time(rq, p->grp, p, REM_TASK);
 
 	raw_spin_lock_irqsave(&grp->lock, irqflag);
 	list_del_init(&p->grp_list);
@@ -121,12 +235,17 @@ add_task_to_group(struct task_struct *p, struct related_thread_group *grp)
 	 * reference of p->grp in various hot-paths
 	 */
 	rq = __task_rq_lock(p, &flag);
+	transfer_busy_time(rq, grp, p, ADD_TASK);
 
 	raw_spin_lock_irqsave(&grp->lock, irqflag);
 	list_add(&p->grp_list, &grp->tasks);
 	rcu_assign_pointer(p->grp, grp);
-	if (p->on_cpu)
+	if (p->on_cpu) {
 		grp->nr_running++;
+		if (grp->nr_running == 1)
+			grp->mark_start = max(grp->mark_start,
+					      sched_ktime_clock());
+	}
 
 	raw_spin_unlock_irqrestore(&grp->lock, irqflag);
 	__task_rq_unlock(rq, &flag);
@@ -226,6 +345,157 @@ void update_group_nr_running(struct task_struct *p, int event)
 		WARN_ON(1);
 		grp->nr_running = 0;
 	}
+
+	raw_spin_unlock(&grp->lock);
+
+	rcu_read_unlock();
+}
+
+int sched_set_group_window_size(unsigned int grp_id, unsigned int window_size)
+{
+	struct related_thread_group *grp = NULL;
+	unsigned long flag;
+
+	if (!window_size)
+		return -EINVAL;
+
+	grp = lookup_related_thread_group(grp_id);
+	if (!grp) {
+		pr_err("set window size for group %d fail\n", grp_id);
+		return -ENODEV;
+	}
+
+	raw_spin_lock_irqsave(&grp->lock, flag);
+	grp->window_size = window_size;
+	raw_spin_unlock_irqrestore(&grp->lock, flag);
+
+	return 0;
+}
+
+void group_time_rollover(struct group_ravg *ravg)
+{
+	ravg->prev_window_load = ravg->curr_window_load;
+	ravg->curr_window_load = 0;
+	ravg->prev_window_exec = ravg->curr_window_exec;
+	ravg->curr_window_exec = 0;
+}
+
+int sched_set_group_window_rollover(unsigned int grp_id)
+{
+	struct related_thread_group *grp = NULL;
+	u64 wallclock;
+	unsigned long flag;
+
+	grp = lookup_related_thread_group(grp_id);
+	if (!grp) {
+		pr_err("set window start for group %d fail\n", grp_id);
+		return -ENODEV;
+	}
+
+	raw_spin_lock_irqsave(&grp->lock, flag);
+
+	wallclock = sched_ktime_clock();
+	grp->prev_window_time = wallclock - grp->window_start;
+	grp->window_start = wallclock;
+
+	group_time_rollover(&grp->ravg);
+	raw_spin_unlock_irqrestore(&grp->lock, flag);
+
+	return 0;
+}
+
+static void add_to_group_time(struct related_thread_group *grp, struct rq *rq, u64 wallclock)
+{
+	u64 delta_exec, delta_load;
+	u64 mark_start = grp->mark_start;
+	u64 window_start = grp->window_start;
+
+	if (unlikely(wallclock <= mark_start))
+		return;
+
+	/* per group load tracking in RTG */
+	if (likely(mark_start >= window_start)) {
+		/*
+		 *   ws   ms  wc
+		 *   |    |   |
+		 *   V    V   V
+		 *   |---------------|
+		 */
+		delta_exec = wallclock - mark_start;
+		grp->ravg.curr_window_exec += delta_exec;
+
+		delta_load = scale_exec_time(delta_exec, rq);
+		grp->ravg.curr_window_load += delta_load;
+	} else {
+		/*
+		 *   ms   ws  wc
+		 *   |    |   |
+		 *   V    V   V
+		 *   -----|----------
+		 */
+		/* prev window statistic */
+		delta_exec = window_start - mark_start;
+		grp->ravg.prev_window_exec += delta_exec;
+
+		delta_load = scale_exec_time(delta_exec, rq);
+		grp->ravg.prev_window_load += delta_load;
+
+		/* curr window statistic */
+		delta_exec = wallclock - window_start;
+		grp->ravg.curr_window_exec += delta_exec;
+
+		delta_load = scale_exec_time(delta_exec, rq);
+		grp->ravg.curr_window_load += delta_load;
+	}
+}
+
+static inline void add_to_group_demand(struct related_thread_group *grp,
+				struct rq *rq, u64 wallclock)
+{
+	if (unlikely(wallclock <= grp->window_start))
+		return;
+
+	add_to_group_time(grp, rq, wallclock);
+}
+
+static int account_busy_for_group_demand(struct task_struct *p, int event)
+{
+	/*
+	 *No need to bother updating task demand for exiting tasks
+	 * or the idle task.
+	 */
+	if (exiting_task(p) || is_idle_task(p))
+		return 0;
+
+	if (event == TASK_WAKE || event == TASK_MIGRATE)
+		return 0;
+
+	return 1;
+}
+
+void update_group_demand(struct task_struct *p, struct rq *rq,
+				int event, u64 wallclock)
+{
+	struct related_thread_group *grp;
+
+	if (!account_busy_for_group_demand(p, event))
+		return;
+
+	rcu_read_lock();
+	grp = task_related_thread_group(p);
+	if (!grp) {
+		rcu_read_unlock();
+		return;
+	}
+
+	raw_spin_lock(&grp->lock);
+
+	if (grp->nr_running == 1)
+		grp->mark_start = max(grp->mark_start, p->ravg.mark_start);
+
+	add_to_group_demand(grp, rq, wallclock);
+
+	grp->mark_start = wallclock;
 
 	raw_spin_unlock(&grp->lock);
 

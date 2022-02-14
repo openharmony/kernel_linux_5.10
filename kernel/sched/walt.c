@@ -32,6 +32,8 @@
 const char *task_event_names[] = {"PUT_PREV_TASK", "PICK_NEXT_TASK",
 				  "TASK_WAKE", "TASK_MIGRATE", "TASK_UPDATE",
 				  "IRQ_UPDATE"};
+const char *migrate_type_names[] = {"GROUP_TO_RQ", "RQ_TO_GROUP",
+					"RQ_TO_RQ", "GROUP_TO_GROUP"};
 
 #define SCHED_FREQ_ACCOUNT_WAIT_TIME 0
 #define SCHED_ACCOUNT_WAIT_TIME 1
@@ -476,6 +478,13 @@ void fixup_busy_time(struct task_struct *p, int new_cpu)
 	struct rq *dest_rq = cpu_rq(new_cpu);
 	u64 wallclock;
 	bool new_task;
+#ifdef CONFIG_SCHED_RTG
+	u64 *src_curr_runnable_sum, *dst_curr_runnable_sum;
+	u64 *src_prev_runnable_sum, *dst_prev_runnable_sum;
+	u64 *src_nt_curr_runnable_sum, *dst_nt_curr_runnable_sum;
+	u64 *src_nt_prev_runnable_sum, *dst_nt_prev_runnable_sum;
+	struct related_thread_group *grp;
+#endif
 
 	if (!p->on_rq && p->state != TASK_WAKING)
 		return;
@@ -513,9 +522,58 @@ void fixup_busy_time(struct task_struct *p, int new_cpu)
 	}
 
 	new_task = is_new_task(p);
+#ifdef CONFIG_SCHED_RTG
+	/* Protected by rq_lock */
+	grp = task_related_thread_group(p);
 
-	inter_cluster_migration_fixup(p, new_cpu,
-					task_cpu(p), new_task);
+	/*
+	 * For frequency aggregation, we continue to do migration fixups
+	 * even for intra cluster migrations. This is because, the aggregated
+	 * load has to reported on a single CPU regardless.
+	 */
+	if (grp) {
+		struct group_cpu_time *cpu_time;
+
+		cpu_time = &src_rq->grp_time;
+		src_curr_runnable_sum = &cpu_time->curr_runnable_sum;
+		src_prev_runnable_sum = &cpu_time->prev_runnable_sum;
+		src_nt_curr_runnable_sum = &cpu_time->nt_curr_runnable_sum;
+		src_nt_prev_runnable_sum = &cpu_time->nt_prev_runnable_sum;
+
+		cpu_time = &dest_rq->grp_time;
+		dst_curr_runnable_sum = &cpu_time->curr_runnable_sum;
+		dst_prev_runnable_sum = &cpu_time->prev_runnable_sum;
+		dst_nt_curr_runnable_sum = &cpu_time->nt_curr_runnable_sum;
+		dst_nt_prev_runnable_sum = &cpu_time->nt_prev_runnable_sum;
+
+		if (p->ravg.curr_window) {
+			*src_curr_runnable_sum -= p->ravg.curr_window;
+			*dst_curr_runnable_sum += p->ravg.curr_window;
+			if (new_task) {
+				*src_nt_curr_runnable_sum -=
+							p->ravg.curr_window;
+				*dst_nt_curr_runnable_sum +=
+							p->ravg.curr_window;
+			}
+		}
+
+		if (p->ravg.prev_window) {
+			*src_prev_runnable_sum -= p->ravg.prev_window;
+			*dst_prev_runnable_sum += p->ravg.prev_window;
+			if (new_task) {
+				*src_nt_prev_runnable_sum -=
+							p->ravg.prev_window;
+				*dst_nt_prev_runnable_sum +=
+							p->ravg.prev_window;
+			}
+		}
+	} else {
+#endif
+		inter_cluster_migration_fixup(p, new_cpu,
+						task_cpu(p), new_task);
+#ifdef CONFIG_SCHED_RTG
+	}
+#endif
 
 	if (!same_freq_domain(new_cpu, task_cpu(p)))
 		irq_work_queue(&walt_migration_irq_work);
@@ -634,15 +692,6 @@ done:
 
 #define DIV64_U64_ROUNDUP(X, Y) div64_u64((X) + (Y - 1), Y)
 
-static inline u64 scale_exec_time(u64 delta, struct rq *rq)
-{
-	unsigned long capcurr = capacity_curr_of(cpu_of(rq));
-
-	delta = (delta * capcurr) >> SCHED_CAPACITY_SHIFT;
-
-	return delta;
-}
-
 static u64 add_to_task_demand(struct rq *rq, struct task_struct *p, u64 delta)
 {
 	delta = scale_exec_time(delta, rq);
@@ -711,6 +760,10 @@ static u64 update_task_demand(struct task_struct *p, struct rq *rq,
 	int new_window, nr_full_windows;
 	u32 window_size = sched_ravg_window;
 	u64 runtime;
+
+#ifdef CONFIG_SCHED_RTG
+	update_group_demand(p, rq, event, wallclock);
+#endif
 
 	new_window = mark_start < window_start;
 	if (!account_busy_for_task_demand(rq, p, event)) {
@@ -870,6 +923,10 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 	u64 *nt_prev_runnable_sum = &rq->nt_prev_runnable_sum;
 	bool new_task;
 	int cpu = rq->cpu;
+#ifdef CONFIG_SCHED_RTG
+	struct group_cpu_time *cpu_time;
+	struct related_thread_group *grp;
+#endif
 
 	new_window = mark_start < window_start;
 	if (new_window) {
@@ -894,6 +951,19 @@ static void update_cpu_busy_time(struct task_struct *p, struct rq *rq,
 
 	if (!account_busy_for_cpu_time(rq, p, irqtime, event))
 		goto done;
+
+#ifdef CONFIG_SCHED_RTG
+	grp = task_related_thread_group(p);
+	if (grp) {
+		cpu_time = &rq->grp_time;
+
+		curr_runnable_sum = &cpu_time->curr_runnable_sum;
+		prev_runnable_sum = &cpu_time->prev_runnable_sum;
+
+		nt_curr_runnable_sum = &cpu_time->nt_curr_runnable_sum;
+		nt_prev_runnable_sum = &cpu_time->nt_prev_runnable_sum;
+	}
+#endif
 
 	if (!new_window) {
 		/*

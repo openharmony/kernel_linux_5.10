@@ -45,6 +45,15 @@ static inline struct sched_cluster *cpu_cluster(int cpu)
 	return cpu_rq(cpu)->cluster;
 }
 
+static inline u64 scale_exec_time(u64 delta, struct rq *rq)
+{
+	unsigned long capcurr = capacity_curr_of(cpu_of(rq));
+
+	delta = (delta * capcurr) >> SCHED_CAPACITY_SHIFT;
+
+	return delta;
+}
+
 static inline bool is_new_task(struct task_struct *p)
 {
 	return p->ravg.active_windows < SCHED_NEW_TASK_WINDOWS;
@@ -192,6 +201,8 @@ static inline void assign_cluster_ids(struct list_head *head)
 	}
 }
 
+extern void update_cluster_load_subtractions(struct task_struct *p,
+		int cpu, u64 ws, bool new_task);
 #else /* CONFIG_SCHED_WALT */
 static inline void walt_sched_init_rq(struct rq *rq) { }
 
