@@ -1813,3 +1813,49 @@ void walt_sched_init_rq(struct rq *rq)
 	for (j = 0; j < NUM_TRACKED_WINDOWS; j++)
 		memset(&rq->load_subs[j], 0, sizeof(struct load_subtractions));
 }
+
+#define min_cap_cluster() \
+	list_first_entry(&cluster_head, struct sched_cluster, list)
+#define max_cap_cluster() \
+	list_last_entry(&cluster_head, struct sched_cluster, list)
+static int sched_cluster_debug_show(struct seq_file *file, void *param)
+{
+	struct sched_cluster *cluster = NULL;
+
+	seq_printf(file, "min_id:%d, max_id:%d\n",
+		min_cap_cluster()->id,
+		max_cap_cluster()->id);
+
+	for_each_sched_cluster(cluster) {
+		seq_printf(file, "id:%d, cpumask:%d(%*pbl)\n",
+			   cluster->id,
+			   cpumask_first(&cluster->cpus),
+			   cpumask_pr_args(&cluster->cpus));
+	}
+
+	return 0;
+}
+
+static int sched_cluster_debug_open(struct inode *inode, struct file *filp)
+{
+	return single_open(filp, sched_cluster_debug_show, NULL);
+}
+
+static const struct proc_ops sched_cluster_fops = {
+	.proc_open		= sched_cluster_debug_open,
+	.proc_read		= seq_read,
+	.proc_lseek		= seq_lseek,
+	.proc_release		= seq_release,
+};
+
+static int __init init_sched_cluster_debug_procfs(void)
+{
+	struct proc_dir_entry *pe = NULL;
+
+	pe = proc_create("sched_cluster",
+		0444, NULL, &sched_cluster_fops);
+	if (!pe)
+		return -ENOMEM;
+	return 0;
+}
+late_initcall(init_sched_cluster_debug_procfs);
