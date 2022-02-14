@@ -6,6 +6,9 @@
 #include <linux/sched.h>
 #include <linux/cpumask.h>
 #include <trace/events/walt.h>
+#define CREATE_TRACE_POINTS
+#include <trace/events/rtg.h>
+#undef CREATE_TRACE_POINTS
 
 #include "../sched.h"
 #include "rtg.h"
@@ -717,8 +720,10 @@ int find_rtg_cpu(struct task_struct *p)
 		if (is_reserved(i))
 			continue;
 
-		if (idle_cpu(i) || (i == task_cpu(p) && p->state == TASK_RUNNING))
+		if (idle_cpu(i) || (i == task_cpu(p) && p->state == TASK_RUNNING)) {
+			trace_find_rtg_cpu(p, preferred_cpus, "prefer_idle", i);
 			return i;
+		}
 	}
 
 	for_each_cpu(i, &search_cpus) {
@@ -747,8 +752,12 @@ int find_rtg_cpu(struct task_struct *p)
 		}
 	}
 
-	if (idle_backup_cpu != -1)
+	if (idle_backup_cpu != -1) {
+		trace_find_rtg_cpu(p, preferred_cpus, "idle_backup", idle_backup_cpu);
 		return idle_backup_cpu;
+	}
+
+	trace_find_rtg_cpu(p, preferred_cpus, "max_spare", max_spare_cap_cpu);
 
 	return max_spare_cap_cpu;
 }
@@ -804,12 +813,14 @@ static inline bool valid_normalized_util(struct related_thread_group *grp)
 			get_task_struct(p);
 			if (p->state == TASK_RUNNING)
 				cpumask_set_cpu(task_cpu(p), &rtg_cpus);
+			trace_sched_rtg_task_each(grp->id, grp->nr_running, p);
 			put_task_struct(p);
 		}
 
 		valid = cpumask_intersects(&rtg_cpus,
 					  &grp->preferred_cluster->cpus);
 	}
+	trace_sched_rtg_valid_normalized_util(grp->id, grp->nr_running, &rtg_cpus, valid);
 
 	return valid;
 }
