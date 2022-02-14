@@ -17,6 +17,10 @@ static int do_sched_rt_period_timer(struct rt_bandwidth *rt_b, int overrun);
 
 struct rt_bandwidth def_rt_bandwidth;
 
+#ifdef CONFIG_SCHED_RT_ACTIVE_LB
+unsigned int sysctl_sched_enable_rt_active_lb = 1;
+#endif
+
 static enum hrtimer_restart sched_rt_period_timer(struct hrtimer *timer)
 {
 	struct rt_bandwidth *rt_b =
@@ -2443,6 +2447,89 @@ static void task_tick_rt(struct rq *rq, struct task_struct *p, int queued)
 	}
 }
 
+#ifdef CONFIG_SCHED_RT_ACTIVE_LB
+static int rt_active_load_balance_cpu_stop(void *data)
+{
+	struct rq *busiest_rq = data;
+	struct task_struct *next_task = busiest_rq->rt_push_task;
+	struct rq *lowest_rq = NULL;
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&busiest_rq->lock, flags);
+	busiest_rq->rt_active_balance = 0;
+
+	/* find_lock_lowest_rq locks the rq if found */
+	lowest_rq = find_lock_lowest_rq(next_task, busiest_rq);
+	if (!lowest_rq)
+		goto out;
+
+	if (capacity_orig_of(cpu_of(lowest_rq)) <= capacity_orig_of(task_cpu(next_task)))
+		goto unlock;
+
+	deactivate_task(busiest_rq, next_task, 0);
+	set_task_cpu(next_task, lowest_rq->cpu);
+	activate_task(lowest_rq, next_task, 0);
+
+	resched_curr(lowest_rq);
+unlock:
+	double_unlock_balance(busiest_rq, lowest_rq);
+out:
+	put_task_struct(next_task);
+	raw_spin_unlock_irqrestore(&busiest_rq->lock, flags);
+
+	return 0;
+}
+
+static void check_for_migration_rt(struct rq *rq, struct task_struct *p)
+{
+	bool need_actvie_lb = false;
+	bool misfit_task = false;
+	int cpu = task_cpu(p);
+	unsigned long cpu_orig_cap;
+#ifdef CONFIG_SCHED_RTG
+	struct cpumask *rtg_target = NULL;
+#endif
+
+	if (!sysctl_sched_enable_rt_active_lb)
+		return;
+
+	if (p->nr_cpus_allowed == 1)
+		return;
+
+	cpu_orig_cap = capacity_orig_of(cpu);
+	/* cpu has max capacity, no need to do balance */
+	if (cpu_orig_cap ==  rq->rd->max_cpu_capacity)
+		return;
+
+#ifdef CONFIG_SCHED_RTG
+	rtg_target = find_rtg_target(p);
+	if (rtg_target)
+		misfit_task = capacity_orig_of(cpumask_first(rtg_target)) >
+				cpu_orig_cap;
+	else
+		misfit_task = !rt_task_fits_capacity(p, cpu);
+#else
+	misfit_task = !rt_task_fits_capacity(p, cpu);
+#endif
+
+	if (misfit_task) {
+		raw_spin_lock(&rq->lock);
+		if (!rq->active_balance && !rq->rt_active_balance) {
+			rq->rt_active_balance = 1;
+			rq->rt_push_task = p;
+			get_task_struct(p);
+			need_actvie_lb = true;
+		}
+		raw_spin_unlock(&rq->lock);
+
+		if (need_actvie_lb)
+			stop_one_cpu_nowait(task_cpu(p),
+					    rt_active_load_balance_cpu_stop,
+					    rq, &rq->rt_active_balance_work);
+	}
+}
+#endif
+
 static unsigned int get_rr_interval_rt(struct rq *rq, struct task_struct *task)
 {
 	/*
@@ -2490,6 +2577,9 @@ const struct sched_class rt_sched_class
 #endif
 #ifdef CONFIG_SCHED_WALT
 	.fixup_walt_sched_stats	= fixup_walt_sched_stats_common,
+#endif
+#ifdef CONFIG_SCHED_RT_ACTIVE_LB
+	.check_for_migration	= check_for_migration_rt,
 #endif
 };
 

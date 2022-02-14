@@ -866,6 +866,13 @@ config SCHED_EAS
 	help
 	  Check and migrate the CFS process to a more suitable CPU in the tick.
 
+config SCHED_RT_ACTIVE_LB
+	bool "RT Capacity Aware Misfit Task"
+	depends on SCHED_EAS
+	default n
+	help
+	  Check and migrate the RT process to a more suitable CPU in the tick.
+
 endmenu
 
 #

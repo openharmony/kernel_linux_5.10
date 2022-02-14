@@ -1052,6 +1052,13 @@ struct rq {
 #endif
 	struct cpu_stop_work	active_balance_work;
 
+	/* For rt active balancing */
+#ifdef CONFIG_SCHED_RT_ACTIVE_LB
+	int rt_active_balance;
+	struct task_struct *rt_push_task;
+	struct cpu_stop_work rt_active_balance_work;
+#endif
+
 	/* CPU of this runqueue: */
 	int			cpu;
 	int			online;
