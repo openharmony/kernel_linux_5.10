@@ -7,4 +7,11 @@ config SCHED_RTG
 	help
 	  Set related threads into a group.
 
+config SCHED_RTG_DEBUG
+	bool "Related Thread Group DebugFS"
+	depends on SCHED_RTG
+	default n
+	help
+	  If set, debug node will show rtg threads
+
 endmenu

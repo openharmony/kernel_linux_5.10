@@ -18,5 +18,6 @@ struct related_thread_group {
 };
 
 int sched_set_group_id(struct task_struct *p, unsigned int group_id);
+unsigned int sched_get_group_id(struct task_struct *p);
 #endif /* CONFIG_SCHED_RTG */
 #endif
