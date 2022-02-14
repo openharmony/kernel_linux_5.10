@@ -555,6 +555,9 @@ struct binder_thread {
 	struct binder_stats stats;
 	atomic_t tmp_ref;
 	bool is_dead;
+#ifdef CONFIG_ACCESS_TOKENID
+	struct access_token tokens;
+#endif /* CONFIG_ACCESS_TOKENID */
 };
 
 /**
@@ -4554,6 +4557,12 @@ retry:
 		if (t_from)
 			binder_thread_dec_tmpref(t_from);
 		t->buffer->allow_user_free = 1;
+#ifdef CONFIG_ACCESS_TOKENID
+		binder_inner_proc_lock(thread->proc);
+		thread->tokens.sender_tokenid = t->sender_tokenid;
+		thread->tokens.first_tokenid = t->first_tokenid;
+		binder_inner_proc_unlock(thread->proc);
+#endif /* CONFIG_ACCESS_TOKENID */
 		if (cmd != BR_REPLY && !(t->flags & TF_ONE_WAY)) {
 			binder_inner_proc_lock(thread->proc);
 			t->to_parent = thread->transaction_stack;
@@ -5165,14 +5174,8 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			goto err;
 		}
 		binder_inner_proc_lock(proc);
-		if (thread->transaction_stack == NULL) {
-			ret = -EFAULT;
-			binder_inner_proc_unlock(proc);
-			goto err;
-		}
-		token = thread->transaction_stack->sender_tokenid;
-		ftoken = thread->transaction_stack->first_tokenid;
-
+		token = thread->tokens.sender_tokenid;
+		ftoken = thread->tokens.first_tokenid;
 		binder_inner_proc_unlock(proc);
 		if (put_user(token, &tokens->sender_tokenid)) {
 			ret = -EINVAL;
