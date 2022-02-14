@@ -16,7 +16,7 @@ void init_task_rtg(struct task_struct *p);
 int alloc_related_thread_groups(void);
 struct related_thread_group *lookup_related_thread_group(unsigned int group_id);
 struct related_thread_group *task_related_thread_group(struct task_struct *p);
-void update_group_nr_running(struct task_struct *p, int event);
+void update_group_nr_running(struct task_struct *p, int event, u64 wallclock);
 struct rq;
 void update_group_demand(struct task_struct *p, struct rq *rq,
 				int event, u64 wallclock);
@@ -29,10 +29,19 @@ int preferred_cluster(struct sched_cluster *cluster, struct task_struct *p);
 int sched_set_group_preferred_cluster(unsigned int grp_id, int sched_cluster_id);
 struct cpumask *find_rtg_target(struct task_struct *p);
 int find_rtg_cpu(struct task_struct *p);
+int sched_set_group_util_invalid_interval(unsigned int grp_id,
+					  unsigned int interval);
+int sched_set_group_normalized_util(unsigned int grp_id, unsigned long util,
+				    unsigned int flag);
 #else
 static inline int alloc_related_thread_groups(void) { return 0; }
 static inline int sched_set_group_preferred_cluster(unsigned int grp_id,
 						    int sched_cluster_id)
+{
+	return 0;
+}
+static inline int sched_set_group_normalized_util(unsigned int grp_id, unsigned long util,
+				    unsigned int flag)
 {
 	return 0;
 }

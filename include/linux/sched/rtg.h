@@ -41,6 +41,10 @@ struct related_thread_group {
 	unsigned int window_size;
 	const struct rtg_class *rtg_class;
 	struct sched_cluster *preferred_cluster;
+	int max_boost;
+	unsigned long util_invalid_interval; /* in nanoseconds */
+	unsigned long util_update_timeout; /* in nanoseconds */
+	u64 last_util_update_time;
 };
 
 struct rtg_class {

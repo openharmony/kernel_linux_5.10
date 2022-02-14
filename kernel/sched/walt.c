@@ -1180,7 +1180,7 @@ void update_task_ravg(struct task_struct *p, struct rq *rq, int event,
 	old_window_start = update_window_start(rq, wallclock, event);
 
 #ifdef CONFIG_SCHED_RTG
-	update_group_nr_running(p, event);
+	update_group_nr_running(p, event, wallclock);
 #endif
 	if (!p->ravg.mark_start)
 		goto done;
