@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0
+config DFX_ZEROHUNG
+	bool "zerohung driver"
+	default n
+	help
+	  This feature support to catch hung log
