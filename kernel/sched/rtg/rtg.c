@@ -502,6 +502,23 @@ void update_group_demand(struct task_struct *p, struct rq *rq,
 	rcu_read_unlock();
 }
 
+void sched_update_rtg_tick(struct task_struct *p)
+{
+	struct related_thread_group *grp = NULL;
+
+	rcu_read_lock();
+	grp = task_related_thread_group(p);
+	if (!grp || list_empty(&grp->tasks)) {
+		rcu_read_unlock();
+		return;
+	}
+
+	if (grp->rtg_class && grp->rtg_class->sched_update_rtg_tick)
+		grp->rtg_class->sched_update_rtg_tick(grp);
+
+	rcu_read_unlock();
+}
+
 #ifdef CONFIG_SCHED_RTG_DEBUG
 #define seq_printf_rtg(m, x...) \
 do { \

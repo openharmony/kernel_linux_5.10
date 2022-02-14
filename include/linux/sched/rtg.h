@@ -24,6 +24,8 @@ struct group_ravg {
 	unsigned long normalized_util;
 };
 
+struct rtg_class;
+
 struct related_thread_group {
 	int id;
 	raw_spinlock_t lock;
@@ -37,6 +39,11 @@ struct related_thread_group {
 	u64 prev_window_time;
 	/* rtg window information for WALT */
 	unsigned int window_size;
+	const struct rtg_class *rtg_class;
+};
+
+struct rtg_class {
+	void (*sched_update_rtg_tick)(struct related_thread_group *grp);
 };
 
 int sched_set_group_id(struct task_struct *p, unsigned int group_id);

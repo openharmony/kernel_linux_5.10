@@ -21,6 +21,7 @@ int sched_set_group_window_size(unsigned int grp_id, unsigned int window_size);
 int sched_set_group_window_rollover(unsigned int grp_id);
 struct group_cpu_time *group_update_cpu_time(struct rq *rq,
 	struct related_thread_group *grp);
+void sched_update_rtg_tick(struct task_struct *p);
 #else
 static inline int alloc_related_thread_groups(void) { return 0; }
 #endif /* CONFIG_SCHED_RTG */

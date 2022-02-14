@@ -4124,6 +4124,9 @@ void scheduler_tick(void)
 
 	rq_unlock(rq, &rf);
 
+#ifdef CONFIG_SCHED_RTG
+	sched_update_rtg_tick(curr);
+#endif
 	perf_event_task_tick();
 
 #ifdef CONFIG_SMP
