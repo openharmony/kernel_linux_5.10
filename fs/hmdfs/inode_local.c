@@ -285,9 +285,7 @@ struct dentry *hmdfs_lookup_local(struct inode *parent_inode,
 			goto out_err;
 		}
 
-		check_and_fixup_ownership(parent_inode, child_inode,
-					  lower_path.dentry,
-					  child_dentry->d_name.name);
+		check_and_fixup_ownership(parent_inode, child_inode);
 		goto out_err;
 	}
 	/*
@@ -1031,8 +1029,7 @@ struct dentry *hmdfs_lookup_share(struct inode *parent_inode,
 		goto err_out;
 	}
 
-	check_and_fixup_ownership(parent_inode, child_inode,
-				src_path.dentry, d_name->name);
+	check_and_fixup_ownership(parent_inode, child_inode);
 
 err_out:
 	if (!err)

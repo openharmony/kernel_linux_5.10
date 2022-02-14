@@ -314,30 +314,6 @@ static __u16 __inherit_perm_file(struct inode *parent)
 	return perm;
 }
 
-static void fixup_ownership_user_group(struct inode *child, struct dentry *lower_dentry,
-		     uid_t uid, gid_t gid)
-{
-	int err;
-	struct iattr newattrs;
-
-	newattrs.ia_valid = ATTR_UID | ATTR_GID | ATTR_FORCE;
-	newattrs.ia_uid = KUIDT_INIT(uid);
-	newattrs.ia_gid = KGIDT_INIT(gid);
-	if (!S_ISDIR(d_inode(lower_dentry)->i_mode))
-		newattrs.ia_valid |= ATTR_KILL_SUID | ATTR_KILL_SGID | ATTR_KILL_PRIV;
-
-	inode_lock(d_inode(lower_dentry));
-	err = notify_change(lower_dentry, &newattrs, NULL);
-	inode_unlock(d_inode(lower_dentry));
-
-	if (!err) {
-		child->i_uid = KUIDT_INIT(uid);
-		child->i_gid = KGIDT_INIT(gid);
-	} else {
-		hmdfs_err("update PKG uid failed, err = %d", err);
-	}
-}
-
 __u16 hmdfs_perm_inherit(struct inode *parent_inode, struct inode *child)
 {
 	__u16 perm;
@@ -349,38 +325,12 @@ __u16 hmdfs_perm_inherit(struct inode *parent_inode, struct inode *child)
 	return perm;
 }
 
-void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child,
-			       struct dentry *lower_dentry, const char *name)
+void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child)
 {
-	int bid;
 	struct hmdfs_inode_info *info = hmdfs_i(child);
 
 	if (info->perm == HMDFS_ALL_MASK)
 		info->perm = hmdfs_perm_inherit(parent_inode, child);
-
-	switch (info->perm & HMDFS_DIR_TYPE_MASK) {
-	case HMDFS_DIR_PKG:
-		bid = get_bundle_uid(hmdfs_sb(parent_inode->i_sb), name);
-		if (bid != child->i_uid.val || bid != child->i_gid.val)
-			fixup_ownership_user_group(child, lower_dentry, bid,
-				bid);
-
-		break;
-	case HMDFS_DIR_DATA:
-	case HMDFS_FILE_PKG_SUB:
-	case HMDFS_DIR_PKG_SUB:
-	case HMDFS_DIR_DEFAULT:
-	case HMDFS_FILE_DEFAULT:
-	case HMDFS_DIR_PUBLIC:
-		if (parent_inode->i_uid.val != child->i_uid.val ||
-		    parent_inode->i_gid.val != child->i_gid.val)
-			fixup_ownership_user_group(child, lower_dentry,
-					parent_inode->i_uid.val,
-					parent_inode->i_gid.val);
-		break;
-	default:
-		break;
-	}
 }
 
 void check_and_fixup_ownership_remote(struct inode *dir,

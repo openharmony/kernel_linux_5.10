@@ -238,8 +238,7 @@ void hmdfs_revert_fsids(const struct cred *old_cred);
 int hmdfs_persist_perm(struct dentry *dentry, __u16 *perm);
 __u16 hmdfs_read_perm(struct inode *inode);
 void hmdfs_root_inode_perm_init(struct inode *root_inode);
-void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child,
-			       struct dentry *lower_dentry, const char *name);
+void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child);
 int hmdfs_override_dir_id_fs(struct cache_fs_override *or,
 			struct inode *dir,
 			struct dentry *dentry,
@@ -283,8 +282,7 @@ void hmdfs_revert_dir_id_fs(struct cache_fs_override *or)
 }
 
 static inline
-void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child,
-			       struct dentry *lower_dentry, const char *name)
+void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child)
 {
 }
 
