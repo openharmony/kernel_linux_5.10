@@ -66,8 +66,25 @@ static inline void set_symlink_flag(struct hmdfs_dentry_info *gdi)
 	gdi->file_type = HM_SYMLINK;
 }
 
+static inline void set_sharefile_flag(struct hmdfs_dentry_info *gdi)
+{
+	gdi->file_type = HM_SHARE;
+}
+
+static inline void check_and_fixup_share_ops(struct inode *inode,
+					const char *name)
+{
+	const char *share_dir = ".share";
+
+	if (S_ISDIR(inode->i_mode) &&
+		!strncmp(name, share_dir, strlen(share_dir))) {
+		inode->i_op = &hmdfs_dir_inode_ops_share;
+		inode->i_fop = &hmdfs_dir_ops_share;
+	}
+}
+
 struct inode *fill_inode_local(struct super_block *sb,
-			       struct inode *lower_inode)
+			       struct inode *lower_inode, const char *name)
 {
 	struct inode *inode;
 	struct hmdfs_inode_info *info;
@@ -125,6 +142,7 @@ struct inode *fill_inode_local(struct super_block *sb,
 	}
 
 	fsstack_copy_inode_size(inode, lower_inode);
+	check_and_fixup_share_ops(inode, name);
 	unlock_new_inode(inode);
 	return inode;
 }
@@ -250,7 +268,8 @@ struct dentry *hmdfs_lookup_local(struct inode *parent_inode,
 	} else if (!err) {
 		hmdfs_set_lower_path(child_dentry, &lower_path);
 		child_inode = fill_inode_local(parent_inode->i_sb,
-					       d_inode(lower_path.dentry));
+					       d_inode(lower_path.dentry),
+						   child_dentry->d_name.name);
 		if (S_ISLNK(d_inode(lower_path.dentry)->i_mode))
 			set_symlink_flag(gdi);
 		if (IS_ERR(child_inode)) {
@@ -337,7 +356,7 @@ int hmdfs_mkdir_local_dentry(struct inode *dir, struct dentry *dentry,
 #ifdef CONFIG_HMDFS_FS_PERMISSION
 	error = hmdfs_persist_perm(lower_dentry, &child_perm);
 #endif
-	child_inode = fill_inode_local(sb, lower_inode);
+	child_inode = fill_inode_local(sb, lower_inode, dentry->d_name.name);
 	if (IS_ERR(child_inode)) {
 		error = PTR_ERR(child_inode);
 		goto out;
@@ -425,7 +444,7 @@ int hmdfs_create_local_dentry(struct inode *dir, struct dentry *dentry,
 #ifdef CONFIG_HMDFS_FS_PERMISSION
 	error = hmdfs_persist_perm(lower_dentry, &child_perm);
 #endif
-	child_inode = fill_inode_local(sb, lower_inode);
+	child_inode = fill_inode_local(sb, lower_inode, dentry->d_name.name);
 	if (IS_ERR(child_inode)) {
 		error = PTR_ERR(child_inode);
 		goto out_created;
@@ -767,7 +786,8 @@ int hmdfs_symlink_local(struct inode *dir, struct dentry *dentry,
 #ifdef CONFIG_HMDFS_FS_PERMISSION
 	err = hmdfs_persist_perm(lower_dentry, &child_perm);
 #endif
-	child_inode = fill_inode_local(dir->i_sb, d_inode(lower_dentry));
+	child_inode = fill_inode_local(dir->i_sb, d_inode(lower_dentry),
+							dentry->d_name.name);
 	if (IS_ERR(child_inode)) {
 		err = PTR_ERR(child_inode);
 		goto out_err;
@@ -932,6 +952,95 @@ static ssize_t hmdfs_local_listxattr(struct dentry *dentry, char *list,
 	return res;
 }
 
+int hmdfs_get_path_from_share_table(struct hmdfs_sb_info *sbi,
+			struct dentry *cur_dentry, struct path *src_path)
+{
+	struct hmdfs_share_item *item;
+	const char *path_name;
+	struct qstr relative_path;
+	int err = 0;
+
+	path_name = hmdfs_get_dentry_relative_path(cur_dentry);
+	if (unlikely(!path_name)) {
+		err = -ENOMEM;
+		goto err_out;
+	}
+	relative_path.name = path_name;
+	relative_path.len = strlen(path_name);
+
+	spin_lock(&sbi->share_table.item_list_lock);
+	item = hmdfs_lookup_share_item(&sbi->share_table, &relative_path);
+	if (!item) {
+		spin_unlock(&sbi->share_table.item_list_lock);
+		err = -ENOENT;
+		goto err_out;
+	}
+	*src_path = item->file->f_path;
+	path_get(src_path);
+
+	kfree(path_name);
+	spin_unlock(&sbi->share_table.item_list_lock);
+err_out:
+	return err;
+}
+
+struct dentry *hmdfs_lookup_share(struct inode *parent_inode,
+				struct dentry *child_dentry, unsigned int flags)
+{
+	const struct qstr *d_name = &child_dentry->d_name;
+	int err = 0;
+	struct dentry *ret = NULL;
+	struct hmdfs_sb_info *sbi = hmdfs_sb(child_dentry->d_sb);
+	struct path src_path;
+	struct inode *child_inode = NULL;
+
+	trace_hmdfs_lookup_share(parent_inode, child_dentry, flags);
+	if (d_name->len > NAME_MAX) {
+		ret = ERR_PTR(-ENAMETOOLONG);
+		goto err_out;
+	}
+
+	err = init_hmdfs_dentry_info(sbi, child_dentry, HMDFS_LAYER_OTHER_LOCAL);
+	if (err) {
+		ret = ERR_PTR(err);
+		goto err_out;
+	}
+
+	err = hmdfs_get_path_from_share_table(sbi, child_dentry, &src_path);
+	if (err) {
+		ret = ERR_PTR(err);
+		goto err_out;
+	}
+
+	hmdfs_set_lower_path(child_dentry, &src_path);
+	child_inode = fill_inode_local(parent_inode->i_sb,
+					d_inode(src_path.dentry), d_name->name);
+
+	set_sharefile_flag(hmdfs_d(child_dentry));
+
+	if (IS_ERR(child_inode)) {
+		err = PTR_ERR(child_inode);
+		ret = ERR_PTR(err);
+		hmdfs_put_reset_lower_path(child_dentry);
+		goto err_out;
+	}
+	ret = d_splice_alias(child_inode, child_dentry);
+	if (IS_ERR(ret)) {
+		err = PTR_ERR(ret);
+		hmdfs_put_reset_lower_path(child_dentry);
+		goto err_out;
+	}
+
+	check_and_fixup_ownership(parent_inode, child_inode,
+				src_path.dentry, d_name->name);
+
+err_out:
+	if (!err)
+		hmdfs_set_time(child_dentry, jiffies);
+	trace_hmdfs_lookup_share_end(parent_inode, child_dentry, err);
+	return ret;
+}
+
 const struct inode_operations hmdfs_symlink_iops_local = {
 	.get_link = hmdfs_get_link_local,
 	.permission = hmdfs_permission,
@@ -949,6 +1058,11 @@ const struct inode_operations hmdfs_dir_inode_ops_local = {
 	.permission = hmdfs_permission,
 	.setattr = hmdfs_setattr_local,
 	.getattr = hmdfs_getattr_local,
+};
+
+const struct inode_operations hmdfs_dir_inode_ops_share = {
+	.lookup = hmdfs_lookup_share,
+	.permission = hmdfs_permission,
 };
 
 const struct inode_operations hmdfs_file_iops_local = {

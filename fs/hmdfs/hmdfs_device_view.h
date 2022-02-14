@@ -29,6 +29,7 @@
 enum HMDFS_FILE_TYPE {
 	HM_REG = 0,
 	HM_SYMLINK = 1,
+	HM_SHARE = 2,
 
 	HM_MAX_FILE_TYPE = 0XFF
 };
@@ -87,7 +88,9 @@ extern const struct inode_operations hmdfs_file_iops_local;
 extern const struct file_operations hmdfs_file_fops_local;
 extern const struct inode_operations hmdfs_dir_inode_ops_local;
 extern const struct file_operations hmdfs_dir_ops_local;
+extern const struct file_operations hmdfs_dir_ops_share;
 extern const struct inode_operations hmdfs_symlink_iops_local;
+extern const struct inode_operations hmdfs_dir_inode_ops_share;
 
 /* remote device operation */
 extern const struct inode_operations hmdfs_dev_file_iops_remote;
@@ -147,6 +150,12 @@ static inline bool hm_islnk(uint8_t file_type)
 {
 	return (file_type == HM_SYMLINK);
 }
+
+static inline bool hm_isshare(uint8_t file_type)
+{
+	return (file_type == HM_SHARE);
+}
+
 struct inode *fill_inode_remote(struct super_block *sb, struct hmdfs_peer *con,
 				struct hmdfs_lookup_ret *lookup_result,
 				struct inode *dir);
@@ -155,7 +164,7 @@ struct hmdfs_lookup_ret *get_remote_inode_info(struct hmdfs_peer *con,
 					       unsigned int flags);
 void hmdfs_set_time(struct dentry *dentry, unsigned long time);
 struct inode *fill_inode_local(struct super_block *sb,
-			       struct inode *lower_inode);
+			       struct inode *lower_inode, const char *name);
 struct inode *fill_root_inode(struct super_block *sb,
 			      struct inode *lower_inode);
 struct inode *fill_device_inode(struct super_block *sb,

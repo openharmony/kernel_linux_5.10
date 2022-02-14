@@ -237,10 +237,231 @@ static int hmdfs_dir_release_local(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static inline bool hmdfs_is_dst_path(struct path *src, struct path *dst)
+{
+	return (src->dentry == dst->dentry) && (src->mnt == dst->mnt);
+}
+
+bool hmdfs_is_share_file(struct file *file)
+{
+	struct file *cur_file = file;
+	struct hmdfs_dentry_info *gdi;
+	struct hmdfs_file_info *gfi;
+
+	while (cur_file->f_inode->i_sb->s_magic == HMDFS_SUPER_MAGIC) {
+		gdi = hmdfs_d(cur_file->f_path.dentry);
+		gfi = hmdfs_f(cur_file);
+		if (hm_isshare(gdi->file_type))
+			return true;
+		if (gfi->lower_file)
+			cur_file = gfi->lower_file;
+		else
+			break;
+	}
+
+	return false;
+}
+
+bool hmdfs_is_share_item_still_valid(struct hmdfs_share_item *item)
+{
+	if (kref_read(&item->ref) == 1 && time_after(jiffies, item->timeout))
+		return false;
+
+	return true;
+}
+
+inline void release_share_item(struct hmdfs_share_item *item)
+{
+	kfree(item->relative_path.name);
+	fput(item->file);
+	kfree(item);
+}
+
+void hmdfs_remove_share_item(struct kref *ref)
+{
+	struct hmdfs_share_item *item =
+			container_of(ref, struct hmdfs_share_item, ref);
+
+	list_del(&item->list);
+	release_share_item(item);
+}
+
+struct hmdfs_share_item *hmdfs_lookup_share_item(struct hmdfs_share_table *st,
+						struct qstr *cur_relative_path)
+{
+	struct hmdfs_share_item *item, *tmp;
+
+	list_for_each_entry_safe(item, tmp, &st->item_list_head, list) {
+		if (hmdfs_is_share_item_still_valid(item)) {
+			if (qstr_eq(&item->relative_path, cur_relative_path))
+				return item;
+		} else {
+			kref_put(&item->ref, hmdfs_remove_share_item);
+			st->item_cnt--;
+		}
+	}
+
+	return NULL;
+}
+
+inline void set_item_timeout(struct hmdfs_share_item *item)
+{
+	item->timeout = jiffies + HZ * HMDFS_SHARE_ITEM_TIMEOUT_S;
+}
+
+static int hmdfs_insert_share_item(struct hmdfs_share_table *st,
+		struct qstr *relative_path, struct file *file, char *cid)
+{
+	struct hmdfs_share_item *new_item = NULL;
+	int ret = 0;
+
+	if (st->item_cnt >= st->max_cnt) {
+		ret = -EMFILE;
+		goto out;
+	}
+
+	new_item = kmalloc(sizeof(*new_item), GFP_KERNEL);
+	if (new_item) {
+		new_item->file = file;
+		get_file(file);
+		new_item->relative_path = *relative_path;
+		memcpy(new_item->cid, cid, HMDFS_CID_SIZE);
+		kref_init(&new_item->ref);
+		list_add_tail(&new_item->list, &st->item_list_head);
+		set_item_timeout(new_item);
+		st->item_cnt++;
+	} else {
+		ret = -ENOMEM;
+	}
+
+out:
+	return ret;
+}
+
+static int hmdfs_update_share_item(struct hmdfs_share_item *item,
+					struct file *file, char *cid)
+{
+	/* if not the same file, we need to update struct file */
+	if (!hmdfs_is_dst_path(&file->f_path, &item->file->f_path)) {
+		fput(item->file);
+		item->file = file;
+		get_file(file);
+	}
+	memcpy(item->cid, cid, HMDFS_CID_SIZE);
+	set_item_timeout(item);
+
+	return 0;
+}
+
+static int hmdfs_add_to_share_table(struct file *file,
+		struct hmdfs_sb_info *sbi, struct hmdfs_share_control *sc)
+{
+	struct fd src = fdget(sc->src_fd);
+	struct hmdfs_share_table *st = &sbi->share_table;
+	struct hmdfs_share_item *item;
+	struct dentry *dentry;
+	const char *dir_path, *cur_path;
+	struct qstr relative_path;
+	int err = 0;
+
+	if (!src.file)
+		return -EBADF;
+
+	if (!S_ISREG(src.file->f_inode->i_mode)) {
+		err = -EPERM;
+		goto err_out;
+	}
+
+	if (hmdfs_is_share_file(src.file)) {
+		err = -EPERM;
+		goto err_out;
+	}
+
+	dir_path = hmdfs_get_dentry_relative_path(file->f_path.dentry);
+	if (unlikely(!dir_path)) {
+		err = -ENOMEM;
+		goto err_out;
+	}
+
+	dentry = src.file->f_path.dentry;
+	if (dentry->d_name.len > NAME_MAX) {
+		kfree(dir_path);
+		err = -ENAMETOOLONG;
+		goto err_out;
+	}
+
+	cur_path = hmdfs_connect_path(dir_path, dentry->d_name.name);
+	if (unlikely(!cur_path)) {
+		kfree(dir_path);
+		err = -ENOMEM;
+		goto err_out;
+	}
+	relative_path.name = cur_path;
+	relative_path.len = strlen(cur_path);
+
+	spin_lock(&sbi->share_table.item_list_lock);
+	item = hmdfs_lookup_share_item(st, &relative_path);
+	if (!item)
+		err = hmdfs_insert_share_item(st, &relative_path,
+							src.file, sc->cid);
+	else {
+		if (kref_read(&item->ref) != 1)
+			err = -EEXIST;
+		else
+			hmdfs_update_share_item(item, src.file, sc->cid);
+	}
+	spin_unlock(&sbi->share_table.item_list_lock);
+
+	if (err < 0)
+		kfree(cur_path);
+	kfree(dir_path);
+
+err_out:
+	fdput(src);
+	return err;
+}
+
+static int hmdfs_ioc_set_share_path(struct file *file, unsigned long arg)
+{
+	struct hmdfs_share_control sc;
+	struct super_block *sb = file->f_inode->i_sb;
+	struct hmdfs_sb_info *sbi = hmdfs_sb(sb);
+	int error;
+
+	if (copy_from_user(&sc, (struct hmdfs_share_control __user *)arg,
+							sizeof(sc)))
+		return -EFAULT;
+
+	error = hmdfs_add_to_share_table(file, sbi, &sc);
+
+	return error;
+}
+
+static long hmdfs_dir_ioctl_local(struct file *file, unsigned int cmd,
+						unsigned long arg)
+{
+	switch (cmd) {
+	case HMDFS_IOC_SET_SHARE_PATH:
+		return hmdfs_ioc_set_share_path(file, arg);
+	default:
+		return -ENOTTY;
+	}
+}
+
 const struct file_operations hmdfs_dir_ops_local = {
 	.owner = THIS_MODULE,
 	.iterate = hmdfs_iterate_local,
 	.open = hmdfs_dir_open_local,
 	.release = hmdfs_dir_release_local,
 	.fsync = hmdfs_fsync_local,
+};
+
+const struct file_operations hmdfs_dir_ops_share = {
+	.owner = THIS_MODULE,
+	.iterate = hmdfs_iterate_local,
+	.open = hmdfs_dir_open_local,
+	.release = hmdfs_dir_release_local,
+	.fsync = hmdfs_fsync_local,
+	.unlocked_ioctl = hmdfs_dir_ioctl_local,
+	.compat_ioctl = hmdfs_dir_ioctl_local,
 };

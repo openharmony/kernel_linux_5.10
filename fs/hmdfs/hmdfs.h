@@ -56,6 +56,15 @@
 
 #define HMDFS_READPAGES_NR_MAX	32
 
+#define HMDFS_SHARE_ITEM_TIMEOUT_S 60
+#define HMDFS_SHARE_ITEMS_MAX 4
+
+#define HMDFS_IOC 0xf2
+#define HMDFS_IOC_SET_SHARE_PATH	_IOW(HMDFS_IOC, 1, \
+						struct hmdfs_share_control)
+
+#define HMDFS_CID_SIZE 64
+
 enum {
 	HMDFS_FEATURE_READPAGES		= 1ULL << 0,
 	HMDFS_FEATURE_READPAGES_OPEN	= 1ULL << 1,
@@ -88,6 +97,22 @@ struct hmdfs_syncfs_info {
 	/* syncfs process arriving before current exexcuting syncfs */
 	struct list_head pending_list;
 	spinlock_t list_lock;
+};
+
+struct hmdfs_share_item {
+	struct file *file;
+	struct qstr relative_path;
+	char cid[HMDFS_CID_SIZE];
+	unsigned long timeout;
+	struct kref ref;
+	struct list_head list;
+};
+
+struct hmdfs_share_table {
+	struct list_head item_list_head;
+	spinlock_t item_list_lock;
+	int item_cnt;
+	int max_cnt;
 };
 
 struct hmdfs_sb_info {
@@ -178,6 +203,9 @@ struct hmdfs_sb_info {
 	/* dentry cache */
 	bool s_dentry_cache;
 
+	/* share table */
+	struct hmdfs_share_table share_table;
+
 	/* msgs that are waiting for remote */
 	struct list_head async_readdir_msg_list;
 	/* protect async_readdir_msg_list */
@@ -193,6 +221,11 @@ struct hmdfs_sb_info {
 
 	/* multi user */
 	unsigned int user_id;
+};
+
+struct hmdfs_share_control {
+	__u32 src_fd;
+	char cid[HMDFS_CID_SIZE];
 };
 
 static inline struct hmdfs_sb_info *hmdfs_sb(struct super_block *sb)
@@ -289,6 +322,24 @@ static inline bool qstr_case_eq(const struct qstr *q1, const struct qstr *q2)
 {
 	return q1->len == q2->len && str_n_case_eq(q1->name, q2->name, q2->len);
 }
+
+static inline bool qstr_eq(const struct qstr *q1, const struct qstr *q2)
+{
+	return q1->len == q2->len && !strncmp(q1->name, q2->name, q2->len);
+}
+
+bool hmdfs_is_share_file(struct file *file);
+
+bool hmdfs_is_share_item_still_valid(struct hmdfs_share_item *item);
+
+inline void release_share_item(struct hmdfs_share_item *item);
+
+void hmdfs_remove_share_item(struct kref *ref);
+
+struct hmdfs_share_item *hmdfs_lookup_share_item(struct hmdfs_share_table *st,
+						struct qstr *cur_relative_path);
+
+inline void set_item_timeout(struct hmdfs_share_item *item);
 
 /*****************************************************************************
  * log print helpers
