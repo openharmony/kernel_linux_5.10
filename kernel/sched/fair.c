@@ -3953,14 +3953,22 @@ static inline unsigned long task_util_est(struct task_struct *p)
 }
 
 #ifdef CONFIG_UCLAMP_TASK
+#ifdef CONFIG_SCHED_RT_CAS
+unsigned long uclamp_task_util(struct task_struct *p)
+#else
 static inline unsigned long uclamp_task_util(struct task_struct *p)
+#endif
 {
 	return clamp(task_util_est(p),
 		     uclamp_eff_value(p, UCLAMP_MIN),
 		     uclamp_eff_value(p, UCLAMP_MAX));
 }
 #else
+#ifdef CONFIG_SCHED_RT_CAS
+unsigned long uclamp_task_util(struct task_struct *p)
+#else
 static inline unsigned long uclamp_task_util(struct task_struct *p)
+#endif
 {
 	return task_util_est(p);
 }

@@ -41,6 +41,9 @@ sysctl_sched_walt_init_task_load_pct_sysctl_handler(struct ctl_table *table,
 		int write, void __user *buffer, size_t *length, loff_t *ppos);
 #endif
 
+#ifdef CONFIG_SCHED_RT_CAS
+extern unsigned int sysctl_sched_enable_rt_cas;
+#endif
 #ifdef CONFIG_SCHED_RT_ACTIVE_LB
 extern unsigned int sysctl_sched_enable_rt_active_lb;
 #endif

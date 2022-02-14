@@ -87,6 +87,10 @@
 struct rq;
 struct cpuidle_state;
 
+#ifdef CONFIG_SCHED_RT_CAS
+extern unsigned long uclamp_task_util(struct task_struct *p);
+#endif
+
 #ifdef CONFIG_SCHED_WALT
 extern unsigned int sched_ravg_window;
 extern unsigned int walt_cpu_util_freq_divisor;
@@ -893,6 +897,9 @@ struct root_domain {
 	 * CPUs of the rd. Protected by RCU.
 	 */
 	struct perf_domain __rcu *pd;
+#ifdef CONFIG_SCHED_RT_CAS
+	int max_cap_orig_cpu;
+#endif
 };
 
 extern void init_defrootdomain(void);
@@ -2582,6 +2589,11 @@ out:
 	return clamp(util, min_util, max_util);
 }
 
+static inline bool uclamp_boosted(struct task_struct *p)
+{
+	return uclamp_eff_value(p, UCLAMP_MIN) > 0;
+}
+
 /*
  * When uclamp is compiled in, the aggregation at rq level is 'turned off'
  * by default in the fast path and only gets turned on once userspace performs
@@ -2600,6 +2612,11 @@ unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
 				  struct task_struct *p)
 {
 	return util;
+}
+
+static inline bool uclamp_boosted(struct task_struct *p)
+{
+	return false;
 }
 
 static inline bool uclamp_is_used(void)

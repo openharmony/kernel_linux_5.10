@@ -522,6 +522,10 @@ static int init_rootdomain(struct root_domain *rd)
 
 	if (cpupri_init(&rd->cpupri) != 0)
 		goto free_cpudl;
+
+#ifdef CONFIG_SCHED_RT_CAS
+	rd->max_cap_orig_cpu = -1;
+#endif
 	return 0;
 
 free_cpudl:
@@ -2121,8 +2125,18 @@ build_sched_domains(const struct cpumask *cpu_map, struct sched_domain_attr *att
 	/* Attach the domains */
 	rcu_read_lock();
 	for_each_cpu(i, cpu_map) {
+#ifdef CONFIG_SCHED_RT_CAS
+		int max_cpu = READ_ONCE(d.rd->max_cap_orig_cpu);
+#endif
+
 		rq = cpu_rq(i);
 		sd = *per_cpu_ptr(d.sd, i);
+
+#ifdef CONFIG_SCHED_RT_CAS
+		if (max_cpu < 0 || arch_scale_cpu_capacity(i) >
+			arch_scale_cpu_capacity(max_cpu))
+			WRITE_ONCE(d.rd->max_cap_orig_cpu, i);
+#endif
 
 		/* Use READ_ONCE()/WRITE_ONCE() to avoid load/store tearing: */
 		if (rq->cpu_capacity_orig > READ_ONCE(d.rd->max_cpu_capacity))
