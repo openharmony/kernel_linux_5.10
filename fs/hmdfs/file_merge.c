@@ -507,6 +507,16 @@ const struct file_operations hmdfs_dir_fops_merge = {
 	.compat_ioctl = hmdfs_dir_compat_ioctl_merge,
 };
 
+static ssize_t hmdfs_merge_read_iter(struct kiocb *iocb, struct iov_iter *iter)
+{
+	return hmdfs_do_read_iter(iocb->ki_filp, iter, &iocb->ki_pos);
+}
+
+ssize_t hmdfs_merge_write_iter(struct kiocb *iocb, struct iov_iter *iter)
+{
+	return hmdfs_do_write_iter(iocb->ki_filp, iter, &iocb->ki_pos);
+}
+
 int hmdfs_file_open_merge(struct inode *inode, struct file *file)
 {
 	int err = 0;
@@ -561,8 +571,8 @@ int hmdfs_file_flush_merge(struct file *file, fl_owner_t id)
 const struct file_operations hmdfs_file_fops_merge = {
 	.owner = THIS_MODULE,
 	.llseek = hmdfs_file_llseek_local,
-	.read_iter = hmdfs_read_local,
-	.write_iter = hmdfs_write_local,
+	.read_iter = hmdfs_merge_read_iter,
+	.write_iter = hmdfs_merge_write_iter,
 	.mmap = hmdfs_file_mmap_local,
 	.open = hmdfs_file_open_merge,
 	.flush = hmdfs_file_flush_merge,

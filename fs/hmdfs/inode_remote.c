@@ -117,7 +117,7 @@ static void hmdfs_remote_readdir_work(struct work_struct *work)
 	bool empty = false;
 
 	get_remote_dentry_file(dentry, con);
-	hmdfs_d(dentry)->async_readdir_in_progress = false;
+	hmdfs_d(dentry)->async_readdir_in_progress = 0;
 	hmdfs_revert_creds(old_cred);
 
 	dput(dentry);
@@ -138,13 +138,13 @@ static void get_remote_dentry_file_in_wq(struct dentry *dentry,
 	struct hmdfs_readdir_work *rw = NULL;
 
 	/* do nothing if async readdir is already in progress */
-	if (cmpxchg_relaxed(&hmdfs_d(dentry)->async_readdir_in_progress, false,
-			     true))
+	if (cmpxchg_relaxed(&hmdfs_d(dentry)->async_readdir_in_progress, 0,
+			     1))
 		return;
 
 	rw = kmalloc(sizeof(*rw), GFP_KERNEL);
 	if (!rw) {
-		hmdfs_d(dentry)->async_readdir_in_progress = false;
+		hmdfs_d(dentry)->async_readdir_in_progress = 0;
 		return;
 	}
 

@@ -144,7 +144,7 @@ struct hmdfs_peer {
 	uint64_t device_id;
 	unsigned long conn_time;
 	uint8_t version;
-	u8 status;
+	int status;
 	u64 features;
 	long long old_sb_dirty_count;
 	atomic64_t sb_dirty_count;

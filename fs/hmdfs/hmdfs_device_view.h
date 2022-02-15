@@ -51,7 +51,7 @@ struct hmdfs_dentry_info {
 	uint64_t device_id;
 	spinlock_t lock;
 	struct mutex cache_pull_lock;
-	bool async_readdir_in_progress;
+	int async_readdir_in_progress;
 };
 
 struct hmdfs_lookup_ret {
@@ -112,8 +112,12 @@ int hmdfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 		 struct inode *new_dir, struct dentry *new_dentry,
 		 unsigned int flags);
 loff_t hmdfs_file_llseek_local(struct file *file, loff_t offset, int whence);
-ssize_t hmdfs_read_local(struct kiocb *iocb, struct iov_iter *iter);
-ssize_t hmdfs_write_local(struct kiocb *iocb, struct iov_iter *iter);
+
+ssize_t hmdfs_do_read_iter(struct file *file, struct iov_iter *iter,
+	loff_t *ppos);
+ssize_t hmdfs_do_write_iter(struct file *file, struct iov_iter *iter,
+	loff_t *ppos);
+
 int hmdfs_file_release_local(struct inode *inode, struct file *file);
 int hmdfs_file_mmap_local(struct file *file, struct vm_area_struct *vma);
 struct dentry *hmdfs_lookup(struct inode *parent_inode,
