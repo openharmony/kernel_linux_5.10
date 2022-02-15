@@ -252,7 +252,7 @@ static int parse_data_sec_level(const char *sl_value, size_t sl_value_len)
 {
 	int i;
 
-	for (i = 0; i <= sizeof(datasl_str) / sizeof(datasl_str[0]); i++) {
+	for (i = 0; i < sizeof(datasl_str) / sizeof(datasl_str[0]); i++) {
 		if (!strncmp(sl_value, datasl_str[i], strlen(datasl_str[i])))
 			return i + DATA_SEC_LEVEL0;
 	}
@@ -266,7 +266,7 @@ static int check_sec_level(struct hmdfs_peer *node, const char *file_name)
 	int ret = 0;
 	struct path root_path;
 	struct path file_path;
-	char *value;
+	char *value = NULL;
 	size_t value_len = DATA_SEC_LEVEL_LENGTH;
 
 	if (node->devsl <= 0) {
