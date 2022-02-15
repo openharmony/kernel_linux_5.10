@@ -901,7 +901,6 @@ int hmdfs_permission(struct inode *inode, int mask)
 {
 #ifdef CONFIG_HMDFS_FS_PERMISSION
 	unsigned int mode = inode->i_mode;
-	struct hmdfs_inode_info *hii = hmdfs_i(inode);
 	kuid_t cur_uid = current_fsuid();
 
 	if (uid_eq(cur_uid, ROOT_UID) || uid_eq(cur_uid, SYSTEM_UID))
