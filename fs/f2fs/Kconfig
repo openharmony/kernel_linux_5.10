@@ -137,3 +137,10 @@ config F2FS_FS_LZORLE
 	default y
 	help
 	  Support LZO-RLE compress algorithm, if unsure, say Y.
+
+config F2FS_GRADING_SSR
+	bool "F2FS grading ssr"
+	depends on F2FS_FS
+	default y
+	help
+	  use grading ssr to improve the end performance

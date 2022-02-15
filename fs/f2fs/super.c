@@ -36,6 +36,19 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/f2fs.h>
 
+#ifdef CONFIG_F2FS_GRADING_SSR
+#define SSR_DEFALT_SPACE_LIMIT      (5<<20) /* 5G default space limit */
+#define SSR_DEFALT_WATERLINE        80      /* 80% default waterline */
+#define SSR_HN_SAPCE_LIMIT_128G     (8<<20) /* 8G default sapce limit for 128G devices */
+#define SSR_HN_WATERLINE_128G       80      /* 80% default hot node waterline for 128G devices */
+#define SSR_WN_SAPCE_LIMIT_128G     (5<<20) /* 5G default warm node sapce limit for 128G devices */
+#define SSR_WN_WATERLINE_128G       70      /* 70% default warm node waterline for 128G devices */
+#define SSR_HD_SAPCE_LIMIT_128G     (8<<20) /* 8G default hot data sapce limit for 128G devices */
+#define SSR_HD_WATERLINE_128G       65      /* 65% default hot data waterline for 128G devices */
+#define SSR_WD_SAPCE_LIMIT_128G     (5<<20) /* 5G default warm data sapce limit for 128G devices */
+#define SSR_WD_WATERLINE_128G       60      /* 60% default warm data waterline for 128G devices */
+#endif
+
 static struct kmem_cache *f2fs_inode_cachep;
 
 #ifdef CONFIG_F2FS_FAULT_INJECTION
@@ -147,6 +160,8 @@ enum {
 	Opt_compress_log_size,
 	Opt_compress_extension,
 	Opt_atgc,
+	Opt_gc_merge,
+	Opt_nogc_merge,
 	Opt_err,
 };
 
@@ -215,6 +230,8 @@ static match_table_t f2fs_tokens = {
 	{Opt_compress_log_size, "compress_log_size=%u"},
 	{Opt_compress_extension, "compress_extension=%s"},
 	{Opt_atgc, "atgc"},
+	{Opt_gc_merge, "gc_merge"},
+	{Opt_nogc_merge, "nogc_merge"},
 	{Opt_err, NULL},
 };
 
@@ -944,6 +961,12 @@ static int parse_options(struct super_block *sb, char *options, bool is_remount)
 		case Opt_atgc:
 			set_opt(sbi, ATGC);
 			break;
+		case Opt_gc_merge:
+			set_opt(sbi, GC_MERGE);
+			break;
+		case Opt_nogc_merge:
+			clear_opt(sbi, GC_MERGE);
+			break;
 		default:
 			f2fs_err(sbi, "Unrecognized mount option \"%s\" or missing value",
 				 p);
@@ -1536,6 +1559,9 @@ static int f2fs_show_options(struct seq_file *seq, struct dentry *root)
 	else if (F2FS_OPTION(sbi).bggc_mode == BGGC_MODE_OFF)
 		seq_printf(seq, ",background_gc=%s", "off");
 
+	if (test_opt(sbi, GC_MERGE))
+		seq_puts(seq, ",gc_merge");
+
 	if (test_opt(sbi, DISABLE_ROLL_FORWARD))
 		seq_puts(seq, ",disable_roll_forward");
 	if (test_opt(sbi, NORECOVERY))
@@ -1902,7 +1928,8 @@ static int f2fs_remount(struct super_block *sb, int *flags, char *data)
 	 * option. Also sync the filesystem.
 	 */
 	if ((*flags & SB_RDONLY) ||
-			F2FS_OPTION(sbi).bggc_mode == BGGC_MODE_OFF) {
+			(F2FS_OPTION(sbi).bggc_mode == BGGC_MODE_OFF &&
+			!test_opt(sbi, GC_MERGE))) {
 		if (sbi->gc_thread) {
 			f2fs_stop_gc_thread(sbi);
 			need_restart_gc = true;
@@ -3489,6 +3516,35 @@ static void f2fs_tuning_parameters(struct f2fs_sb_info *sbi)
 	sbi->readdir_ra = 1;
 }
 
+#ifdef CONFIG_F2FS_GRADING_SSR
+static void f2fs_init_grading_ssr(struct f2fs_sb_info *sbi)
+{
+	u32 total_blocks = le64_to_cpu(sbi->raw_super->block_count) >> 18;
+
+	if (total_blocks > 64) { /* 64G */
+		sbi->hot_cold_params.hot_data_lower_limit = SSR_HD_SAPCE_LIMIT_128G;
+		sbi->hot_cold_params.hot_data_waterline = SSR_HD_WATERLINE_128G;
+		sbi->hot_cold_params.warm_data_lower_limit = SSR_WD_SAPCE_LIMIT_128G;
+		sbi->hot_cold_params.warm_data_waterline = SSR_WD_WATERLINE_128G;
+		sbi->hot_cold_params.hot_node_lower_limit = SSR_HD_SAPCE_LIMIT_128G;
+		sbi->hot_cold_params.hot_node_waterline = SSR_HN_WATERLINE_128G;
+		sbi->hot_cold_params.warm_node_lower_limit = SSR_WN_SAPCE_LIMIT_128G;
+		sbi->hot_cold_params.warm_node_waterline = SSR_WN_WATERLINE_128G;
+		sbi->hot_cold_params.enable = GRADING_SSR_OFF;
+	} else {
+		sbi->hot_cold_params.hot_data_lower_limit = SSR_DEFALT_SPACE_LIMIT;
+		sbi->hot_cold_params.hot_data_waterline = SSR_DEFALT_WATERLINE;
+		sbi->hot_cold_params.warm_data_lower_limit = SSR_DEFALT_SPACE_LIMIT;
+		sbi->hot_cold_params.warm_data_waterline = SSR_DEFALT_WATERLINE;
+		sbi->hot_cold_params.hot_node_lower_limit = SSR_DEFALT_SPACE_LIMIT;
+		sbi->hot_cold_params.hot_node_waterline = SSR_DEFALT_WATERLINE;
+		sbi->hot_cold_params.warm_node_lower_limit = SSR_DEFALT_SPACE_LIMIT;
+		sbi->hot_cold_params.warm_node_waterline = SSR_DEFALT_WATERLINE;
+		sbi->hot_cold_params.enable = GRADING_SSR_OFF;
+	}
+}
+#endif
+
 static int f2fs_fill_super(struct super_block *sb, void *data, int silent)
 {
 	struct f2fs_sb_info *sbi;
@@ -3781,7 +3837,9 @@ try_onemore:
 		err = -ENOMEM;
 		goto free_node_inode;
 	}
-
+#ifdef CONFIG_F2FS_GRADING_SSR
+	f2fs_init_grading_ssr(sbi);
+#endif
 	err = f2fs_register_sysfs(sbi);
 	if (err)
 		goto free_root_inode;
@@ -3872,7 +3930,8 @@ reset_checkpoint:
 	 * If filesystem is not mounted as read-only then
 	 * do start the gc_thread.
 	 */
-	if (F2FS_OPTION(sbi).bggc_mode != BGGC_MODE_OFF && !f2fs_readonly(sb)) {
+	if ((F2FS_OPTION(sbi).bggc_mode != BGGC_MODE_OFF ||
+		test_opt(sbi, GC_MERGE)) && !f2fs_readonly(sb)) {
 		/* After POR, we can run background GC thread.*/
 		err = f2fs_start_gc_thread(sbi);
 		if (err)

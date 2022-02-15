@@ -1957,6 +1957,39 @@ TRACE_EVENT(f2fs_fiemap,
 		__entry->ret)
 );
 
+#ifdef CONFIG_F2FS_GRADING_SSR
+DECLARE_EVENT_CLASS(f2fs_grading_ssr,
+
+	TP_PROTO(unsigned int left, unsigned int free,
+					unsigned int seq),
+
+	TP_ARGS(left, free, seq),
+
+	TP_STRUCT__entry(
+		__field(unsigned int, left)
+		__field(unsigned int, free)
+		__field(unsigned int, seq)
+	),
+
+	TP_fast_assign(
+		__entry->left = left;
+		__entry->free = free;
+		__entry->seq  = seq;
+	),
+
+	TP_printk("ssr: left_space %u free_segments: %u is_seq: %u ",
+		__entry->left, __entry->free, __entry->seq)
+);
+
+DEFINE_EVENT(f2fs_grading_ssr, f2fs_grading_ssr_allocate,
+
+	TP_PROTO(unsigned int left, unsigned int free,
+					unsigned int seq),
+
+	TP_ARGS(left, free, seq)
+);
+#endif
+
 #endif /* _TRACE_F2FS_H */
 
  /* This part must be outside protection */
