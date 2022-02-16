@@ -478,6 +478,16 @@ struct task_group {
 	struct uclamp_se	uclamp[UCLAMP_CNT];
 #endif
 
+#ifdef CONFIG_SCHED_RTG_CGROUP
+	/*
+	 * Controls whether tasks of this cgroup should be colocated with each
+	 * other and tasks of other cgroups that have the same flag turned on.
+	 */
+	bool colocate;
+
+	/* Controls whether further updates are allowed to the colocate flag */
+	bool colocate_update_disabled;
+#endif
 };
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -1077,7 +1087,10 @@ struct rq {
 	u64 nt_prev_runnable_sum;
 	u64 cum_window_demand_scaled;
 	struct load_subtractions load_subs[NUM_TRACKED_WINDOWS];
+#ifdef CONFIG_SCHED_RTG
+	struct group_cpu_time grp_time;
 #endif
+#endif /* CONFIG_SCHED_WALT */
 
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
 	u64			prev_irq_time;
@@ -2591,6 +2604,11 @@ static inline bool uclamp_is_used(void)
 #endif
 
 #ifdef CONFIG_SMP
+static inline unsigned long capacity_of(int cpu)
+{
+	return cpu_rq(cpu)->cpu_capacity;
+}
+
 static inline unsigned long capacity_orig_of(int cpu)
 {
 	return cpu_rq(cpu)->cpu_capacity_orig;
@@ -2744,6 +2762,13 @@ static inline bool is_per_cpu_kthread(struct task_struct *p)
 
 void swake_up_all_locked(struct swait_queue_head *q);
 void __prepare_to_swait(struct swait_queue_head *q, struct swait_queue *wait);
+
+#ifdef CONFIG_SCHED_RTG
+extern bool task_fits_max(struct task_struct *p, int cpu);
+extern unsigned long capacity_spare_without(int cpu, struct task_struct *p);
+extern int update_preferred_cluster(struct related_thread_group *grp,
+			struct task_struct *p, u32 old_load, bool from_tick);
+#endif
 
 #ifdef CONFIG_SCHED_WALT
 static inline int cluster_first_cpu(struct sched_cluster *cluster)

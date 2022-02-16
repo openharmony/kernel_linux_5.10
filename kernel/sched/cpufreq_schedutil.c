@@ -9,6 +9,7 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include "sched.h"
+#include "rtg/rtg.h"
 
 #include <linux/sched/cpufreq.h>
 #include <trace/events/power.h>
@@ -38,6 +39,10 @@ struct sugov_policy {
 	struct			mutex work_lock;
 	struct			kthread_worker worker;
 	struct task_struct	*thread;
+#ifdef CONFIG_SCHED_RTG
+	unsigned long rtg_util;
+	unsigned int rtg_freq;
+#endif
 	bool			work_in_progress;
 
 	bool			limits_changed;
@@ -448,13 +453,18 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 	unsigned long util, max;
 	unsigned int next_f;
 	unsigned int cached_freq = sg_policy->cached_raw_freq;
+	bool force_update = false;
+
+#ifdef CONFIG_SCHED_RTG
+	force_update = flags & SCHED_CPUFREQ_FORCE_UPDATE;
+#endif
 
 	sugov_iowait_boost(sg_cpu, time, flags);
 	sg_cpu->last_update = time;
 
 	ignore_dl_rate_limit(sg_cpu, sg_policy);
 
-	if (!sugov_should_update_freq(sg_policy, time))
+	if (!force_update && !sugov_should_update_freq(sg_policy, time))
 		return;
 
 	util = sugov_get_util(sg_cpu);
@@ -507,6 +517,11 @@ static unsigned int sugov_next_freq_shared(struct sugov_cpu *sg_cpu, u64 time)
 		}
 	}
 
+#ifdef CONFIG_SCHED_RTG
+	sched_get_max_group_util(policy->cpus, &sg_policy->rtg_util, &sg_policy->rtg_freq);
+	util = max(sg_policy->rtg_util, util);
+#endif
+
 	return get_next_freq(sg_policy, util, max);
 }
 
@@ -516,7 +531,11 @@ sugov_update_shared(struct update_util_data *hook, u64 time, unsigned int flags)
 	struct sugov_cpu *sg_cpu = container_of(hook, struct sugov_cpu, update_util);
 	struct sugov_policy *sg_policy = sg_cpu->sg_policy;
 	unsigned int next_f;
+	bool force_update = false;
 
+#ifdef CONFIG_SCHED_RTG
+	force_update = flags & SCHED_CPUFREQ_FORCE_UPDATE;
+#endif
 	raw_spin_lock(&sg_policy->update_lock);
 
 	sugov_iowait_boost(sg_cpu, time, flags);
@@ -525,9 +544,10 @@ sugov_update_shared(struct update_util_data *hook, u64 time, unsigned int flags)
 	ignore_dl_rate_limit(sg_cpu, sg_policy);
 
 #ifdef CONFIG_SCHED_WALT
-	if (sugov_should_update_freq(sg_policy, time) && !(flags & SCHED_CPUFREQ_CONTINUE)) {
+	if ((force_update || sugov_should_update_freq(sg_policy, time))
+			&& !(flags & SCHED_CPUFREQ_CONTINUE)) {
 #else
-	if (sugov_should_update_freq(sg_policy, time)) {
+	if (force_update || sugov_should_update_freq(sg_policy, time)) {
 #endif
 		next_f = sugov_next_freq_shared(sg_cpu, time);
 
