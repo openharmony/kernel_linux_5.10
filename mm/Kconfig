@@ -82,7 +82,7 @@ config HYPERHOLD_MEMCG
 
 config HYPERHOLD_ZSWAPD
 	bool "Enable zswapd thread to reclaim anon pages in background"
-	depends on HYPERHOLD
+	depends on HYPERHOLD && ZRAM
 	default n
 	help
 	  zswapd is a kernel thread that reclaim anonymous pages in the

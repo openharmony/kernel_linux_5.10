@@ -630,6 +630,7 @@ static int compress_ratio_show(struct seq_file *m, void *v)
 
 	return 0;
 }
+
 static int zswapd_vmstat_show(struct seq_file *m, void *v)
 {
 #ifdef CONFIG_VM_EVENT_COUNTERS

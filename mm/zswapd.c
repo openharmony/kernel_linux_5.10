@@ -473,6 +473,7 @@ void wake_all_zswapd(void)
 	}
 }
 
+#ifdef CONFIG_HYPERHOLD_FILE_LRU
 static void zswapd_shrink_active_list(unsigned long nr_to_scan,
 	struct lruvec *lruvec, struct scan_control *sc, enum lru_list lru)
 {
@@ -565,6 +566,7 @@ static void zswapd_shrink_anon_memcg(struct pglist_data *pgdat,
 	blk_finish_plug(&plug);
 	sc->nr_reclaimed += nr_reclaimed;
 }
+#endif
 
 static bool zswapd_shrink_anon(pg_data_t *pgdat, struct scan_control *sc)
 {
