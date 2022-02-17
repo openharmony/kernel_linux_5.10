@@ -18,6 +18,8 @@
 #include <linux/sched/clock.h>
 #include <linux/sched/debug.h>
 #include <linux/kernel.h>
+#include <linux/fb.h>
+#include <linux/notifier.h>
 #include <linux/module.h>
 #include <linux/string.h>
 #include <linux/spinlock.h>
@@ -61,7 +63,7 @@ static unsigned int headevt;
 static int *check_off_point;
 struct work_struct powerkeyevent_sendwork;
 struct work_struct lpressevent_sendwork;
-
+static struct notifier_block hung_wp_screen_setblank_ncb;
 
 static void zrhung_lpressevent_send_work(struct work_struct *work)
 {
@@ -157,13 +159,19 @@ static void zrhung_powerkeyevent_handler(void)
 	zrhung_new_powerkeyevent(curtime);
 }
 
-void hung_wp_screen_setblank(int blank)
+static int hung_wp_screen_setblank(struct notifier_block *self, unsigned long event, void *data)
 {
 	unsigned long flags;
+	struct fb_event *evdata = data;
+	int blank;
 
 	if (!init_done)
-		return;
+		return 0;
 
+	if (event != FB_EVENT_BLANK)
+		return 0;
+
+	blank = *(int *)evdata->data;
 	spin_lock_irqsave(&(g_hung_data.lock), flags);
 	g_hung_data.fb_blank = blank;
 	if (((g_hung_data.check_id == ZRHUNG_WP_SCREENON) && (blank == 0)) ||
@@ -173,6 +181,8 @@ void hung_wp_screen_setblank(int blank)
 		g_hung_data.check_id = ZRHUNG_WP_NONE;
 	}
 	spin_unlock_irqrestore(&(g_hung_data.lock), flags);
+
+	return 0;
 }
 
 static void hung_wp_screen_send_work(struct work_struct *work)
@@ -212,8 +222,6 @@ static void hung_wp_screen_start(int check_id)
 	g_hung_data.timer.expires = jiffies + msecs_to_jiffies(DEFAULT_TIMEOUT * TIME_CONVERT_UNIT);
 	add_timer(&g_hung_data.timer);
 	pr_info("going to check ID=%d timeout=%d\n", check_id, DEFAULT_TIMEOUT);
-
-	return;
 }
 
 void hung_wp_screen_powerkey_ncb(int event)
@@ -271,12 +279,30 @@ static int __init hung_wp_screen_init(void)
 	INIT_WORK(&powerkeyevent_sendwork, zrhung_powerkeyevent_send_work);
 	INIT_WORK(&lpressevent_sendwork, zrhung_lpressevent_send_work);
 
+	hung_wp_screen_setblank_ncb.notifier_call = hung_wp_screen_setblank;
+	fb_register_client(&hung_wp_screen_setblank_ncb);
+
 	init_done = true;
 	pr_info("%s done\n", __func__);
 	return 0;
 }
 
+static void __exit hung_wp_screen_exit(void)
+{
+	fb_unregister_client(&hung_wp_screen_setblank_ncb);
+
+	cancel_work_sync(&lpressevent_sendwork);
+	cancel_work_sync(&powerkeyevent_sendwork);
+	cancel_work_sync(&g_hung_data.send_work);
+
+	destroy_workqueue(g_hung_data.workq);
+
+	del_timer_sync(&g_hung_data.timer);
+	del_timer_sync(&g_hung_data.long_press_timer);
+}
+
 module_init(hung_wp_screen_init);
+module_exit(hung_wp_screen_exit);
 
 MODULE_AUTHOR("OHOS");
 MODULE_DESCRIPTION("Reporting the frozen screen alarm event");

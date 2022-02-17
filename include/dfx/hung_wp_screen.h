@@ -30,7 +30,5 @@
 #define WP_SCREEN_OFF_NAME "SCREEN_OFF"
 
 void hung_wp_screen_powerkey_ncb(int event);
-void hung_wp_screen_setblank(int blank);
-int hung_wp_screen_getbl(void);
 
 #endif /* HUNG_WP_SCREEN_H */
