@@ -1,16 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2022 Huawei Technologies Co., Ltd. All rights reserved.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
  */
 
 #define pr_fmt(fmt) "hungtask_base " fmt
@@ -403,7 +393,7 @@ void do_show_task(struct task_struct *task, unsigned int flag, int d_state_time)
 			upload.tgid = task->tgid;
 			upload.duration = d_state_time;
 			memset(upload.name, 0, sizeof(upload.name));
-			strncpy(upload.name, task->comm, sizeof(task->comm));
+			strncpy(upload.name, task->comm, sizeof(upload.name));
 			upload.flag = flag;
 			if (task->flags & PF_FROZEN)
 				upload.flag = (upload.flag | FLAG_PF_FROZEN);
@@ -426,7 +416,7 @@ static void create_taskitem(struct task_item *taskitem,
 	taskitem->pid = task->pid;
 	taskitem->tgid = task->tgid;
 	memset(taskitem->name, 0, sizeof(taskitem->name));
-	strncpy(taskitem->name, task->comm, sizeof(task->comm));
+	strncpy(taskitem->name, task->comm, sizeof(taskitem->name));
 	taskitem->switch_count = task->nvcsw + task->nivcsw;
 	taskitem->dump_wa = 0; /* whitelist or applist task dump times */
 	taskitem->panic_wa = 0; /* whitelist or applist task panic times */
@@ -628,7 +618,7 @@ static void update_panic_task(struct task_item *item)
 	upload.pid = item->pid;
 	upload.tgid = item->tgid;
 	memset(upload.name, 0, sizeof(upload.name));
-	strncpy(upload.name, item->name, sizeof(item->name));
+	strncpy(upload.name, item->name, sizeof(upload.name));
 }
 
 static void deal_task(struct task_item *item, struct task_struct *task, bool is_called)

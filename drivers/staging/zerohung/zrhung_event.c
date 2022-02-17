@@ -1,16 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2022 Huawei Technologies Co., Ltd. All rights reserved.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
  */
 
 #define pr_fmt(fmt) "zrhung " fmt
@@ -117,7 +107,7 @@ struct hisysevent *create_hisysevent(const char *domain, const char *event_name)
 	event = vmalloc(sizeof(*event));
 	if (!event) {
 		pr_err("failed to vmalloc for event");
-		return -ENOMEM;
+		return NULL;
 	}
 
 	memset(event, 0, sizeof(*event));
