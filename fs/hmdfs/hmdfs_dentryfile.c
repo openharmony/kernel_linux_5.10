@@ -875,6 +875,8 @@ int update_inode_to_dentry(struct dentry *child_dentry, struct inode *inode)
 	struct hmdfs_dcache_lookup_ctx ctx;
 
 	parent_dentry = child_dentry->d_parent;
+	if (hmdfs_d(parent_dentry)->dentry_type == HMDFS_LAYER_FIRST_DEVICE)
+		return 0;
 
 	relative_path = hmdfs_get_dentry_relative_path(parent_dentry);
 	if (!relative_path)
