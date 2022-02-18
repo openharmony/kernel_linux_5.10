@@ -22,10 +22,6 @@
 #include <asm/backlight.h>
 #endif
 
-#ifdef CONFIG_DFX_ZEROHUNG
-#include <dfx/hung_wp_screen.h>
-#endif
-
 /**
  * DOC: overview
  *
@@ -124,9 +120,6 @@ static int fb_notifier_callback(struct notifier_block *self,
 			bd->props.state &= ~BL_CORE_FBBLANK;
 			bd->props.fb_blank = FB_BLANK_UNBLANK;
 			backlight_update_status(bd);
-#ifdef CONFIG_DFX_ZEROHUNG
-			hung_wp_screen_setblank(fb_blank);
-#endif
 		}
 	} else if (fb_blank != FB_BLANK_UNBLANK && bd->fb_bl_on[node]) {
 		bd->fb_bl_on[node] = false;
@@ -134,9 +127,6 @@ static int fb_notifier_callback(struct notifier_block *self,
 			bd->props.state |= BL_CORE_FBBLANK;
 			bd->props.fb_blank = fb_blank;
 			backlight_update_status(bd);
-#ifdef CONFIG_DFX_ZEROHUNG
-			hung_wp_screen_setblank(fb_blank);
-#endif
 		}
 	}
 out:
