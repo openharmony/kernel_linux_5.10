@@ -16,6 +16,7 @@
 #include "authority/authentication.h"
 #include "hmdfs.h"
 #include "hmdfs_dentryfile.h"
+#include "hmdfs_share.h"
 #include "hmdfs_trace.h"
 #include "server_writeback.h"
 #include "comm/node_cb.h"
@@ -97,28 +98,6 @@ struct file *hmdfs_open_path(struct hmdfs_sb_info *sbi, const char *path)
 			   file->f_inode->i_sb->s_magic);
 	}
 	return file;
-}
-
-inline bool is_dst_device(char *src_cid, char *dst_cid)
-{
-	return strncmp(src_cid, dst_cid, HMDFS_CID_SIZE) == 0 ? true : false;
-}
-
-void hmdfs_clear_share_item_offline(struct hmdfs_peer *conn)
-{
-	struct hmdfs_sb_info *sbi = conn->sbi;
-	struct hmdfs_share_item *item, *tmp;
-
-	spin_lock(&sbi->share_table.item_list_lock);
-	list_for_each_entry_safe(item, tmp, &sbi->share_table.item_list_head,
-				list) {
-		if (is_dst_device(item->cid, conn->cid)) {
-			list_del(&item->list);
-			release_share_item(item);
-			sbi->share_table.item_cnt--;
-		}
-	}
-	spin_unlock(&sbi->share_table.item_list_lock);
 }
 
 inline void hmdfs_close_path(struct file *file)
@@ -246,30 +225,11 @@ out_free:
 	return ret;
 }
 
-static int hmdfs_check_share_access_permission(struct hmdfs_sb_info *sbi,
-		const char *filename, char *cid, struct hmdfs_share_item **item)
-{
-	struct qstr candidate = QSTR_INIT(filename, strlen(filename));
-	int ret = -ENOENT;
-
-	spin_lock(&sbi->share_table.item_list_lock);
-	*item = hmdfs_lookup_share_item(&sbi->share_table, &candidate);
-	if (*item && is_dst_device((*item)->cid, cid)) {
-		spin_unlock(&sbi->share_table.item_list_lock);
-		return 0;
-	} else
-		*item = NULL;
-	spin_unlock(&sbi->share_table.item_list_lock);
-
-	return ret;
-}
-
 static struct file *hmdfs_open_file(struct hmdfs_peer *con,
 				    const char *filename, uint8_t file_type,
 				    int *file_id)
 {
 	struct file *file = NULL;
-	struct hmdfs_share_item *item = NULL;
 	int err = 0;
 	int id;
 
@@ -285,26 +245,25 @@ static struct file *hmdfs_open_file(struct hmdfs_peer *con,
 
 	if (hm_isshare(file_type)) {
 		err = hmdfs_check_share_access_permission(con->sbi,
-					filename, con->cid, &item);
+							filename, con->cid);
 		if (err)
 			return ERR_PTR(err);
 	}
 	file = hmdfs_open_path(con->sbi, filename);
 
-	if (IS_ERR(file))
+	if (IS_ERR(file)) {
+		reset_item_opened_status(con->sbi, filename);
 		return file;
+	}
 
 	id = insert_file_into_conn(con, file);
 	if (id < 0) {
 		hmdfs_err("file_id alloc failed! err=%d", id);
+		reset_item_opened_status(con->sbi, filename);
 		hmdfs_close_path(file);
 		return ERR_PTR(id);
 	}
 	*file_id = id;
-
-	/* get item to avoid timeout */
-	if (item)
-		kref_get(&item->ref);
 
 	return file;
 }
@@ -676,42 +635,6 @@ out:
 	}
 	kfree(info);
 	kfree(resp);
-}
-
-void hmdfs_close_share_item(struct hmdfs_sb_info *sbi, struct file *file,
-			    char *cid)
-{
-	struct qstr relativepath;
-	const char *path_name;
-	struct hmdfs_share_item *item = NULL;
-
-	path_name = hmdfs_get_dentry_relative_path(file->f_path.dentry);
-	if (unlikely(!path_name)) {
-		hmdfs_err("get dentry relative path error");
-		return;
-	}
-
-	relativepath.name = path_name;
-	relativepath.len = strlen(path_name);
-
-	item = hmdfs_lookup_share_item(&sbi->share_table, &relativepath);
-
-	if (item) {
-		if (unlikely(!is_dst_device(item->cid, cid))) {
-			hmdfs_err("item not right");
-			goto err_out;
-		}
-
-		if (unlikely(kref_read(&item->ref) == 1))
-			hmdfs_err("item ref error");
-
-		set_item_timeout(item);
-		kref_put(&item->ref, hmdfs_remove_share_item);
-	} else
-		hmdfs_err("cannot get share item %s", relativepath.name);
-
-err_out:
-	kfree(path_name);
 }
 
 void hmdfs_server_release(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
