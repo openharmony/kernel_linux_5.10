@@ -100,6 +100,7 @@ static struct inode *fill_inode_merge(struct super_block *sb,
 				      struct dentry *child_dentry,
 				      struct dentry *lo_d_dentry)
 {
+	int ret = 0;
 	struct dentry *fst_lo_d = NULL;
 	struct hmdfs_inode_info *info = NULL;
 	struct inode *inode = NULL;
@@ -138,32 +139,29 @@ static struct inode *fill_inode_merge(struct super_block *sb,
 
 	update_inode_attr(inode, child_dentry);
 	mode = d_inode(fst_lo_d)->i_mode;
-	/* remote symlink need to treat as regfile,
-	 * the specific operation is performed by device_view.
-	 * local symlink is managed by merge_view.
-	 */
-	if (hm_islnk(hmdfs_d(fst_lo_d)->file_type) &&
-	    hmdfs_d(fst_lo_d)->device_id == 0) {
-		inode->i_mode = S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-		inode->i_op = &hmdfs_symlink_iops_merge;
-		inode->i_fop = &hmdfs_file_fops_merge;
-		set_nlink(inode, 1);
-	} else if (S_ISREG(mode)) { // Reguler file 0660
+
+	if (S_ISREG(mode)) {
 		inode->i_mode = S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 		inode->i_op = &hmdfs_file_iops_merge;
 		inode->i_fop = &hmdfs_file_fops_merge;
 		set_nlink(inode, 1);
-	} else if (S_ISDIR(mode)) { // Directory 0771
+	} else if (S_ISDIR(mode)) {
 		inode->i_mode = S_IFDIR | S_IRWXU | S_IRWXG | S_IXOTH;
 		inode->i_op = &hmdfs_dir_iops_merge;
 		inode->i_fop = &hmdfs_dir_fops_merge;
 		set_nlink(inode, get_num_comrades(child_dentry) + 2);
+	} else {
+		ret = -EIO;
+		goto bad_inode;
 	}
 
 	unlock_new_inode(inode);
 out:
 	dput(fst_lo_d);
 	return inode;
+bad_inode:
+	iget_failed(inode);
+	return ERR_PTR(ret);
 }
 
 struct hmdfs_dentry_comrade *alloc_comrade(struct dentry *lo_d, int dev_id)
@@ -596,10 +594,9 @@ struct dentry *hmdfs_lookup_merge(struct inode *parent_inode,
 	/*
 	 * Internal flags like LOOKUP_CREATE should not pass to device view.
 	 * LOOKUP_REVAL is needed because dentry cache in hmdfs might be stale
-	 * after rename in lower fs. LOOKUP_FOLLOW is not needed because
-	 * get_link is defined for symlink inode in merge_view.
-	 * LOOKUP_DIRECTORY is not needed because merge_view can do the
-	 * judgement that whether result is directory or not.
+	 * after rename in lower fs. LOOKUP_DIRECTORY is not needed because
+	 * merge_view can do the judgement that whether result is directory or
+	 * not.
 	 */
 	flags = flags & LOOKUP_REVAL;
 
@@ -771,32 +768,6 @@ out:
 	return ret;
 }
 
-int do_symlink_merge(struct inode *parent_inode, struct dentry *child_dentry,
-		     const char *symname, struct inode *lower_parent_inode,
-		     struct dentry *lo_d_child)
-{
-	int ret = 0;
-	struct super_block *sb = parent_inode->i_sb;
-	struct inode *child_inode = NULL;
-
-	ret = vfs_symlink(lower_parent_inode, lo_d_child, symname);
-	if (ret)
-		goto out;
-
-	child_inode =
-		fill_inode_merge(sb, parent_inode, child_dentry, lo_d_child);
-	if (IS_ERR(child_inode)) {
-		ret = PTR_ERR(child_inode);
-		goto out;
-	}
-
-	d_add(child_dentry, child_inode);
-	fsstack_copy_attr_times(parent_inode, lower_parent_inode);
-	fsstack_copy_inode_size(parent_inode, lower_parent_inode);
-out:
-	return ret;
-}
-
 int hmdfs_do_ops_merge(struct inode *i_parent, struct dentry *d_child,
 		       struct dentry *lo_d_child, struct path path,
 		       struct hmdfs_recursive_para *rec_op_para)
@@ -815,12 +786,6 @@ int hmdfs_do_ops_merge(struct inode *i_parent, struct dentry *d_child,
 					      rec_op_para->mode,
 					      rec_op_para->want_excl,
 					      d_inode(path.dentry), lo_d_child);
-			break;
-		case F_SYMLINK_MERGE:
-			ret = do_symlink_merge(i_parent, d_child,
-					       rec_op_para->name,
-					       d_inode(path.dentry),
-					       lo_d_child);
 			break;
 		default:
 			ret = -EINVAL;
@@ -1036,16 +1001,11 @@ int do_rmdir_merge(struct inode *dir, struct dentry *dentry)
 	struct dentry *lo_d_dir = NULL;
 	struct inode *lo_i_dir = NULL;
 
-	//TODO: 当前只删本地，因不会影响到图库场景
-	//TODO：图库重启清除软连接？或者什么场景会删除
-	//TODO: remove 调用同时删除空目录以及非空目录，结果不一致
-	//TODO: 如果校验会不会有并发问题？就算锁，也只能锁自己
 	mutex_lock(&dim->comrade_list_lock);
 	list_for_each_entry(comrade, &(dim->comrade_list), list) {
 		lo_d = comrade->lo_d;
 		lo_d_dir = lock_parent(lo_d);
 		lo_i_dir = d_inode(lo_d_dir);
-		//TODO: 部分成功，lo_d确认
 		ret = vfs_rmdir(lo_i_dir, lo_d);
 		unlock_dir(lo_d_dir);
 		if (ret)
@@ -1085,7 +1045,7 @@ int do_unlink_merge(struct inode *dir, struct dentry *dentry)
 	struct dentry *lo_d = NULL;
 	struct dentry *lo_d_dir = NULL;
 	struct inode *lo_i_dir = NULL;
-	// TODO：文件场景  list_first_entry
+
 	mutex_lock(&dim->comrade_list_lock);
 	list_for_each_entry(comrade, &(dim->comrade_list), list) {
 		lo_d = comrade->lo_d;
@@ -1121,34 +1081,6 @@ out:
 	return ret;
 }
 
-int hmdfs_symlink_merge(struct inode *dir, struct dentry *dentry,
-			const char *symname)
-{
-	int ret = 0;
-	struct hmdfs_recursive_para *rec_op_para = NULL;
-
-	if (hmdfs_file_type(dentry->d_name.name) != HMDFS_TYPE_COMMON) {
-		ret = -EACCES;
-		goto out;
-	}
-
-	rec_op_para = kmalloc(sizeof(*rec_op_para), GFP_KERNEL);
-	if (!rec_op_para) {
-		ret = -ENOMEM;
-		goto out;
-	}
-	hmdfs_init_recursive_para(rec_op_para, F_SYMLINK_MERGE, 0, false,
-				  symname);
-	ret = create_lo_d_child(dir, dentry, false, rec_op_para);
-
-out:
-	trace_hmdfs_symlink_merge(dir, dentry, ret);
-	if (ret)
-		d_drop(dentry);
-	kfree(rec_op_para);
-	return ret;
-}
-
 int do_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 		    struct inode *new_dir, struct dentry *new_dentry,
 		    unsigned int flags)
@@ -1166,11 +1098,6 @@ int do_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 	char *abs_path_buf = kmalloc(PATH_MAX, GFP_KERNEL);
 	char *path_name = NULL;
 
-	/* TODO: Will WPS rename a temporary file to another directory?
-	 * could flags with replace bit result in rename ops
-	 * cross_devices?
-	 * currently does not support replace flags.
-	 */
 	if (flags & ~RENAME_NOREPLACE) {
 		ret = -EINVAL;
 		goto out;
@@ -1302,56 +1229,12 @@ rename_out:
 	return ret;
 }
 
-static const char *hmdfs_get_link_merge(struct dentry *dentry,
-					struct inode *inode,
-					struct delayed_call *done)
-{
-	const char *link = NULL;
-	struct dentry *lower_dentry = NULL;
-	struct inode *lower_inode = NULL;
-
-	if (!dentry) {
-		hmdfs_err("dentry NULL");
-		link = ERR_PTR(-ECHILD);
-		goto link_out;
-	}
-
-	lower_dentry = hmdfs_get_fst_lo_d(dentry);
-	if (!lower_dentry) {
-		WARN_ON(1);
-		link = ERR_PTR(-EINVAL);
-		goto out;
-	}
-	lower_inode = d_inode(lower_dentry);
-	if (!lower_inode->i_op || !lower_inode->i_op->get_link) {
-		hmdfs_err("lower inode hold no operations");
-		link = ERR_PTR(-EINVAL);
-		goto out;
-	}
-
-	link = lower_inode->i_op->get_link(lower_dentry, lower_inode, done);
-	if (IS_ERR_OR_NULL(link))
-		goto out;
-	fsstack_copy_attr_atime(inode, lower_inode);
-out:
-	dput(lower_dentry);
-	trace_hmdfs_get_link_merge(inode, dentry, PTR_ERR_OR_ZERO(link));
-link_out:
-	return link;
-}
-
-const struct inode_operations hmdfs_symlink_iops_merge = {
-	.get_link = hmdfs_get_link_merge,
-	.permission = hmdfs_permission,
-};
-
 const struct inode_operations hmdfs_dir_iops_merge = {
 	.lookup = hmdfs_lookup_merge,
 	.mkdir = hmdfs_mkdir_merge,
 	.create = hmdfs_create_merge,
 	.rmdir = hmdfs_rmdir_merge,
 	.unlink = hmdfs_unlink_merge,
-	.symlink = hmdfs_symlink_merge,
 	.rename = hmdfs_rename_merge,
 	.permission = hmdfs_permission,
 };

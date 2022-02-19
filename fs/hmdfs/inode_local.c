@@ -22,11 +22,6 @@
 
 extern struct kmem_cache *hmdfs_dentry_cachep;
 
-static const char *const symlink_tgt_white_list[] = {
-	"/storage/",
-	"/sdcard/",
-};
-
 struct hmdfs_name_data {
 	struct dir_context ctx;
 	const struct qstr *to_find;
@@ -61,11 +56,6 @@ int init_hmdfs_dentry_info(struct hmdfs_sb_info *sbi, struct dentry *dentry,
 	return 0;
 }
 
-static inline void set_symlink_flag(struct hmdfs_dentry_info *gdi)
-{
-	gdi->file_type = HM_SYMLINK;
-}
-
 static inline void set_sharefile_flag(struct hmdfs_dentry_info *gdi)
 {
 	gdi->file_type = HM_SHARE;
@@ -86,6 +76,7 @@ static inline void check_and_fixup_share_ops(struct inode *inode,
 struct inode *fill_inode_local(struct super_block *sb,
 			       struct inode *lower_inode, const char *name)
 {
+	int ret = 0;
 	struct inode *inode;
 	struct hmdfs_inode_info *info;
 
@@ -113,8 +104,6 @@ struct inode *fill_inode_local(struct super_block *sb,
 	else if (S_ISREG(lower_inode->i_mode))
 		inode->i_mode = (lower_inode->i_mode & S_IFMT) | S_IRUSR |
 				S_IWUSR | S_IRGRP | S_IWGRP;
-	else if (S_ISLNK(lower_inode->i_mode))
-		inode->i_mode = S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 
 #ifdef CONFIG_HMDFS_FS_PERMISSION
 	inode->i_uid = lower_inode->i_uid;
@@ -136,15 +125,18 @@ struct inode *fill_inode_local(struct super_block *sb,
 	} else if (S_ISREG(lower_inode->i_mode)) {
 		inode->i_op = &hmdfs_file_iops_local;
 		inode->i_fop = &hmdfs_file_fops_local;
-	} else if (S_ISLNK(lower_inode->i_mode)) {
-		inode->i_op = &hmdfs_symlink_iops_local;
-		inode->i_fop = &hmdfs_file_fops_local;
+	} else {
+		ret = -EIO;
+		goto bad_inode;
 	}
 
 	fsstack_copy_inode_size(inode, lower_inode);
 	check_and_fixup_share_ops(inode, name);
 	unlock_new_inode(inode);
 	return inode;
+bad_inode:
+	iget_failed(inode);
+	return ERR_PTR(ret);
 }
 
 /* hmdfs_convert_lookup_flags - covert hmdfs lookup flags to vfs lookup flags
@@ -270,8 +262,7 @@ struct dentry *hmdfs_lookup_local(struct inode *parent_inode,
 		child_inode = fill_inode_local(parent_inode->i_sb,
 					       d_inode(lower_path.dentry),
 						   child_dentry->d_name.name);
-		if (S_ISLNK(d_inode(lower_path.dentry)->i_mode))
-			set_symlink_flag(gdi);
+
 		if (IS_ERR(child_inode)) {
 			err = PTR_ERR(child_inode);
 			ret = ERR_PTR(err);
@@ -702,145 +693,6 @@ rename_out:
 	return err;
 }
 
-static bool symname_is_allowed(const char *symname)
-{
-	size_t symname_len = strlen(symname);
-	const char *prefix = NULL;
-	int i, total;
-
-	/**
-	 * Adjacent dots are prohibited.
-	 * Note that vfs has escaped back slashes yet.
-	 */
-	for (i = 0; i < symname_len - 1; ++i)
-		if (symname[i] == '.' && symname[i + 1] == '.')
-			goto out_fail;
-
-	/**
-	 * Check if the symname is included in the whitelist
-	 * Note that we skipped cmping strlen because symname is end with '\0'
-	 */
-	total = sizeof(symlink_tgt_white_list) /
-		sizeof(*symlink_tgt_white_list);
-	for (i = 0; i < total; ++i) {
-		prefix = symlink_tgt_white_list[i];
-		if (!strncmp(symname, prefix, strlen(prefix)))
-			goto out_succ;
-	}
-
-out_fail:
-	hmdfs_err("Prohibited link path");
-	return false;
-out_succ:
-	return true;
-}
-
-int hmdfs_symlink_local(struct inode *dir, struct dentry *dentry,
-			const char *symname)
-{
-	int err;
-	struct dentry *lower_dentry = NULL;
-	struct dentry *lower_parent_dentry = NULL;
-	struct path lower_path;
-	struct inode *child_inode = NULL;
-	struct inode *lower_dir_inode = hmdfs_i(dir)->lower_inode;
-	struct hmdfs_dentry_info *gdi = hmdfs_d(dentry);
-	kuid_t tmp_uid;
-#ifdef CONFIG_HMDFS_FS_PERMISSION
-	const struct cred *saved_cred = NULL;
-	struct fs_struct *saved_fs = NULL, *copied_fs = NULL;
-	__u16 child_perm;
-#endif
-
-	if (unlikely(!symname_is_allowed(symname))) {
-		err = -EPERM;
-		goto path_err;
-	}
-
-#ifdef CONFIG_HMDFS_FS_PERMISSION
-	saved_cred = hmdfs_override_file_fsids(dir, &child_perm);
-	if (!saved_cred) {
-		err = -ENOMEM;
-		goto path_err;
-	}
-
-	saved_fs = current->fs;
-	copied_fs = hmdfs_override_fsstruct(saved_fs);
-	if (!copied_fs) {
-		err = -ENOMEM;
-		goto revert_fsids;
-	}
-#endif
-	hmdfs_get_lower_path(dentry, &lower_path);
-	lower_dentry = lower_path.dentry;
-	lower_parent_dentry = lock_parent(lower_dentry);
-	tmp_uid = hmdfs_override_inode_uid(lower_dir_inode);
-	err = vfs_symlink(lower_dir_inode, lower_dentry, symname);
-	hmdfs_revert_inode_uid(lower_dir_inode, tmp_uid);
-	unlock_dir(lower_parent_dentry);
-	if (err)
-		goto out_err;
-	set_symlink_flag(gdi);
-#ifdef CONFIG_HMDFS_FS_PERMISSION
-	err = hmdfs_persist_perm(lower_dentry, &child_perm);
-#endif
-	child_inode = fill_inode_local(dir->i_sb, d_inode(lower_dentry),
-							dentry->d_name.name);
-	if (IS_ERR(child_inode)) {
-		err = PTR_ERR(child_inode);
-		goto out_err;
-	}
-	d_add(dentry, child_inode);
-	fsstack_copy_attr_times(dir, lower_dir_inode);
-	fsstack_copy_inode_size(dir, lower_dir_inode);
-
-out_err:
-	hmdfs_put_lower_path(&lower_path);
-#ifdef CONFIG_HMDFS_FS_PERMISSION
-	hmdfs_revert_fsstruct(saved_fs, copied_fs);
-revert_fsids:
-	hmdfs_revert_fsids(saved_cred);
-#endif
-path_err:
-	trace_hmdfs_symlink_local(dir, dentry, err);
-	return err;
-}
-
-static const char *hmdfs_get_link_local(struct dentry *dentry,
-					struct inode *inode,
-					struct delayed_call *done)
-{
-	const char *link = NULL;
-	struct dentry *lower_dentry = NULL;
-	struct inode *lower_inode = NULL;
-	struct path lower_path;
-
-	if (!dentry) {
-		hmdfs_err("dentry NULL");
-		link = ERR_PTR(-ECHILD);
-		goto link_out;
-	}
-
-	hmdfs_get_lower_path(dentry, &lower_path);
-	lower_dentry = lower_path.dentry;
-	lower_inode = d_inode(lower_dentry);
-	if (!lower_inode->i_op || !lower_inode->i_op->get_link) {
-		hmdfs_err("The lower inode doesn't support get_link i_op");
-		link = ERR_PTR(-EINVAL);
-		goto out;
-	}
-
-	link = lower_inode->i_op->get_link(lower_dentry, lower_inode, done);
-	if (IS_ERR_OR_NULL(link))
-		goto out;
-	fsstack_copy_attr_atime(inode, lower_inode);
-out:
-	hmdfs_put_lower_path(&lower_path);
-	trace_hmdfs_get_link_local(inode, dentry, PTR_ERR_OR_ZERO(link));
-link_out:
-	return link;
-}
-
 static int hmdfs_setattr_local(struct dentry *dentry, struct iattr *ia)
 {
 	struct inode *inode = d_inode(dentry);
@@ -1037,19 +889,12 @@ err_out:
 	return ret;
 }
 
-const struct inode_operations hmdfs_symlink_iops_local = {
-	.get_link = hmdfs_get_link_local,
-	.permission = hmdfs_permission,
-	.setattr = hmdfs_setattr_local,
-};
-
 const struct inode_operations hmdfs_dir_inode_ops_local = {
 	.lookup = hmdfs_lookup_local,
 	.mkdir = hmdfs_mkdir_local,
 	.create = hmdfs_create_local,
 	.rmdir = hmdfs_rmdir_local,
 	.unlink = hmdfs_unlink_local,
-	.symlink = hmdfs_symlink_local,
 	.rename = hmdfs_rename_local,
 	.permission = hmdfs_permission,
 	.setattr = hmdfs_setattr_local,

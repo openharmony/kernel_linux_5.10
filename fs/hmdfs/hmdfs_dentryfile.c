@@ -489,9 +489,8 @@ int read_dentry(struct hmdfs_sb_info *sbi, char *file_name,
 			else if (S_ISREG(le16_to_cpu(
 					 dentry_group->nsl[j].i_mode)))
 				file_type = DT_REG;
-			else if (S_ISLNK(le16_to_cpu(
-					 dentry_group->nsl[j].i_mode)))
-				file_type = DT_LNK;
+			else
+				continue;
 
 			pos = hmdfs_set_pos(0, i, j);
 			is_continue = dir_emit(
@@ -684,25 +683,14 @@ void update_dentry(struct hmdfs_dentry_group *d, struct dentry *child_dentry,
 		   struct inode *inode, __u32 name_hash, unsigned int bit_pos)
 {
 	struct hmdfs_dentry *de;
-	struct hmdfs_dentry_info *gdi = hmdfs_d(child_dentry);
 	const struct qstr name = child_dentry->d_name;
 	int slots = get_dentry_slots(name.len);
 	int i;
 	unsigned long ino;
 	__u32 igen;
 
-	/*
-	 * If the dentry's inode is symlink, it must be lower inode,
-	 * and we should use the upper ino and generation to fill
-	 * the dentryfile.
-	 */
-	if (!gdi && S_ISLNK(d_inode(child_dentry)->i_mode)) {
-		ino = d_inode(child_dentry)->i_ino;
-		igen = d_inode(child_dentry)->i_generation;
-	} else {
-		ino = inode->i_ino;
-		igen = inode->i_generation;
-	}
+	ino = inode->i_ino;
+	igen = inode->i_generation;
 
 	de = &d->nsl[bit_pos];
 	de->hash = cpu_to_le32(name_hash);
@@ -713,21 +701,7 @@ void update_dentry(struct hmdfs_dentry_group *d, struct dentry *child_dentry,
 	de->i_size = cpu_to_le64(inode->i_size);
 	de->i_ino = cpu_to_le64(generate_u64_ino(ino, igen));
 	de->i_flag = 0;
-
-	/*
-	 * If the dentry has fsdata, we just assume it must be
-	 * hmdfs filesystem's dentry.
-	 * Only client may update it's info in dentryfile when rename
-	 * the remote file.
-	 * Since the symlink mtime and size is from server's lower
-	 * inode, we should just use it and only set S_IFLNK in mode.
-	 */
-	if (gdi && hm_islnk(gdi->file_type))
-		de->i_mode = cpu_to_le16(S_IFLNK);
-	else if (!gdi && S_ISLNK(d_inode(child_dentry)->i_mode))
-		de->i_mode = d_inode(child_dentry)->i_mode;
-	else
-		de->i_mode = cpu_to_le16(inode->i_mode);
+	de->i_mode = cpu_to_le16(inode->i_mode);
 
 	for (i = 0; i < slots; i++) {
 		__set_bit_le(bit_pos + i, d->bitmap);

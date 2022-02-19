@@ -34,7 +34,6 @@ struct hmdfs_dentry_comrade {
 enum FILE_CMD_MERGE {
 	F_MKDIR_MERGE = 0,
 	F_CREATE_MERGE = 1,
-	F_SYMLINK_MERGE = 2,
 };
 
 struct hmdfs_recursive_para {
@@ -140,7 +139,6 @@ struct dentry *hmdfs_get_fst_lo_d(struct dentry *dentry);
 
 extern const struct inode_operations hmdfs_file_iops_merge;
 extern const struct file_operations hmdfs_file_fops_merge;
-extern const struct inode_operations hmdfs_symlink_iops_merge;
 extern const struct inode_operations hmdfs_dir_iops_merge;
 extern const struct file_operations hmdfs_dir_fops_merge;
 extern const struct dentry_operations hmdfs_dops_merge;

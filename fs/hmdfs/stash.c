@@ -2179,7 +2179,7 @@ hmdfs_need_rebuild_inode_stash_status(struct hmdfs_peer *conn, umode_t mode)
 {
 	return hmdfs_is_stash_enabled(conn->sbi) &&
 	       READ_ONCE(conn->need_rebuild_stash_list) &&
-	       (S_ISREG(mode) || S_ISLNK(mode));
+	       S_ISREG(mode);
 }
 
 void hmdfs_remote_init_stash_status(struct hmdfs_peer *conn,

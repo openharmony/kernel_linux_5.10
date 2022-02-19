@@ -339,6 +339,7 @@ static void hmdfs_fill_inode_android(struct inode *inode, struct inode *dir,
 struct inode *fill_inode_remote(struct super_block *sb, struct hmdfs_peer *con,
 				struct hmdfs_lookup_ret *res, struct inode *dir)
 {
+	int ret = 0;
 	struct inode *inode = NULL;
 	struct hmdfs_inode_info *info;
 	umode_t mode = res->i_mode;
@@ -372,24 +373,33 @@ struct inode *fill_inode_remote(struct super_block *sb, struct hmdfs_peer *con,
 		inode->i_mode = S_IFDIR | S_IRWXU | S_IRWXG | S_IXOTH;
 	else if (S_ISREG(mode))
 		inode->i_mode = S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-	else if (S_ISLNK(mode))
-		inode->i_mode = S_IFREG | S_IRWXU | S_IRWXG;
+	else {
+		ret = -EIO;
+		goto bad_inode;
+	}
 
-	if (S_ISREG(mode) || S_ISLNK(mode)) { // Reguler file
+	if (S_ISREG(mode)) {
 		inode->i_op = con->conn_operations->remote_file_iops;
 		inode->i_fop = con->conn_operations->remote_file_fops;
 		inode->i_size = res->i_size;
 		set_nlink(inode, 1);
-	} else if (S_ISDIR(mode)) { // Directory
+	} else if (S_ISDIR(mode)) {
 		inode->i_op = &hmdfs_dev_dir_inode_ops_remote;
 		inode->i_fop = &hmdfs_dev_dir_ops_remote;
 		set_nlink(inode, 2);
+	} else {
+		ret = -EIO;
+		goto bad_inode;
 	}
+
 	inode->i_mapping->a_ops = con->conn_operations->remote_file_aops;
 
 	hmdfs_fill_inode_android(inode, dir, mode);
 	unlock_new_inode(inode);
 	return inode;
+bad_inode:
+	iget_failed(inode);
+	return ERR_PTR(ret);
 }
 
 static bool in_share_dir(struct dentry *child_dentry)
@@ -447,8 +457,6 @@ static struct dentry *hmdfs_lookup_remote_dentry(struct inode *parent_inode,
 	lookup_result = hmdfs_lookup_by_con(con, child_dentry, &qstr, flags,
 					    relative_path);
 	if (lookup_result != NULL) {
-		if (S_ISLNK(lookup_result->i_mode))
-			gdi->file_type = HM_SYMLINK;
 		if (in_share_dir(child_dentry))
 			gdi->file_type = HM_SHARE;
 		inode = fill_inode_remote(sb, con, lookup_result, parent_inode);

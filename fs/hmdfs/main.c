@@ -238,7 +238,6 @@ void hmdfs_put_super(struct super_block *sb)
 	hmdfs_info("local_dst is %s, local_src is %s", sbi->local_dst,
 		   sbi->local_src);
 
-	hmdfs_fault_inject_fini(&sbi->fault_inject);
 	hmdfs_cfn_destroy(sbi);
 	hmdfs_unregister_sysfs(sbi);
 	hmdfs_connections_stop(sbi);
@@ -923,7 +922,6 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 	INIT_LIST_HEAD(&sbi->hsi.wait_list);
 	INIT_LIST_HEAD(&sbi->hsi.pending_list);
 	spin_lock_init(&sbi->hsi.list_lock);
-	hmdfs_fault_inject_init(&sbi->fault_inject, ctrl_path);
 
 	return err;
 out_freeroot:
@@ -1054,7 +1052,6 @@ static int __init hmdfs_init(void)
 		goto out_err;
 
 	hmdfs_message_verify_init();
-	hmdfs_create_debugfs_root();
 	return 0;
 out_err:
 	hmdfs_sysfs_exit();
@@ -1067,7 +1064,6 @@ out_err:
 
 static void __exit hmdfs_exit(void)
 {
-	hmdfs_destroy_debugfs_root();
 	hmdfs_sysfs_exit();
 	hmdfs_exit_configfs();
 	unregister_filesystem(&hmdfs_fs_type);
