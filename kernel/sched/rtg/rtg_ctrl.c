@@ -18,13 +18,16 @@ atomic_t g_rtg_enable = ATOMIC_INIT(0);
 atomic_t g_enable_type = ATOMIC_INIT(ALL_ENABLE); // default: all enable
 static atomic_t g_rt_frame_num = ATOMIC_INIT(0);
 static int g_frame_max_util = DEFAULT_MAX_UTIL;
+static int g_max_rt_frames = DEFAULT_MAX_RT_FRAME;
 typedef long (*rtg_ctrl_func)(int abi, void __user *arg);
 
 static long ctrl_set_enable(int abi, void __user *uarg);
+static long ctrl_set_rtg(int abi, void __user *uarg);
 
 static rtg_ctrl_func g_func_array[RTG_CTRL_MAX_NR] = {
 	NULL, /* reserved */
 	ctrl_set_enable,  // 1
+	ctrl_set_rtg,
 };
 
 static int init_proc_state(const int *config, int len);
@@ -127,6 +130,70 @@ static void rtg_disable(void)
 	deinit_proc_state();
 }
 
+static inline bool is_rt_type(int type)
+{
+	return (type >= VIP && type < NORMAL_TASK);
+}
+
+static int do_update_rt_frame_num(struct frame_info *frame_info, int new_type)
+{
+	int old_type;
+	int ret = SUCC;
+
+	read_lock(&frame_info->lock);
+	old_type = frame_info->prio - DEFAULT_RT_PRIO;
+	if (is_rt_type(new_type) == is_rt_type(old_type))
+		goto out;
+
+	if (is_rt_type(old_type)) {
+		if (atomic_read(&g_rt_frame_num) > 0)
+			atomic_dec(&g_rt_frame_num);
+	} else if (is_rt_type(new_type)) {
+		if (atomic_read(&g_rt_frame_num) < g_max_rt_frames) {
+			atomic_inc(&g_rt_frame_num);
+		} else {
+			pr_err("[SCHED_RTG]: %s g_max_rt_frames is %d\n",
+				__func__, g_max_rt_frames);
+			ret = -INVALID_ARG;
+		}
+	}
+out:
+	read_unlock(&frame_info->lock);
+
+	return ret;
+}
+
+static int update_rt_frame_num(struct frame_info *frame_info, int new_type, int cmd)
+{
+	int ret = SUCC;
+
+	switch (cmd) {
+	case UPDATE_RTG_FRAME:
+		ret = do_update_rt_frame_num(frame_info, new_type);
+		break;
+	case ADD_RTG_FRAME:
+		if (is_rt_type(new_type)) {
+			if (atomic_read(&g_rt_frame_num) >= g_max_rt_frames) {
+				pr_err("[SCHED_RTG] g_max_rt_frames is %d!\n", g_max_rt_frames);
+				ret = -INVALID_ARG;
+			} else {
+				atomic_inc(&g_rt_frame_num);
+			}
+		}
+		break;
+	case CLEAR_RTG_FRAME:
+		if ((atomic_read(&g_rt_frame_num) > 0) && is_rt_type(new_type))
+			atomic_dec(&g_rt_frame_num);
+		break;
+	default:
+		return -INVALID_ARG;
+	}
+	trace_rtg_frame_sched(frame_info->rtg->id, "g_rt_frame_num", atomic_read(&g_rt_frame_num));
+	trace_rtg_frame_sched(frame_info->rtg->id, "g_max_rt_frames", g_max_rt_frames);
+
+	return ret;
+}
+
 static long ctrl_set_enable(int abi, void __user *uarg)
 {
 	struct rtg_enable_data rs_enable;
@@ -161,6 +228,186 @@ static void clear_rtg_frame_thread(struct frame_info *frame_info, bool reset)
 		atomic_set(&frame_info->frame_sched_state, 0);
 		trace_rtg_frame_sched(frame_info->rtg->id, "FRAME_SCHED_ENABLE", 0);
 	}
+}
+
+static void copy_proc_from_rsdata(struct rtg_proc_data *proc_info,
+	const struct rtg_grp_data *rs_data)
+{
+	memset(proc_info, 0, sizeof(struct rtg_proc_data));
+	proc_info->type = VIP;
+	proc_info->rtcnt = DEFAULT_MAX_RT_THREAD;
+	if ((rs_data->grp_type > 0) && (rs_data->grp_type < RTG_TYPE_MAX))
+		proc_info->type = rs_data->grp_type;
+	if ((rs_data->rt_cnt > 0) && (rs_data->rt_cnt < DEFAULT_MAX_RT_THREAD))
+		proc_info->rtcnt = rs_data->rt_cnt;
+}
+
+static void init_frame_thread_info(struct frame_thread_info *frame_thread_info,
+				   const struct rtg_proc_data *proc_info)
+{
+	int i;
+	int type = proc_info->type;
+
+	frame_thread_info->prio = (type == NORMAL_TASK ? NOT_RT_PRIO : (type + DEFAULT_RT_PRIO));
+	for (i = 0; i < MAX_TID_NUM; i++)
+		frame_thread_info->thread[i] = proc_info->thread[i];
+	frame_thread_info->thread_num = MAX_TID_NUM;
+}
+
+static int parse_create_rtg_grp(const struct rtg_grp_data *rs_data)
+{
+	struct rtg_proc_data proc_info;
+	struct frame_info *frame_info;
+	struct frame_thread_info frame_thread_info;
+
+	copy_proc_from_rsdata(&proc_info, rs_data);
+	proc_info.rtgid = alloc_multi_frame_info();
+	frame_info = rtg_frame_info(proc_info.rtgid);
+	if (!frame_info) {
+		pr_err("[SCHED_RTG] no free multi frame.\n");
+		return -NO_FREE_MULTI_FRAME;
+	}
+	atomic_set(&frame_info->max_rt_thread_num, proc_info.rtcnt);
+	if (update_rt_frame_num(frame_info, rs_data->grp_type, ADD_RTG_FRAME)) {
+		release_multi_frame_info(proc_info.rtgid);
+		return -NO_RT_FRAME;
+	}
+	init_frame_thread_info(&frame_thread_info, &proc_info);
+	update_frame_thread_info(frame_info, &frame_thread_info);
+	atomic_set(&frame_info->frame_sched_state, 1);
+	pr_info("[SCHED_RTG] %s rtgid=%d, type=%d, prio=%d, threadnum=%d\n",
+		__func__, proc_info.rtgid, rs_data->grp_type,
+		frame_thread_info.prio, frame_thread_info.thread_num);
+
+	return proc_info.rtgid;
+}
+
+static int parse_add_rtg_thread(const struct rtg_grp_data *rs_data)
+{
+	struct rtg_proc_data proc_info;
+	struct frame_info *frame_info;
+	int add_index;
+	int add_num;
+	int prio;
+	int fail_num = 0;
+	int i;
+
+	if ((rs_data->grp_id <= 0) || (rs_data->grp_id >= MAX_NUM_CGROUP_COLOC_ID))
+		return -INVALID_ARG;
+	copy_proc_from_rsdata(&proc_info, rs_data);
+	frame_info = lookup_frame_info_by_grp_id(rs_data->grp_id);
+	if (!frame_info) {
+		pr_err("[SCHED_RTG] grp not created yet.\n");
+		return -INVALID_ARG;
+	}
+	write_lock(&frame_info->lock);
+	add_num = rs_data->tid_num;
+	if ((frame_info->thread_num < 0) || (add_num < 0)) {
+		pr_err("[SCHED_RTG] Unexception err: frame_info num < 0.\n");
+		write_unlock(&frame_info->lock);
+		return -INVALID_RTG_ID;
+	}
+	if (frame_info->thread_num + add_num > MAX_TID_NUM) {
+		pr_err("[SCHED_RTG] frame info thread up to max already.\n");
+		write_unlock(&frame_info->lock);
+		return -INVALID_RTG_ID;
+	}
+	add_index = frame_info->thread_num;
+	prio = frame_info->prio;
+	for (i = 0; i < add_num; i++) {
+		frame_info->thread[add_index] = update_frame_thread(frame_info, prio, prio,
+								    rs_data->tids[i],
+								    frame_info->thread[add_index]);
+		if (frame_info->thread[add_index]) {
+			frame_info->thread_num++;
+			add_index = frame_info->thread_num;
+		} else {
+			fail_num++;
+		}
+	}
+	write_unlock(&frame_info->lock);
+
+	return fail_num;
+}
+
+static int parse_remove_thread(const struct rtg_grp_data *rs_data)
+{
+	pr_err("[SCHED_RTG] frame rtg not support remove single yet.\n");
+
+	return -INVALID_ARG;
+}
+
+static int do_clear_or_destroy_grp(const struct rtg_grp_data *rs_data, bool destroy)
+{
+	struct frame_info *frame_info;
+	int type;
+	int id = rs_data->grp_id;
+
+	if (!is_frame_rtg(id)) {
+		pr_err("[SCHED_RTG] Failed to destroy rtg group %d!\n", id);
+		return -INVALID_ARG;
+	}
+
+	frame_info = rtg_frame_info(id);
+	if (!frame_info) {
+		pr_err("[SCHED_RTG] Failed to destroy rtg group %d: grp not exist.\n", id);
+		return -INVALID_ARG;
+	}
+
+	type = frame_info->prio - DEFAULT_RT_PRIO;
+	if (destroy) {
+		clear_rtg_frame_thread(frame_info, true);
+		release_multi_frame_info(id);
+		update_rt_frame_num(frame_info, type, CLEAR_RTG_FRAME);
+	} else {
+		clear_rtg_frame_thread(frame_info, false);
+	}
+	pr_info("[SCHED_RTG] %s clear frame(id=%d)\n", __func__, id);
+
+	return SUCC;
+}
+
+static int parse_clear_grp(const struct rtg_grp_data *rs_data)
+{
+	return do_clear_or_destroy_grp(rs_data, false);
+}
+
+static int parse_destroy_grp(const struct rtg_grp_data *rs_data)
+{
+	return do_clear_or_destroy_grp(rs_data, true);
+}
+
+long ctrl_set_rtg(int abi, void __user *uarg)
+{
+	struct rtg_grp_data rs_data;
+	long ret;
+
+	if (copy_from_user(&rs_data, uarg, sizeof(rs_data))) {
+		pr_err("[SCHED_RTG] CMD_ID_SET_RTG  copy data failed\n");
+		return -INVALID_ARG;
+	}
+
+	switch (rs_data.rtg_cmd) {
+	case CMD_CREATE_RTG_GRP:
+		ret = parse_create_rtg_grp(&rs_data);
+		break;
+	case CMD_ADD_RTG_THREAD:
+		ret = parse_add_rtg_thread(&rs_data);
+		break;
+	case CMD_REMOVE_RTG_THREAD:
+		ret = parse_remove_thread(&rs_data);
+		break;
+	case CMD_CLEAR_RTG_GRP:
+		ret = parse_clear_grp(&rs_data);
+		break;
+	case CMD_DESTROY_RTG_GRP:
+		ret = parse_destroy_grp(&rs_data);
+		break;
+	default:
+		return -INVALID_ARG;
+	}
+
+	return ret;
 }
 
 static long do_proc_rtg_ioctl(int abi, struct file *file, unsigned int cmd, unsigned long arg)

@@ -49,9 +49,30 @@ enum rtg_err_no {
 	INVALID_ARG,
 	INVALID_MAGIC,
 	INVALID_CMD,
+	FRAME_ERR_PID = 100,
+	NO_FREE_MULTI_FRAME,
+	NOT_MULTI_FRAME,
+	INVALID_RTG_ID,
+	NO_RT_FRAME,
 };
 enum enable_type {
 	ALL_ENABLE = 1,
 	ENABLE_MAX
+};
+
+struct rtg_grp_data {
+	int rtg_cmd;
+	int grp_id;
+	int grp_type;
+	int rt_cnt;
+	int tid_num;
+	int tids[MAX_TID_NUM];
+};
+
+struct rtg_proc_data {
+	int rtgid;
+	int type;
+	int thread[MAX_TID_NUM];
+	int rtcnt;
 };
 #endif
