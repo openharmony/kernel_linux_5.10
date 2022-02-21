@@ -15,6 +15,7 @@
 struct frame_info {
 	rwlock_t lock;
 	struct related_thread_group *rtg;
+	int prio;
 	struct task_struct *thread[MAX_TID_NUM];
 	int thread_num;
 	unsigned int frame_rate; // frame rate

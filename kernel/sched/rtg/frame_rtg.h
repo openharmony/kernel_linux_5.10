@@ -16,6 +16,9 @@
 #define MULTI_FRAME_ID (DEFAULT_CGROUP_COLOC_ID + 1)
 #define MULTI_FRAME_NUM (MAX_NUM_CGROUP_COLOC_ID - DEFAULT_CGROUP_COLOC_ID - 1)
 
+#define NOT_RT_PRIO (-1)
+#define STATIC_RTG_DEPTH (-1)
+
 #define FRAME_START (1 << 0)
 #define FRAME_END (1 << 1)
 #define FRAME_INVALID (1 << 2)
@@ -37,6 +40,19 @@
 #define FRAME_DEFAULT_MIN_PREV_UTIL 0
 #define FRAME_DEFAULT_MAX_PREV_UTIL SCHED_CAPACITY_SCALE
 
+enum rtg_type {
+	VIP = 0,
+	TOP_TASK_KEY,
+	NORMAL_TASK,
+	RTG_TYPE_MAX,
+};
+
+struct frame_thread_info {
+	int prio;
+	int thread[MAX_TID_NUM];
+	int thread_num;
+};
+
 struct multi_frame_id_manager {
 	DECLARE_BITMAP(id_map, MULTI_FRAME_NUM);
 	unsigned int offset;
@@ -50,4 +66,10 @@ struct frame_info *rtg_active_multi_frame_info(int id);
 struct frame_info *rtg_multi_frame_info(int id);
 void release_multi_frame_info(int id);
 void clear_multi_frame_info(void);
+void set_frame_prio(struct frame_info *frame_info, int prio);
+struct task_struct *update_frame_thread(struct frame_info *frame_info,
+					int old_prio, int prio, int pid,
+					struct task_struct *old_task);
+void update_frame_thread_info(struct frame_info *frame_info,
+			      struct frame_thread_info *frame_thread_info);
 #endif
