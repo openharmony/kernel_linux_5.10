@@ -22,4 +22,13 @@ config SCHED_RTG_CGROUP
 	  If set, support for adding the tasks which belong to
 	  co-located cgroup to DEFAULT_CGROUP_COLOC RTG.
 
+config SCHED_RTG_FRAME
+	bool "Frame-based Related Thread Group"
+	depends on SCHED_RTG
+	default n
+	help
+	 Support frame-based related thread group scheduling.
+	 If set, you can set the task to RTG and kernel will
+	 statistic the load per frame.
+
 endmenu

@@ -47,6 +47,7 @@ struct related_thread_group {
 	unsigned long freq_update_interval; /* in nanoseconds */
 	u64 last_util_update_time;
 	u64 last_freq_update_time;
+	void *private_data;
 };
 
 struct rtg_class {

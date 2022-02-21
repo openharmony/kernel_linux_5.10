@@ -1,0 +1,219 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Frame-based load tracking for rt_frame and RTG
+ *
+ * Copyright (c) 2022-2023 Huawei Technologies Co., Ltd.
+ */
+
+#include "frame_rtg.h"
+#include "rtg.h"
+
+#include <linux/sched.h>
+
+static struct multi_frame_id_manager g_id_manager = {
+	.id_map = {0},
+	.offset = 0,
+	.lock = __RW_LOCK_UNLOCKED(g_id_manager.lock)
+};
+
+static struct frame_info g_multi_frame_info[MULTI_FRAME_NUM];
+
+bool is_frame_rtg(int id)
+{
+	return (id >= MULTI_FRAME_ID) &&
+		(id < (MULTI_FRAME_ID + MULTI_FRAME_NUM));
+}
+
+static struct related_thread_group *frame_rtg(int id)
+{
+	if (!is_frame_rtg(id))
+		return NULL;
+
+	return lookup_related_thread_group(id);
+}
+
+struct frame_info *rtg_frame_info(int id)
+{
+	if (!is_frame_rtg(id))
+		return NULL;
+
+	return rtg_active_multi_frame_info(id);
+}
+
+static int alloc_rtg_id(void)
+{
+	unsigned int id_offset;
+	int id;
+
+	write_lock(&g_id_manager.lock);
+	id_offset = find_next_zero_bit(g_id_manager.id_map, MULTI_FRAME_NUM,
+				       g_id_manager.offset);
+	if (id_offset >= MULTI_FRAME_NUM) {
+		id_offset = find_first_zero_bit(g_id_manager.id_map,
+						MULTI_FRAME_NUM);
+		if (id_offset >= MULTI_FRAME_NUM) {
+			write_unlock(&g_id_manager.lock);
+			return -EINVAL;
+		}
+	}
+
+	set_bit(id_offset, g_id_manager.id_map);
+	g_id_manager.offset = id_offset;
+	id = id_offset + MULTI_FRAME_ID;
+	write_unlock(&g_id_manager.lock);
+	pr_debug("[FRAME_RTG] %s id_offset=%u, id=%d\n", __func__, id_offset, id);
+
+	return id;
+}
+
+static void free_rtg_id(int id)
+{
+	unsigned int id_offset = id - MULTI_FRAME_ID;
+
+	if (id_offset >= MULTI_FRAME_NUM) {
+		pr_err("[FRAME_RTG] %s id_offset is invalid, id=%d, id_offset=%u.\n",
+		       __func__, id, id_offset);
+		return;
+	}
+
+	pr_debug("[FRAME_RTG] %s id=%d id_offset=%u\n", __func__, id, id_offset);
+	write_lock(&g_id_manager.lock);
+	clear_bit(id_offset, g_id_manager.id_map);
+	write_unlock(&g_id_manager.lock);
+}
+
+int set_frame_rate(struct frame_info *frame_info, int rate)
+{
+	int id;
+
+	if ((rate < MIN_FRAME_RATE) || (rate > MAX_FRAME_RATE)) {
+		pr_err("[FRAME_RTG]: %s invalid QOS(rate) value\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	if (!frame_info || !frame_info->rtg)
+		return -EINVAL;
+
+	frame_info->frame_rate = (unsigned int)rate;
+	frame_info->frame_time = frame_info->frame_time = div_u64(NSEC_PER_SEC, rate);
+	id = frame_info->rtg->id;
+
+	return 0;
+}
+
+int alloc_multi_frame_info(void)
+{
+	struct frame_info *frame_info = NULL;
+	int id;
+
+	id = alloc_rtg_id();
+	if (id < 0)
+		return id;
+
+	frame_info = rtg_frame_info(id);
+	if (!frame_info) {
+		free_rtg_id(id);
+		return -EINVAL;
+	}
+
+	set_frame_rate(frame_info, DEFAULT_FRAME_RATE);
+
+	return id;
+}
+
+void release_multi_frame_info(int id)
+{
+	if ((id < MULTI_FRAME_ID) || (id >= MULTI_FRAME_ID + MULTI_FRAME_NUM)) {
+		pr_err("[FRAME_RTG] %s frame(id=%d) not found.\n", __func__, id);
+		return;
+	}
+
+	read_lock(&g_id_manager.lock);
+	if (!test_bit(id - MULTI_FRAME_ID, g_id_manager.id_map)) {
+		read_unlock(&g_id_manager.lock);
+		return;
+	}
+	read_unlock(&g_id_manager.lock);
+
+	pr_debug("[FRAME_RTG] %s release frame(id=%d).\n", __func__, id);
+	free_rtg_id(id);
+}
+
+void clear_multi_frame_info(void)
+{
+	write_lock(&g_id_manager.lock);
+	bitmap_zero(g_id_manager.id_map, MULTI_FRAME_NUM);
+	g_id_manager.offset = 0;
+	write_unlock(&g_id_manager.lock);
+}
+
+struct frame_info *rtg_active_multi_frame_info(int id)
+{
+	struct frame_info *frame_info = NULL;
+
+	if ((id < MULTI_FRAME_ID) || (id >= MULTI_FRAME_ID + MULTI_FRAME_NUM))
+		return NULL;
+
+	read_lock(&g_id_manager.lock);
+	if (test_bit(id - MULTI_FRAME_ID, g_id_manager.id_map))
+		frame_info = &g_multi_frame_info[id - MULTI_FRAME_ID];
+	read_unlock(&g_id_manager.lock);
+	if (!frame_info)
+		pr_debug("[FRAME_RTG] %s frame %d has been released\n",
+			 __func__, id);
+
+	return frame_info;
+}
+
+struct frame_info *rtg_multi_frame_info(int id)
+{
+	if ((id < MULTI_FRAME_ID) || (id >= MULTI_FRAME_ID + MULTI_FRAME_NUM))
+		return NULL;
+
+	return &g_multi_frame_info[id - MULTI_FRAME_ID];
+}
+
+static int _init_frame_info(struct frame_info *frame_info, int id)
+{
+	struct related_thread_group *grp = NULL;
+	unsigned long flags;
+
+	memset(frame_info, 0, sizeof(struct frame_info));
+	rwlock_init(&frame_info->lock);
+
+	write_lock(&frame_info->lock);
+	frame_info->frame_rate = DEFAULT_FRAME_RATE;
+	frame_info->frame_time = div_u64(NSEC_PER_SEC, frame_info->frame_rate);
+	frame_info->thread_num = 0;
+
+	grp = frame_rtg(id);
+	if (unlikely(!grp)) {
+		write_unlock(&frame_info->lock);
+		return -EINVAL;
+	}
+
+	raw_spin_lock_irqsave(&grp->lock, flags);
+	grp->private_data = frame_info;
+	raw_spin_unlock_irqrestore(&grp->lock, flags);
+
+	frame_info->rtg = grp;
+	write_unlock(&frame_info->lock);
+
+	return 0;
+}
+
+static int __init init_frame_info(void)
+{
+	int ret = 0;
+	int id;
+
+	for (id = MULTI_FRAME_ID; id < (MULTI_FRAME_ID + MULTI_FRAME_NUM); id++) {
+		if (ret != 0)
+			break;
+		ret = _init_frame_info(rtg_multi_frame_info(id), id);
+	}
+
+	return ret;
+}
+late_initcall(init_frame_info);
