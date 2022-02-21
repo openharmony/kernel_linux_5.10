@@ -42,6 +42,7 @@
 
 #define DEFAULT_MAX_RT_THREAD 2
 #define RTG_MAX_RT_THREAD_NUM CONFIG_NR_CPUS
+#define INVALID_PREFERRED_CLUSTER 10
 
 enum rtg_type {
 	VIP = 0,
@@ -83,4 +84,10 @@ static inline int read_rtg_rt_thread_num(void)
 	return 0;
 }
 #endif
+static inline
+struct group_ravg *frame_info_rtg_load(const struct frame_info *frame_info)
+{
+	return &frame_info_rtg(frame_info)->ravg;
+}
+void set_frame_sched_state(struct frame_info *frame_info, bool enable);
 #endif

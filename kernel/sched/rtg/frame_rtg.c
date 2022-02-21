@@ -183,8 +183,12 @@ int set_frame_rate(struct frame_info *frame_info, int rate)
 
 	frame_info->frame_rate = (unsigned int)rate;
 	frame_info->frame_time = frame_info->frame_time = div_u64(NSEC_PER_SEC, rate);
+	frame_info->max_vload_time =
+		frame_info->frame_time / NSEC_PER_MSEC +
+		frame_info->vload_margin;
 	id = frame_info->rtg->id;
 	trace_rtg_frame_sched(id, "FRAME_QOS", rate);
+	trace_rtg_frame_sched(id, "FRAME_MAX_TIME", frame_info->max_vload_time);
 
 	return 0;
 }
@@ -445,7 +449,8 @@ struct task_struct *update_frame_thread(struct frame_info *frame_info,
 	if (pid > 0) {
 		if (old_task && (pid == old_task->pid) && (old_prio == new_prio)) {
 			if (is_rt_task && atomic_read(&frame_info->curr_rt_thread_num) <
-			    atomic_read(&frame_info->max_rt_thread_num))
+			    atomic_read(&frame_info->max_rt_thread_num) &&
+			    (atomic_read(&frame_info->frame_sched_state) == 1))
 				atomic_inc(&frame_info->curr_rt_thread_num);
 			trace_rtg_frame_sched(frame_info->rtg->id, "curr_rt_thread_num",
 					      atomic_read(&frame_info->curr_rt_thread_num));
@@ -457,20 +462,24 @@ struct task_struct *update_frame_thread(struct frame_info *frame_info,
 			get_task_struct(task);
 		rcu_read_unlock();
 	}
-	if (task && is_rt_task) {
-		if (atomic_read(&frame_info->curr_rt_thread_num) <
-		    atomic_read(&frame_info->max_rt_thread_num))
-			atomic_inc(&frame_info->curr_rt_thread_num);
-		else
-			new_prio = NOT_RT_PRIO;
-	}
-	trace_rtg_frame_sched(frame_info->rtg->id, "curr_rt_thread_num",
-			      atomic_read(&frame_info->curr_rt_thread_num));
-	trace_rtg_frame_sched(frame_info->rtg->id, "rtg_rt_thread_num",
-			      read_rtg_rt_thread_num());
+	trace_rtg_frame_sched(frame_info->rtg->id, "FRAME_SCHED_ENABLE",
+			      atomic_read(&frame_info->frame_sched_state));
+	if (atomic_read(&frame_info->frame_sched_state) == 1) {
+		if (task && is_rt_task) {
+			if (atomic_read(&frame_info->curr_rt_thread_num) <
+			    atomic_read(&frame_info->max_rt_thread_num))
+				atomic_inc(&frame_info->curr_rt_thread_num);
+			else
+				new_prio = NOT_RT_PRIO;
+		}
+		trace_rtg_frame_sched(frame_info->rtg->id, "curr_rt_thread_num",
+				      atomic_read(&frame_info->curr_rt_thread_num));
+		trace_rtg_frame_sched(frame_info->rtg->id, "rtg_rt_thread_num",
+				      read_rtg_rt_thread_num());
 
-	set_frame_rtg_thread(frame_info->rtg->id, old_task, false, NOT_RT_PRIO);
-	update_ret = set_frame_rtg_thread(frame_info->rtg->id, task, true, new_prio);
+		set_frame_rtg_thread(frame_info->rtg->id, old_task, false, NOT_RT_PRIO);
+		update_ret = set_frame_rtg_thread(frame_info->rtg->id, task, true, new_prio);
+	}
 	if (old_task)
 		put_task_struct(old_task);
 	if (!update_ret)
@@ -514,6 +523,340 @@ void update_frame_thread_info(struct frame_info *frame_info,
 	write_unlock(&frame_info->lock);
 }
 
+static void do_set_frame_sched_state(struct frame_info *frame_info,
+				     struct task_struct *task,
+				     bool enable, int prio)
+{
+	int new_prio = prio;
+	bool is_rt_task = (prio != NOT_RT_PRIO);
+
+	if (enable && is_rt_task) {
+		if (atomic_read(&frame_info->curr_rt_thread_num) <
+		    atomic_read(&frame_info->max_rt_thread_num))
+			atomic_inc(&frame_info->curr_rt_thread_num);
+		else
+			new_prio = NOT_RT_PRIO;
+	}
+	trace_rtg_frame_sched(frame_info->rtg->id, "curr_rt_thread_num",
+			      atomic_read(&frame_info->curr_rt_thread_num));
+	trace_rtg_frame_sched(frame_info->rtg->id, "rtg_rt_thread_num",
+			      read_rtg_rt_thread_num());
+	set_frame_rtg_thread(frame_info->rtg->id, task, enable, new_prio);
+}
+
+void set_frame_sched_state(struct frame_info *frame_info, bool enable)
+{
+	atomic_t *frame_sched_state = NULL;
+	int prio;
+	int i;
+
+	if (!frame_info || !frame_info->rtg)
+		return;
+
+	frame_sched_state = &(frame_info->frame_sched_state);
+	if (enable) {
+		if (atomic_read(frame_sched_state) == 1)
+			return;
+		atomic_set(frame_sched_state, 1);
+		trace_rtg_frame_sched(frame_info->rtg->id, "FRAME_SCHED_ENABLE", 1);
+
+		frame_info->prev_fake_load_util = 0;
+		frame_info->prev_frame_load_util = 0;
+		frame_info->frame_vload = 0;
+		frame_info_rtg_load(frame_info)->curr_window_load = 0;
+	} else {
+		if (atomic_read(frame_sched_state) == 0)
+			return;
+		atomic_set(frame_sched_state, 0);
+		trace_rtg_frame_sched(frame_info->rtg->id, "FRAME_SCHED_ENABLE", 0);
+
+		(void)sched_set_group_normalized_util(frame_info->rtg->id,
+						      0, RTG_FREQ_NORMAL_UPDATE);
+		trace_rtg_frame_sched(frame_info->rtg->id, "preferred_cluster",
+			INVALID_PREFERRED_CLUSTER);
+		frame_info->status = FRAME_END;
+	}
+
+	/* reset curr_rt_thread_num */
+	atomic_set(&frame_info->curr_rt_thread_num, 0);
+	write_lock(&frame_info->lock);
+	prio = frame_info->prio;
+	for (i = 0; i < MAX_TID_NUM; i++) {
+		if (frame_info->thread[i])
+			do_set_frame_sched_state(frame_info, frame_info->thread[i],
+						 enable, prio);
+	}
+	write_unlock(&frame_info->lock);
+
+	trace_rtg_frame_sched(frame_info->rtg->id, "FRAME_STATUS",
+			      frame_info->status);
+	trace_rtg_frame_sched(frame_info->rtg->id, "frame_status",
+			      frame_info->status);
+}
+
+static inline bool check_frame_util_invalid(const struct frame_info *frame_info,
+	u64 timeline)
+{
+	return ((frame_info_rtg(frame_info)->util_invalid_interval <= timeline) &&
+		(frame_info_rtg_load(frame_info)->curr_window_exec * FRAME_UTIL_INVALID_FACTOR
+		 <= timeline));
+}
+
+static u64 calc_prev_fake_load_util(const struct frame_info *frame_info)
+{
+	u64 prev_frame_load = frame_info->prev_frame_load;
+	u64 prev_frame_time = max_t(unsigned long, frame_info->prev_frame_time,
+		frame_info->frame_time);
+	u64 frame_util = 0;
+
+	if (prev_frame_time > 0)
+		frame_util = div_u64((prev_frame_load << SCHED_CAPACITY_SHIFT),
+			prev_frame_time);
+	frame_util = clamp_t(unsigned long, frame_util,
+		frame_info->prev_min_util,
+		frame_info->prev_max_util);
+
+	return frame_util;
+}
+
+static u64 calc_prev_frame_load_util(const struct frame_info *frame_info)
+{
+	u64 prev_frame_load = frame_info->prev_frame_load;
+	u64 frame_time = frame_info->frame_time;
+	u64 frame_util = 0;
+
+	if (prev_frame_load >= frame_time)
+		frame_util = FRAME_MAX_LOAD;
+	else
+		frame_util = div_u64((prev_frame_load << SCHED_CAPACITY_SHIFT),
+			frame_info->frame_time);
+	frame_util = clamp_t(unsigned long, frame_util,
+		frame_info->prev_min_util,
+		frame_info->prev_max_util);
+
+	return frame_util;
+}
+
+/* last frame load tracking */
+static void update_frame_prev_load(struct frame_info *frame_info, bool fake)
+{
+	/* last frame load tracking */
+	frame_info->prev_frame_exec =
+		frame_info_rtg_load(frame_info)->prev_window_exec;
+	frame_info->prev_frame_time =
+		frame_info_rtg(frame_info)->prev_window_time;
+	frame_info->prev_frame_load =
+		frame_info_rtg_load(frame_info)->prev_window_load;
+
+	if (fake)
+		frame_info->prev_fake_load_util =
+			calc_prev_fake_load_util(frame_info);
+	else
+		frame_info->prev_frame_load_util =
+			calc_prev_frame_load_util(frame_info);
+}
+
+static void do_frame_end(struct frame_info *frame_info, bool fake)
+{
+	unsigned long prev_util;
+	int id = frame_info->rtg->id;
+
+	frame_info->status = FRAME_END;
+	trace_rtg_frame_sched(id, "frame_status", frame_info->status);
+
+	/* last frame load tracking */
+	update_frame_prev_load(frame_info, fake);
+
+	/* reset frame_info */
+	frame_info->frame_vload = 0;
+
+	/* reset frame_min_util */
+	frame_info->frame_min_util = 0;
+
+	if (fake)
+		prev_util = frame_info->prev_fake_load_util;
+	else
+		prev_util = frame_info->prev_frame_load_util;
+
+	frame_info->frame_util = clamp_t(unsigned long, prev_util,
+		frame_info->frame_min_util,
+		frame_info->frame_max_util);
+
+	trace_rtg_frame_sched(id, "frame_last_task_time",
+		frame_info->prev_frame_exec);
+	trace_rtg_frame_sched(id, "frame_last_time", frame_info->prev_frame_time);
+	trace_rtg_frame_sched(id, "frame_last_load", frame_info->prev_frame_load);
+	trace_rtg_frame_sched(id, "frame_last_load_util",
+		frame_info->prev_frame_load_util);
+	trace_rtg_frame_sched(id, "frame_util", frame_info->frame_util);
+	trace_rtg_frame_sched(id, "frame_vload", frame_info->frame_vload);
+}
+
+/*
+ * frame_load : calculate frame load using exec util
+ */
+static inline u64 calc_frame_exec(const struct frame_info *frame_info)
+{
+	if (frame_info->frame_time > 0)
+		return div_u64((frame_info_rtg_load(frame_info)->curr_window_exec <<
+			SCHED_CAPACITY_SHIFT), frame_info->frame_time);
+	else
+		return 0;
+}
+
+/*
+ * real_util:
+ * max(last_util, virtual_util, boost_util, phase_util, frame_min_util)
+ */
+static u64 calc_frame_util(const struct frame_info *frame_info, bool fake)
+{
+	unsigned long load_util;
+
+	if (fake)
+		load_util = frame_info->prev_fake_load_util;
+	else
+		load_util = frame_info->prev_frame_load_util;
+
+	load_util = max_t(unsigned long, load_util, frame_info->frame_vload);
+	load_util = clamp_t(unsigned long, load_util,
+		frame_info->frame_min_util,
+		frame_info->frame_max_util);
+
+	return load_util;
+}
+
+/*
+ * frame_vload [0~1024]
+ * vtime: now - timestamp
+ * max_time: frame_info->frame_time + vload_margin
+ * load = F(vtime)
+ *      = vtime ^ 2 - vtime * max_time + FRAME_MAX_VLOAD * vtime / max_time;
+ *      = vtime * (vtime + FRAME_MAX_VLOAD / max_time - max_time);
+ * [0, 0] -=> [max_time, FRAME_MAX_VLOAD]
+ *
+ */
+static u64 calc_frame_vload(const struct frame_info *frame_info, u64 timeline)
+{
+	u64 vload;
+	int vtime = div_u64(timeline, NSEC_PER_MSEC);
+	int max_time = frame_info->max_vload_time;
+	int factor;
+
+	if ((max_time <= 0) || (vtime > max_time))
+		return FRAME_MAX_VLOAD;
+
+	factor = vtime + FRAME_MAX_VLOAD / max_time;
+	/* margin maybe negative */
+	if ((vtime <= 0) || (factor <= max_time))
+		return 0;
+
+	vload = (u64)vtime * (u64)(factor - max_time);
+
+	return vload;
+}
+
+static int update_frame_info_tick_inner(int id, struct frame_info *frame_info,
+	u64 timeline)
+{
+	switch (frame_info->status) {
+	case FRAME_INVALID:
+	case FRAME_END:
+		if (timeline >= frame_info->frame_time) {
+			/*
+			 * fake FRAME_END here to rollover frame_window.
+			 */
+			sched_set_group_window_rollover(id);
+			do_frame_end(frame_info, true);
+		} else {
+			frame_info->frame_vload = calc_frame_exec(frame_info);
+			frame_info->frame_util =
+				calc_frame_util(frame_info, true);
+		}
+
+		/* when not in boost, start tick timer */
+		break;
+	case FRAME_START:
+		/* check frame_util invalid */
+		if (!check_frame_util_invalid(frame_info, timeline)) {
+			/* frame_vload statistic */
+			frame_info->frame_vload = calc_frame_vload(frame_info, timeline);
+			/* frame_util statistic */
+			frame_info->frame_util =
+				calc_frame_util(frame_info, false);
+		} else {
+			frame_info->status = FRAME_INVALID;
+			trace_rtg_frame_sched(id, "FRAME_STATUS",
+				frame_info->status);
+			trace_rtg_frame_sched(id, "frame_status",
+				frame_info->status);
+
+			/*
+			 * trigger FRAME_END to rollover frame_window,
+			 * we treat FRAME_INVALID as FRAME_END.
+			 */
+			sched_set_group_window_rollover(id);
+			do_frame_end(frame_info, false);
+		}
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static inline struct frame_info *rtg_frame_info_inner(
+	const struct related_thread_group *grp)
+{
+	return (struct frame_info *)grp->private_data;
+}
+
+/*
+ * update CPUFREQ and PLACEMENT when frame task running (in tick) and migration
+ */
+static void update_frame_info_tick(struct related_thread_group *grp)
+{
+	u64 window_start;
+	u64 wallclock;
+	u64 timeline;
+	struct frame_info *frame_info = NULL;
+	int id = grp->id;
+
+	rcu_read_lock();
+	frame_info = rtg_frame_info_inner(grp);
+	window_start = grp->window_start;
+	rcu_read_unlock();
+	if (unlikely(!frame_info))
+		return;
+
+	if (atomic_read(&frame_info->frame_sched_state) == 0)
+		return;
+	trace_rtg_frame_sched(id, "frame_status", frame_info->status);
+
+	wallclock = ktime_get_ns();
+	timeline = wallclock - window_start;
+
+	trace_rtg_frame_sched(id, "update_curr_pid", current->pid);
+	trace_rtg_frame_sched(id, "frame_timeline", div_u64(timeline, NSEC_PER_MSEC));
+
+	if (update_frame_info_tick_inner(grp->id, frame_info, timeline) == -EINVAL)
+		return;
+
+	trace_rtg_frame_sched(id, "frame_vload", frame_info->frame_vload);
+	trace_rtg_frame_sched(id, "frame_util", frame_info->frame_util);
+
+	sched_set_group_normalized_util(grp->id,
+		frame_info->frame_util, RTG_FREQ_NORMAL_UPDATE);
+
+	if (grp->preferred_cluster)
+		trace_rtg_frame_sched(id, "preferred_cluster",
+			grp->preferred_cluster->id);
+}
+
+const struct rtg_class frame_rtg_class = {
+	.sched_update_rtg_tick = update_frame_info_tick,
+};
+
 static int _init_frame_info(struct frame_info *frame_info, int id)
 {
 	struct related_thread_group *grp = NULL;
@@ -528,6 +871,18 @@ static int _init_frame_info(struct frame_info *frame_info, int id)
 	frame_info->thread_num = 0;
 	frame_info->prio = NOT_RT_PRIO;
 	atomic_set(&(frame_info->curr_rt_thread_num), 0);
+	atomic_set(&(frame_info->frame_sched_state), 0);
+	frame_info->vload_margin = DEFAULT_VLOAD_MARGIN;
+	frame_info->max_vload_time =
+		div_u64(frame_info->frame_time, NSEC_PER_MSEC) +
+		frame_info->vload_margin;
+	frame_info->frame_min_util = FRAME_DEFAULT_MIN_UTIL;
+	frame_info->frame_max_util = FRAME_DEFAULT_MAX_UTIL;
+	frame_info->prev_min_util = FRAME_DEFAULT_MIN_PREV_UTIL;
+	frame_info->prev_max_util = FRAME_DEFAULT_MAX_PREV_UTIL;
+	frame_info->margin_imme = false;
+	frame_info->timestamp_skipped = false;
+	frame_info->status = FRAME_END;
 
 	grp = frame_rtg(id);
 	if (unlikely(!grp)) {
@@ -537,6 +892,7 @@ static int _init_frame_info(struct frame_info *frame_info, int id)
 
 	raw_spin_lock_irqsave(&grp->lock, flags);
 	grp->private_data = frame_info;
+	grp->rtg_class = &frame_rtg_class;
 	raw_spin_unlock_irqrestore(&grp->lock, flags);
 
 	frame_info->rtg = grp;
