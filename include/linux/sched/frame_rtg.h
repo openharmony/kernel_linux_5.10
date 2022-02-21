@@ -20,6 +20,8 @@ struct frame_info {
 	int thread_num;
 	unsigned int frame_rate; // frame rate
 	u64 frame_time;
+	atomic_t curr_rt_thread_num;
+	atomic_t max_rt_thread_num;
 };
 
 struct frame_info *rtg_frame_info(int id);

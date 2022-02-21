@@ -40,6 +40,9 @@
 #define FRAME_DEFAULT_MIN_PREV_UTIL 0
 #define FRAME_DEFAULT_MAX_PREV_UTIL SCHED_CAPACITY_SCALE
 
+#define DEFAULT_MAX_RT_THREAD 2
+#define RTG_MAX_RT_THREAD_NUM CONFIG_NR_CPUS
+
 enum rtg_type {
 	VIP = 0,
 	TOP_TASK_KEY,
@@ -72,4 +75,12 @@ struct task_struct *update_frame_thread(struct frame_info *frame_info,
 					struct task_struct *old_task);
 void update_frame_thread_info(struct frame_info *frame_info,
 			      struct frame_thread_info *frame_thread_info);
+#ifdef CONFIG_SCHED_RTG_RT_THREAD_LIMIT
+int read_rtg_rt_thread_num(void);
+#else
+static inline int read_rtg_rt_thread_num(void)
+{
+	return 0;
+}
+#endif
 #endif

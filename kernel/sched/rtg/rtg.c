@@ -14,6 +14,10 @@
 #include "rtg.h"
 #include "../walt.h"
 
+#ifdef CONFIG_SCHED_RTG_FRAME
+#include "frame_rtg.h"
+#endif
+
 #define ADD_TASK	0
 #define REM_TASK	1
 
@@ -1125,6 +1129,10 @@ static void print_rtg_info(struct seq_file *file,
 		grp->util_invalid_interval / NSEC_PER_MSEC);
 	seq_printf_rtg(file, "RTG_CLUSTER     : %d\n",
 		grp->preferred_cluster ? grp->preferred_cluster->id : -1);
+#ifdef CONFIG_SCHED_RTG_RT_THREAD_LIMIT
+	seq_printf_rtg(file, "RTG_RT_THREAD_NUM   : %d/%d\n",
+		read_rtg_rt_thread_num(), RTG_MAX_RT_THREAD_NUM);
+#endif
 }
 
 static char rtg_task_state_to_char(const struct task_struct *tsk)

@@ -31,4 +31,10 @@ config SCHED_RTG_FRAME
 	 If set, you can set the task to RTG and kernel will
 	 statistic the load per frame.
 
+config SCHED_RTG_RT_THREAD_LIMIT
+	bool "Limit the number of RT threads in groups"
+	depends on SCHED_RTG_FRAME
+	default n
+	help
+	  If set, limit the number of RT threads in frame RTG.
 endmenu

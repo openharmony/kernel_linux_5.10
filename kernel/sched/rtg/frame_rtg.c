@@ -21,6 +21,89 @@ static struct multi_frame_id_manager g_id_manager = {
 
 static struct frame_info g_multi_frame_info[MULTI_FRAME_NUM];
 
+static bool is_rtg_rt_task(struct task_struct *task)
+{
+	bool ret = false;
+
+	if (!task)
+		return ret;
+
+	ret = ((task->prio < MAX_RT_PRIO) &&
+	       (task->rtg_depth == STATIC_RTG_DEPTH));
+
+	return ret;
+}
+
+#ifdef CONFIG_SCHED_RTG_RT_THREAD_LIMIT
+static atomic_t g_rtg_rt_thread_num = ATOMIC_INIT(0);
+
+static unsigned int _get_rtg_rt_thread_num(struct related_thread_group *grp)
+{
+	unsigned int rtg_rt_thread_num = 0;
+	struct task_struct *p = NULL;
+
+	if (list_empty(&grp->tasks))
+		goto out;
+
+	list_for_each_entry(p, &grp->tasks, grp_list) {
+		if (is_rtg_rt_task(p))
+			++rtg_rt_thread_num;
+	}
+
+out:
+	return rtg_rt_thread_num;
+}
+
+static unsigned int get_rtg_rt_thread_num(void)
+{
+	struct related_thread_group *grp = NULL;
+	unsigned int total_rtg_rt_thread_num = 0;
+	unsigned long flag;
+	unsigned int i;
+
+	for (i = MULTI_FRAME_ID; i < MULTI_FRAME_ID + MULTI_FRAME_NUM; i++) {
+		grp = lookup_related_thread_group(i);
+		if (grp == NULL)
+			continue;
+		raw_spin_lock_irqsave(&grp->lock, flag);
+		total_rtg_rt_thread_num += _get_rtg_rt_thread_num(grp);
+		raw_spin_unlock_irqrestore(&grp->lock, flag);
+	}
+
+	return total_rtg_rt_thread_num;
+}
+
+static void inc_rtg_rt_thread_num(void)
+{
+	atomic_inc(&g_rtg_rt_thread_num);
+}
+
+static void dec_rtg_rt_thread_num(void)
+{
+	atomic_dec_if_positive(&g_rtg_rt_thread_num);
+}
+
+static int test_and_read_rtg_rt_thread_num(void)
+{
+	if (atomic_read(&g_rtg_rt_thread_num) >= RTG_MAX_RT_THREAD_NUM)
+		atomic_set(&g_rtg_rt_thread_num, get_rtg_rt_thread_num());
+
+	return atomic_read(&g_rtg_rt_thread_num);
+}
+
+int read_rtg_rt_thread_num(void)
+{
+	return atomic_read(&g_rtg_rt_thread_num);
+}
+#else
+static inline void inc_rtg_rt_thread_num(void) { }
+static inline void dec_rtg_rt_thread_num(void) { }
+static inline int test_and_read_rtg_rt_thread_num(void)
+{
+	return 0;
+}
+#endif
+
 bool is_frame_rtg(int id)
 {
 	return (id >= MULTI_FRAME_ID) &&
@@ -122,6 +205,8 @@ int alloc_multi_frame_info(void)
 	}
 
 	set_frame_rate(frame_info, DEFAULT_FRAME_RATE);
+	atomic_set(&frame_info->curr_rt_thread_num, 0);
+	atomic_set(&frame_info->max_rt_thread_num, DEFAULT_MAX_RT_THREAD);
 
 	return id;
 }
@@ -183,16 +268,52 @@ static void do_update_frame_task_prio(struct frame_info *frame_info,
 {
 	int policy = SCHED_NORMAL;
 	struct sched_param sp = {0};
+	bool is_rt_task = (prio != NOT_RT_PRIO);
+	bool need_dec_flag = false;
+	bool need_inc_flag = false;
+	int err;
 
-	policy = SCHED_FIFO | SCHED_RESET_ON_FORK;
-	sp.sched_priority = MAX_USER_RT_PRIO - 1 - prio;
-	sched_setscheduler_nocheck(task, policy, &sp);
+	trace_rtg_frame_sched(frame_info->rtg->id, "rtg_rt_thread_num",
+			      read_rtg_rt_thread_num());
+	/* change policy to RT */
+	if (is_rt_task && (atomic_read(&frame_info->curr_rt_thread_num) <
+			   atomic_read(&frame_info->max_rt_thread_num))) {
+		/* change policy from CFS to RT */
+		if (!is_rtg_rt_task(task)) {
+			if (test_and_read_rtg_rt_thread_num() >= RTG_MAX_RT_THREAD_NUM)
+				goto out;
+			need_inc_flag = true;
+		}
+		/* change RT priority */
+		policy = SCHED_FIFO | SCHED_RESET_ON_FORK;
+		sp.sched_priority = MAX_USER_RT_PRIO - 1 - prio;
+		atomic_inc(&frame_info->curr_rt_thread_num);
+	} else {
+		/* change policy from RT to CFS */
+		if (!is_rt_task && is_rtg_rt_task(task))
+			need_dec_flag = true;
+	}
+out:
+	trace_rtg_frame_sched(frame_info->rtg->id, "rtg_rt_thread_num",
+			      read_rtg_rt_thread_num());
+	trace_rtg_frame_sched(frame_info->rtg->id, "curr_rt_thread_num",
+			      atomic_read(&frame_info->curr_rt_thread_num));
+	err = sched_setscheduler_nocheck(task, policy, &sp);
+	if (err == 0) {
+		if (need_dec_flag)
+			dec_rtg_rt_thread_num();
+		else if (need_inc_flag)
+			inc_rtg_rt_thread_num();
+	}
 }
 
 static void update_frame_task_prio(struct frame_info *frame_info, int prio)
 {
 	int i;
 	struct task_struct *thread = NULL;
+
+	/* reset curr_rt_thread_num */
+	atomic_set(&frame_info->curr_rt_thread_num, 0);
 
 	for (i = 0; i < MAX_TID_NUM; i++) {
 		thread = frame_info->thread[i];
@@ -227,9 +348,13 @@ static int do_set_rtg_sched(struct task_struct *task, bool is_rtg,
 
 	if (is_rtg) {
 		if (is_rt_task) {
+			if (test_and_read_rtg_rt_thread_num() >= RTG_MAX_RT_THREAD_NUM)
+				// rtg_rt_thread_num is inavailable, set policy to CFS
+				goto skip_setpolicy;
 			policy = SCHED_FIFO | SCHED_RESET_ON_FORK;
 			sp.sched_priority = MAX_USER_RT_PRIO - 1 - prio;
 		}
+skip_setpolicy:
 		grpid = grp_id;
 	}
 	err = sched_setscheduler_nocheck(task, policy, &sp);
@@ -246,6 +371,14 @@ static int do_set_rtg_sched(struct task_struct *task, bool is_rtg,
 			policy = SCHED_NORMAL;
 			sp.sched_priority = 0;
 			sched_setscheduler_nocheck(task, policy, &sp);
+		}
+	}
+	if (err == 0) {
+		if (is_rtg) {
+			if (policy != SCHED_NORMAL)
+				inc_rtg_rt_thread_num();
+		} else {
+			dec_rtg_rt_thread_num();
 		}
 	}
 
@@ -305,18 +438,37 @@ struct task_struct *update_frame_thread(struct frame_info *frame_info,
 					struct task_struct *old_task)
 {
 	struct task_struct *task = NULL;
+	bool is_rt_task = (prio != NOT_RT_PRIO);
 	int new_prio = prio;
 	bool update_ret = false;
 
 	if (pid > 0) {
-		if (old_task && (pid == old_task->pid) && (old_prio == new_prio))
+		if (old_task && (pid == old_task->pid) && (old_prio == new_prio)) {
+			if (is_rt_task && atomic_read(&frame_info->curr_rt_thread_num) <
+			    atomic_read(&frame_info->max_rt_thread_num))
+				atomic_inc(&frame_info->curr_rt_thread_num);
+			trace_rtg_frame_sched(frame_info->rtg->id, "curr_rt_thread_num",
+					      atomic_read(&frame_info->curr_rt_thread_num));
 			return old_task;
+		}
 		rcu_read_lock();
 		task = find_task_by_vpid(pid);
 		if (task)
 			get_task_struct(task);
 		rcu_read_unlock();
 	}
+	if (task && is_rt_task) {
+		if (atomic_read(&frame_info->curr_rt_thread_num) <
+		    atomic_read(&frame_info->max_rt_thread_num))
+			atomic_inc(&frame_info->curr_rt_thread_num);
+		else
+			new_prio = NOT_RT_PRIO;
+	}
+	trace_rtg_frame_sched(frame_info->rtg->id, "curr_rt_thread_num",
+			      atomic_read(&frame_info->curr_rt_thread_num));
+	trace_rtg_frame_sched(frame_info->rtg->id, "rtg_rt_thread_num",
+			      read_rtg_rt_thread_num());
+
 	set_frame_rtg_thread(frame_info->rtg->id, old_task, false, NOT_RT_PRIO);
 	update_ret = set_frame_rtg_thread(frame_info->rtg->id, task, true, new_prio);
 	if (old_task)
@@ -345,6 +497,8 @@ void update_frame_thread_info(struct frame_info *frame_info,
 	if (thread_num > MAX_TID_NUM)
 		thread_num = MAX_TID_NUM;
 
+	// reset curr_rt_thread_num
+	atomic_set(&frame_info->curr_rt_thread_num, 0);
 	write_lock(&frame_info->lock);
 	old_prio = frame_info->prio;
 	real_thread = 0;
@@ -373,6 +527,7 @@ static int _init_frame_info(struct frame_info *frame_info, int id)
 	frame_info->frame_time = div_u64(NSEC_PER_SEC, frame_info->frame_rate);
 	frame_info->thread_num = 0;
 	frame_info->prio = NOT_RT_PRIO;
+	atomic_set(&(frame_info->curr_rt_thread_num), 0);
 
 	grp = frame_rtg(id);
 	if (unlikely(!grp)) {
