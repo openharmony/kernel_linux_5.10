@@ -9,6 +9,7 @@
 #include "rtg.h"
 
 #include <linux/sched.h>
+#include <trace/events/rtg.h>
 
 static struct multi_frame_id_manager g_id_manager = {
 	.id_map = {0},
@@ -98,6 +99,7 @@ int set_frame_rate(struct frame_info *frame_info, int rate)
 	frame_info->frame_rate = (unsigned int)rate;
 	frame_info->frame_time = frame_info->frame_time = div_u64(NSEC_PER_SEC, rate);
 	id = frame_info->rtg->id;
+	trace_rtg_frame_sched(id, "FRAME_QOS", rate);
 
 	return 0;
 }

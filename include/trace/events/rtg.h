@@ -7,6 +7,7 @@
 
 #include <linux/trace_seq.h>
 #include <linux/tracepoint.h>
+#include <linux/sched/frame_rtg.h>
 
 struct rq;
 
@@ -111,6 +112,33 @@ TRACE_EVENT(sched_rtg_valid_normalized_util,
 		__entry->id, __entry->nr_running,
 		__get_bitmask(cpus), __entry->valid)
 );
+
+#ifdef CONFIG_SCHED_RTG_FRAME
+TRACE_EVENT(rtg_frame_sched,
+
+	TP_PROTO(int rtgid, const char *s, s64 value),
+
+	TP_ARGS(rtgid, s, value),
+	TP_STRUCT__entry(
+		__field(int, rtgid)
+		__field(struct frame_info *, frame)
+		__field(pid_t, pid)
+		__string(str, s)
+		__field(s64, value)
+	),
+
+	TP_fast_assign(
+		__assign_str(str, s);
+		__entry->rtgid = rtgid != -1 ? rtgid : (current->grp ? current->grp->id : 0);
+		__entry->frame = rtg_frame_info(rtgid);
+		__entry->pid = __entry->frame ? ((__entry->frame->thread[0]) ?
+						 ((__entry->frame->thread[0])->pid) :
+						 current->tgid) : current->tgid;
+		__entry->value = value;
+	),
+	TP_printk("C|%d|%s_%d|%lld", __entry->pid, __get_str(str), __entry->rtgid, __entry->value)
+);
+#endif
 #endif /* _TRACE_RTG_H */
 
 /* This part must be outside protection */
