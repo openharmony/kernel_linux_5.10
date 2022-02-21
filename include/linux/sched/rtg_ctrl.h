@@ -20,6 +20,10 @@
 	_IOWR(RTG_SCHED_IPC_MAGIC, SET_ENABLE, struct rtg_enable_data)
 #define CMD_ID_SET_RTG \
 	_IOWR(RTG_SCHED_IPC_MAGIC, SET_RTG, struct rtg_str_data)
+#define CMD_ID_SET_CONFIG \
+	_IOWR(RTG_SCHED_IPC_MAGIC, SET_CONFIG, struct rtg_str_data)
+#define CMD_ID_SET_RTG_ATTR \
+	_IOWR(RTG_SCHED_IPC_MAGIC, SET_RTG_ATTR, struct rtg_str_data)
 
 enum ioctl_abi_format {
 	IOCTL_ABI_ARM32,
@@ -29,6 +33,8 @@ enum ioctl_abi_format {
 enum rtg_sched_cmdid {
 	SET_ENABLE = 1,
 	SET_RTG,
+	SET_CONFIG,
+	SET_RTG_ATTR,
 	RTG_CTRL_MAX_NR,
 };
 
@@ -43,6 +49,12 @@ enum grp_ctrl_cmd {
 
 struct rtg_enable_data {
 	int enable;
+	int len;
+	char *data;
+};
+
+struct rtg_str_data {
+	int type;
 	int len;
 	char *data;
 };

@@ -23,11 +23,15 @@ typedef long (*rtg_ctrl_func)(int abi, void __user *arg);
 
 static long ctrl_set_enable(int abi, void __user *uarg);
 static long ctrl_set_rtg(int abi, void __user *uarg);
+static long ctrl_set_config(int abi, void __user *uarg);
+static long ctrl_set_rtg_attr(int abi, void __user *uarg);
 
 static rtg_ctrl_func g_func_array[RTG_CTRL_MAX_NR] = {
 	NULL, /* reserved */
 	ctrl_set_enable,  // 1
 	ctrl_set_rtg,
+	ctrl_set_config,
+	ctrl_set_rtg_attr,
 };
 
 static int init_proc_state(const int *config, int len);
@@ -88,6 +92,8 @@ static void rtg_enable(int abi, const struct rtg_enable_data *data)
 		return;
 	}
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
 	switch (abi) {
 	case IOCTL_ABI_ARM32:
 		ret = copy_from_user(&temp,
@@ -104,6 +110,7 @@ static void rtg_enable(int abi, const struct rtg_enable_data *data)
 		pr_err("[SCHED_RTG] %s copy user data failed\n", __func__);
 		return;
 	}
+#pragma GCC diagnostic pop
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
@@ -208,6 +215,212 @@ static long ctrl_set_enable(int abi, void __user *uarg)
 		rtg_disable();
 
 	return SUCC;
+}
+
+static int parse_config(const struct rtg_str_data *rs_data)
+{
+	int len;
+	char *p = NULL;
+	char *tmp = NULL;
+	char *data = NULL;
+	int value;
+
+	if (rs_data == NULL)
+		return -INVALID_ARG;
+	data = rs_data->data;
+	len = rs_data->len;
+	if ((data == NULL) || (strlen(data) != len)) //lint !e737
+		return -INVALID_ARG;
+	/*
+	 *     eg: rtframe:4;
+	 */
+	for (p = strsep(&data, ";"); p != NULL; p = strsep(&data, ";")) {
+		tmp = strsep(&p, ":");
+		if ((tmp == NULL) || (p == NULL))
+			continue;
+		if (kstrtoint((const char *)p, DECIMAL, &value))
+			return -INVALID_ARG;
+		if (!strcmp(tmp, "rtframe")) {
+			if (value > 0 && value <= MULTI_FRAME_NUM) {
+				g_max_rt_frames = value;
+			} else {
+				pr_err("[SCHED_RTG]%s invalid max_rt_frame:%d, MULTI_FRAME_NUM=%d\n",
+				       __func__, value, MULTI_FRAME_NUM);
+				return -INVALID_ARG;
+			}
+		}
+	}
+
+	return SUCC;
+}
+
+static long ctrl_set_config(int abi, void __user *uarg)
+{
+	struct rtg_str_data rs;
+	char temp[MAX_DATA_LEN];
+	long ret = SUCC;
+
+	if (uarg == NULL)
+		return -INVALID_ARG;
+
+	if (copy_from_user(&rs, uarg, sizeof(rs))) {
+		pr_err("[SCHED_RTG] CMD_ID_SET_CONFIG copy data failed\n");
+		return -INVALID_ARG;
+	}
+	if ((rs.len <= 0) || (rs.len >= MAX_DATA_LEN)) {
+		pr_err("[SCHED_RTG] CMD_ID_SET_CONFIG data len invalid\n");
+		return -INVALID_ARG;
+	}
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
+	switch (abi) {
+	case IOCTL_ABI_ARM32:
+		ret = copy_from_user(&temp,
+			(void __user *)compat_ptr((compat_uptr_t)rs.data), rs.len);
+		break;
+	case IOCTL_ABI_AARCH64:
+		ret = copy_from_user(&temp, (void __user *)rs.data, rs.len);
+		break;
+	default:
+		pr_err("[SCHED_RTG] abi format error\n");
+		return -INVALID_ARG;
+	}
+	if (ret) {
+		pr_err("[SCHED_RTG] CMD_ID_SET_CONFIG copy rs.data failed\n");
+		return -INVALID_ARG;
+	}
+#pragma GCC diagnostic pop
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
+	temp[rs.len] = '\0';
+	rs.data = &temp;
+#pragma GCC diagnostic pop
+
+	return parse_config(&rs);
+}
+
+static inline bool is_valid_type(int type)
+{
+	return (type >= VIP && type < RTG_TYPE_MAX);
+}
+
+static int parse_rtg_attr(const struct rtg_str_data *rs_data)
+{
+	char *p = NULL;
+	char *tmp = NULL;
+	char *data = NULL;
+	int value;
+	struct frame_info *frame_info = NULL;
+	int rate = -1;
+	int type = -1;
+
+	if (rs_data == NULL) {
+		pr_err("[SCHED_RTG] rtg attr: rs_data is null!\n");
+		return -INVALID_ARG;
+	}
+
+	data = rs_data->data;
+	if ((data == NULL) || (rs_data->len <= 0) ||
+		(rs_data->len > MAX_DATA_LEN)) {
+		pr_err("[SCHED_RTG] rtg attr: rs_data len err!\n");
+		return -INVALID_ARG;
+	}
+
+	// eg: rtgId:xx;rate:xx;type:xx;
+	for (p = strsep(&data, ";"); p != NULL; p = strsep(&data, ";")) {
+		tmp = strsep(&p, ":");
+		if ((tmp == NULL) || (p == NULL))
+			continue;
+		if (kstrtoint((const char *)p, DECIMAL, &value)) {
+			pr_err("[SCHED_RTG] rtg attr: rs_data format err!\n");
+			return -INVALID_ARG;
+		}
+		if (!strcmp(tmp, "rtgId")) {
+			frame_info = rtg_frame_info(value);
+		} else if (!strcmp(tmp, "rate")) {
+			rate = value;
+		} else if (!strcmp(tmp, "type")) {
+			if (is_valid_type(value)) {
+				type = value;
+			} else {
+				pr_err("[SCHED_RTG] invalid type : %d\n", value);
+				return -INVALID_ARG;
+			}
+		} else {
+			pr_err("[SCHED_RTG] parse rtg attr failed!\n");
+			return -INVALID_ARG;
+		}
+	}
+
+	if (!frame_info) {
+		pr_err("[SCHED_RTG] rtg attr: invalid args!\n");
+		return -INVALID_ARG;
+	}
+
+	if (rate > 0)
+		set_frame_rate(frame_info, rate);
+
+	if (is_valid_type(type)) {
+		if (update_rt_frame_num(frame_info, type, UPDATE_RTG_FRAME)) {
+			pr_err("[SCHED_RTG] set rtg attr failed!\n");
+			return -INVALID_ARG;
+		}
+
+		set_frame_prio(frame_info, (type == NORMAL_TASK ?
+			       NOT_RT_PRIO : (type + DEFAULT_RT_PRIO)));
+	}
+
+	return SUCC;
+}
+
+static long ctrl_set_rtg_attr(int abi, void __user *uarg)
+{
+	struct rtg_str_data rs;
+	char temp[MAX_DATA_LEN];
+	int ret;
+
+	if (uarg == NULL)
+		return -INVALID_ARG;
+
+	if (copy_from_user(&rs, uarg, sizeof(rs))) {
+		pr_err("[SCHED_RTG] CMD_ID_SET_RTG_ATTR copy data failed\n");
+		return -INVALID_ARG;
+	}
+	if ((rs.len <= 0) || (rs.len >= MAX_DATA_LEN)) {
+		pr_err("[SCHED_RTG] CMD_ID_SET_RTG_ATTR data len invalid\n");
+		return -INVALID_ARG;
+	}
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
+	switch (abi) {
+	case IOCTL_ABI_ARM32:
+		ret = copy_from_user(&temp,
+			(void __user *)compat_ptr((compat_uptr_t)rs.data), rs.len);
+		break;
+	case IOCTL_ABI_AARCH64:
+		ret = copy_from_user(&temp, (void __user *)rs.data, rs.len);
+		break;
+	default:
+		pr_err("[SCHED_RTG] abi format error\n");
+		return -INVALID_ARG;
+	}
+#pragma GCC diagnostic pop
+
+	if (ret) {
+		pr_err("[SCHED_RTG] CMD_ID_SET_RTG_ATTR copy rs.data failed with ret %d\n", ret);
+		return -INVALID_ARG;
+	}
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
+	temp[rs.len] = '\0';
+	rs.data = &temp;
+#pragma GCC diagnostic pop
+
+	return parse_rtg_attr(&rs);
 }
 
 static void clear_rtg_frame_thread(struct frame_info *frame_info, bool reset)
