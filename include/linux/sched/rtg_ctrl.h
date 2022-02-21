@@ -31,6 +31,9 @@
 #define CMD_ID_END_SCENE \
 	_IOWR(RTG_SCHED_IPC_MAGIC, END_SCENE, struct proc_state_data)
 #define CMD_ID_SET_MIN_UTIL \
+	_IOWR(RTG_SCHED_IPC_MAGIC, SET_MIN_UTIL, struct proc_state_data)
+#define CMD_ID_SET_MARGIN \
+	_IOWR(RTG_SCHED_IPC_MAGIC, SET_MARGIN, struct proc_state_data)
 
 enum ioctl_abi_format {
 	IOCTL_ABI_ARM32,
@@ -45,6 +48,8 @@ enum rtg_sched_cmdid {
 	BEGIN_FRAME_FREQ = 5,
 	END_FRAME_FREQ,
 	END_SCENE,
+	SET_MIN_UTIL,
+	SET_MARGIN,
 	RTG_CTRL_MAX_NR,
 };
 

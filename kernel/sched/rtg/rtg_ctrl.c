@@ -28,6 +28,8 @@ static long ctrl_set_rtg_attr(int abi, void __user *uarg);
 static long ctrl_begin_frame(int abi, void __user *uarg);
 static long ctrl_end_frame(int abi, void __user *uarg);
 static long ctrl_end_scene(int abi, void __user *uarg);
+static long ctrl_set_min_util(int abi, void __user *uarg);
+static long ctrl_set_margin(int abi, void __user *uarg);
 
 static rtg_ctrl_func g_func_array[RTG_CTRL_MAX_NR] = {
 	NULL, /* reserved */
@@ -38,6 +40,8 @@ static rtg_ctrl_func g_func_array[RTG_CTRL_MAX_NR] = {
 	ctrl_begin_frame,  // 5
 	ctrl_end_frame,
 	ctrl_end_scene,
+	ctrl_set_min_util,
+	ctrl_set_margin,
 };
 
 static int init_proc_state(const int *config, int len);
@@ -535,6 +539,62 @@ static long ctrl_end_scene(int abi, void __user *uarg)
 	}
 
 	return stop_frame_freq(rtg_id);
+}
+
+static int set_min_util(int gid, int min_util)
+{
+	struct frame_info *frame_info = NULL;
+
+	frame_info = lookup_frame_info_by_grp_id(gid);
+	if (!frame_info)
+		return -FRAME_ERR_PID;
+
+	set_frame_min_util(frame_info, min_util, false);
+
+	return SUCC;
+}
+
+static long ctrl_set_min_util(int abi, void __user *uarg)
+{
+	struct proc_state_data state_data;
+
+	if (uarg == NULL)
+		return -INVALID_ARG;
+
+	if (copy_from_user(&state_data, uarg, sizeof(state_data))) {
+		pr_err("[SCHED_RTG] CMD_ID_SET_MIN_UTIL copy data failed\n");
+		return -INVALID_ARG;
+	}
+
+	return set_min_util(state_data.grp_id, state_data.state_param);
+}
+
+static int set_margin(int grp_id, int margin)
+{
+	struct frame_info *frame_info = NULL;
+
+	frame_info = lookup_frame_info_by_grp_id(grp_id);
+	if (!frame_info)
+		return -FRAME_ERR_PID;
+
+	set_frame_margin(frame_info, margin);
+
+	return SUCC;
+}
+
+static long ctrl_set_margin(int abi, void __user *uarg)
+{
+	struct proc_state_data state_data;
+
+	if (uarg == NULL)
+		return -INVALID_ARG;
+
+	if (copy_from_user(&state_data, uarg, sizeof(state_data))) {
+		pr_err("[SCHED_RTG] CMD_ID_SET_MARGIN copy data failed\n");
+		return -INVALID_ARG;
+	}
+
+	return set_margin(state_data.grp_id, state_data.state_param);
 }
 
 static void clear_rtg_frame_thread(struct frame_info *frame_info, bool reset)
