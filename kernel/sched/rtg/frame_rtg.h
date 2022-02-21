@@ -69,6 +69,11 @@ struct multi_frame_id_manager {
 	rwlock_t lock;
 };
 
+struct rtg_info {
+	int rtg_num;
+	int rtgs[MULTI_FRAME_NUM];
+};
+
 bool is_frame_rtg(int id);
 int set_frame_rate(struct frame_info *frame_info, int rate);
 int alloc_multi_frame_info(void);
@@ -101,4 +106,6 @@ int set_frame_timestamp(struct frame_info *frame_info, unsigned long timestamp);
 int set_frame_max_util(struct frame_info *frame_info, int max_util);
 int set_frame_min_util(struct frame_info *frame_info, int min_util, bool is_boost);
 struct frame_info *lookup_frame_info_by_grp_id(int grp_id);
+int list_rtg_group(struct rtg_info *rs_data);
+int search_rtg(int pid);
 #endif

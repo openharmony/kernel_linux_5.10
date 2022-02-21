@@ -30,6 +30,10 @@ static long ctrl_end_frame(int abi, void __user *uarg);
 static long ctrl_end_scene(int abi, void __user *uarg);
 static long ctrl_set_min_util(int abi, void __user *uarg);
 static long ctrl_set_margin(int abi, void __user *uarg);
+static long ctrl_list_rtg(int abi, void __user *uarg);
+static long ctrl_list_rtg_thread(int abi, void __user *uarg);
+static long ctrl_search_rtg(int abi, void __user *uarg);
+static long ctrl_get_enable(int abi, void __user *uarg);
 
 static rtg_ctrl_func g_func_array[RTG_CTRL_MAX_NR] = {
 	NULL, /* reserved */
@@ -42,10 +46,19 @@ static rtg_ctrl_func g_func_array[RTG_CTRL_MAX_NR] = {
 	ctrl_end_scene,
 	ctrl_set_min_util,
 	ctrl_set_margin,
+	ctrl_list_rtg,  // 10
+	ctrl_list_rtg_thread,
+	ctrl_search_rtg,
+	ctrl_get_enable
 };
 
 static int init_proc_state(const int *config, int len);
 static void deinit_proc_state(void);
+
+int get_enable_type(void)
+{
+	return atomic_read(&g_enable_type);
+}
 
 static int set_enable_config(char *config_str)
 {
@@ -225,6 +238,11 @@ static long ctrl_set_enable(int abi, void __user *uarg)
 		rtg_disable();
 
 	return SUCC;
+}
+
+static long ctrl_get_enable(int abi, void __user *uarg)
+{
+	return get_enable_type();
 }
 
 static int parse_config(const struct rtg_str_data *rs_data)
@@ -795,6 +813,77 @@ long ctrl_set_rtg(int abi, void __user *uarg)
 	}
 
 	return ret;
+}
+
+static long ctrl_list_rtg(int abi, void __user *uarg)
+{
+	struct rtg_info rs_data;
+	long ret;
+
+	if (copy_from_user(&rs_data, uarg, sizeof(rs_data))) {
+		pr_err("[SCHED_RTG] CMD_ID_LIST_RTG copy data failed\n");
+		return -INVALID_ARG;
+	}
+	ret = list_rtg_group(&rs_data);
+	if (copy_to_user(uarg, &rs_data, sizeof(rs_data))) {
+		pr_err("[SCHED_RTG]] CMD_ID_LIST_RTG send data failed\n");
+		return -INVALID_ARG;
+	}
+
+	return ret;
+}
+
+static int list_rtg_thread(struct rtg_grp_data *rs_data)
+{
+	int num = 0;
+	int grp_id = rs_data->grp_id;
+	struct frame_info *frame_info = NULL;
+	int i;
+
+	frame_info = lookup_frame_info_by_grp_id(grp_id);
+	if (!frame_info) {
+		pr_err("[SCHED_RTG] Look up for grp %d failed!\n", grp_id);
+		return -INVALID_ARG;
+	}
+	for (i = 0; i < frame_info->thread_num; i++) {
+		if (frame_info->thread[i]) {
+			rs_data->tids[num] = frame_info->thread[i]->pid;
+			num++;
+		}
+	}
+	rs_data->tid_num = num;
+
+	return num;
+}
+
+static long ctrl_list_rtg_thread(int abi, void __user *uarg)
+{
+	struct rtg_grp_data rs_data;
+	long ret;
+
+	if (copy_from_user(&rs_data, uarg, sizeof(rs_data))) {
+		pr_err("[SCHED_RTG] CMD_ID_LIST_RTG_THREAD copy data failed\n");
+		return -INVALID_ARG;
+	}
+	ret = list_rtg_thread(&rs_data);
+	if (copy_to_user(uarg, &rs_data, sizeof(rs_data))) {
+		pr_err("[SCHED_RTG]] CMD_ID_LIST_RTG_THREAD send data failed\n");
+		return -INVALID_ARG;
+	}
+
+	return ret;
+}
+
+static long ctrl_search_rtg(int abi, void __user *uarg)
+{
+	struct proc_state_data search_data;
+
+	if (copy_from_user(&search_data, uarg, sizeof(search_data))) {
+		pr_err("[SCHED_RTG] CMD_ID_SEARCH_RTG copy data failed\n");
+		return -INVALID_ARG;
+	}
+
+	return search_rtg(search_data.state_param);
 }
 
 static long do_proc_rtg_ioctl(int abi, struct file *file, unsigned int cmd, unsigned long arg)

@@ -34,6 +34,14 @@
 	_IOWR(RTG_SCHED_IPC_MAGIC, SET_MIN_UTIL, struct proc_state_data)
 #define CMD_ID_SET_MARGIN \
 	_IOWR(RTG_SCHED_IPC_MAGIC, SET_MARGIN, struct proc_state_data)
+#define CMD_ID_LIST_RTG \
+	_IOWR(RTG_SCHED_IPC_MAGIC, LIST_RTG, struct rtg_info)
+#define CMD_ID_LIST_RTG_THREAD \
+	_IOWR(RTG_SCHED_IPC_MAGIC, LIST_RTG_THREAD, struct rtg_grp_data)
+#define CMD_ID_SEARCH_RTG \
+	_IOWR(RTG_SCHED_IPC_MAGIC, SEARCH_RTG, struct proc_state_data)
+#define CMD_ID_GET_ENABLE \
+	_IOWR(RTG_SCHED_IPC_MAGIC, GET_ENABLE, struct rtg_enable_data)
 
 enum ioctl_abi_format {
 	IOCTL_ABI_ARM32,
@@ -50,6 +58,10 @@ enum rtg_sched_cmdid {
 	END_SCENE,
 	SET_MIN_UTIL,
 	SET_MARGIN,
+	LIST_RTG = 10,
+	LIST_RTG_THREAD,
+	SEARCH_RTG,
+	GET_ENABLE,
 	RTG_CTRL_MAX_NR,
 };
 

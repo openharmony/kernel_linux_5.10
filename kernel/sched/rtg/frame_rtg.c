@@ -311,6 +311,56 @@ out:
 	}
 }
 
+int list_rtg_group(struct rtg_info *rs_data)
+{
+	int i;
+	int num = 0;
+
+	read_lock(&g_id_manager.lock);
+	for (i = MULTI_FRAME_ID; i < MULTI_FRAME_ID + MULTI_FRAME_NUM; i++) {
+		if (test_bit(i - MULTI_FRAME_ID, g_id_manager.id_map)) {
+			rs_data->rtgs[num] = i;
+			num++;
+		}
+	}
+	read_unlock(&g_id_manager.lock);
+	rs_data->rtg_num = num;
+
+	return num;
+}
+
+int search_rtg(int pid)
+{
+	struct rtg_info grp_info;
+	struct frame_info *frame_info = NULL;
+	int i = 0;
+	int j = 0;
+
+	grp_info.rtg_num = 0;
+	read_lock(&g_id_manager.lock);
+	for (i = MULTI_FRAME_ID; i < MULTI_FRAME_ID + MULTI_FRAME_NUM; i++) {
+		if (test_bit(i - MULTI_FRAME_ID, g_id_manager.id_map)) {
+			grp_info.rtgs[grp_info.rtg_num] = i;
+			grp_info.rtg_num++;
+		}
+	}
+	read_unlock(&g_id_manager.lock);
+	for (i = 0; i < grp_info.rtg_num; i++) {
+		frame_info = lookup_frame_info_by_grp_id(grp_info.rtgs[i]);
+		if (!frame_info) {
+			pr_err("[FRAME_RTG] unexpected grp %d find error.", i);
+			return -EINVAL;
+		}
+
+		for (j = 0; j < frame_info->thread_num; j++) {
+			if (frame_info->thread[j] && frame_info->thread[j]->pid == pid)
+				return grp_info.rtgs[i];
+		}
+	}
+
+	return 0;
+}
+
 static void update_frame_task_prio(struct frame_info *frame_info, int prio)
 {
 	int i;
