@@ -1539,15 +1539,15 @@ static int update_cpumask(struct cpuset *cs, struct cpuset *trialcs,
 			return retval;
 	}
 
-	if (!cpumask_subset(trialcs->cpus_requested, top_cpuset.cpus_requested))
+	if (!cpumask_subset(trialcs->cpus_requested, cpu_present_mask))
 		return -EINVAL;
+
+	cpumask_and(trialcs->cpus_allowed, trialcs->cpus_requested,
+		    cpu_active_mask);
 
 	/* Nothing to do if the cpus didn't change */
 	if (cpumask_equal(cs->cpus_requested, trialcs->cpus_requested))
 		return 0;
-
-	cpumask_and(trialcs->cpus_allowed, trialcs->cpus_requested,
-		    cpu_active_mask);
 
 	retval = validate_change(cs, trialcs);
 	if (retval < 0)
