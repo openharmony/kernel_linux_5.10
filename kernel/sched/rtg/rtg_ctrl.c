@@ -25,6 +25,9 @@ static long ctrl_set_enable(int abi, void __user *uarg);
 static long ctrl_set_rtg(int abi, void __user *uarg);
 static long ctrl_set_config(int abi, void __user *uarg);
 static long ctrl_set_rtg_attr(int abi, void __user *uarg);
+static long ctrl_begin_frame(int abi, void __user *uarg);
+static long ctrl_end_frame(int abi, void __user *uarg);
+static long ctrl_end_scene(int abi, void __user *uarg);
 
 static rtg_ctrl_func g_func_array[RTG_CTRL_MAX_NR] = {
 	NULL, /* reserved */
@@ -32,6 +35,9 @@ static rtg_ctrl_func g_func_array[RTG_CTRL_MAX_NR] = {
 	ctrl_set_rtg,
 	ctrl_set_config,
 	ctrl_set_rtg_attr,
+	ctrl_begin_frame,  // 5
+	ctrl_end_frame,
+	ctrl_end_scene,
 };
 
 static int init_proc_state(const int *config, int len);
@@ -421,6 +427,114 @@ static long ctrl_set_rtg_attr(int abi, void __user *uarg)
 #pragma GCC diagnostic pop
 
 	return parse_rtg_attr(&rs);
+}
+
+static void start_frame_freq(struct frame_info *frame_info)
+{
+	if (!frame_info)
+		return;
+
+	if (atomic_read(&frame_info->start_frame_freq) == 0) {
+		atomic_set(&frame_info->start_frame_freq, 1);
+		set_frame_sched_state(frame_info, true);
+	}
+}
+
+static void set_frame(struct frame_info *frame_info, int margin)
+{
+	if (!frame_info)
+		return;
+
+	atomic_set(&frame_info->frame_state, FRAME_DRAWING);
+	if (set_frame_margin(frame_info, margin) == SUCC)
+		set_frame_timestamp(frame_info, FRAME_START);
+}
+
+static void reset_frame(struct frame_info *frame_info)
+{
+	if (!frame_info)
+		return;
+
+	if (atomic_read(&frame_info->frame_state) == FRAME_END_STATE) {
+		pr_debug("[SCHED_RTG]: Frame state is already reset\n");
+		return;
+	}
+
+	atomic_set(&frame_info->frame_state, FRAME_END_STATE);
+	set_frame_timestamp(frame_info, FRAME_END);
+}
+
+int update_frame_state(int grp_id, int margin, bool in_frame)
+{
+	struct frame_info *frame_info = NULL;
+
+	frame_info = lookup_frame_info_by_grp_id(grp_id);
+	if (!frame_info || !frame_info->rtg)
+		return -INVALID_RTG_ID;
+
+	if (in_frame) {
+		start_frame_freq(frame_info);
+		set_frame(frame_info, margin);
+		trace_rtg_frame_sched(grp_id, "margin", margin);
+	} else {
+		reset_frame(frame_info);
+	}
+
+	return SUCC;
+}
+
+static long ctrl_frame_state(void __user *uarg, bool is_enter)
+{
+	struct proc_state_data state_data;
+
+	if (uarg == NULL)
+		return -INVALID_ARG;
+
+	if (copy_from_user(&state_data, uarg, sizeof(state_data))) {
+		pr_err("[SCHED_RTG] CMD_ID_FRAME_FREQ copy data failed\n");
+		return -INVALID_ARG;
+	}
+
+	return update_frame_state(state_data.grp_id, state_data.state_param, is_enter);
+}
+
+static long ctrl_begin_frame(int abi, void __user *uarg)
+{
+	return ctrl_frame_state(uarg, true);
+}
+
+static long ctrl_end_frame(int abi, void __user *uarg)
+{
+	return ctrl_frame_state(uarg, false);
+}
+
+static int stop_frame_freq(int gid)
+{
+	struct frame_info *frame_info = NULL;
+
+	frame_info = lookup_frame_info_by_grp_id(gid);
+	if (!frame_info)
+		return -INVALID_RTG_ID;
+
+	atomic_set(&frame_info->start_frame_freq, 0);
+	set_frame_sched_state(frame_info, false);
+
+	return 0;
+}
+
+static long ctrl_end_scene(int abi, void __user *uarg)
+{
+	int rtg_id;
+
+	if (uarg == NULL)
+		return -INVALID_ARG;
+
+	if (copy_from_user(&rtg_id, uarg, sizeof(int))) {
+		pr_err("[SCHED_RTG] CMD_ID_END_SCENE copy data failed\n");
+		return -INVALID_ARG;
+	}
+
+	return stop_frame_freq(rtg_id);
 }
 
 static void clear_rtg_frame_thread(struct frame_info *frame_info, bool reset)

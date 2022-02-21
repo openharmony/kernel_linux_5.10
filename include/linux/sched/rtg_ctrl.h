@@ -24,6 +24,13 @@
 	_IOWR(RTG_SCHED_IPC_MAGIC, SET_CONFIG, struct rtg_str_data)
 #define CMD_ID_SET_RTG_ATTR \
 	_IOWR(RTG_SCHED_IPC_MAGIC, SET_RTG_ATTR, struct rtg_str_data)
+#define CMD_ID_BEGIN_FRAME_FREQ \
+	_IOWR(RTG_SCHED_IPC_MAGIC, BEGIN_FRAME_FREQ, struct proc_state_data)
+#define CMD_ID_END_FRAME_FREQ \
+	_IOWR(RTG_SCHED_IPC_MAGIC, END_FRAME_FREQ, struct proc_state_data)
+#define CMD_ID_END_SCENE \
+	_IOWR(RTG_SCHED_IPC_MAGIC, END_SCENE, struct proc_state_data)
+#define CMD_ID_SET_MIN_UTIL \
 
 enum ioctl_abi_format {
 	IOCTL_ABI_ARM32,
@@ -35,6 +42,9 @@ enum rtg_sched_cmdid {
 	SET_RTG,
 	SET_CONFIG,
 	SET_RTG_ATTR,
+	BEGIN_FRAME_FREQ = 5,
+	END_FRAME_FREQ,
+	END_SCENE,
 	RTG_CTRL_MAX_NR,
 };
 
@@ -57,5 +67,10 @@ struct rtg_str_data {
 	int type;
 	int len;
 	char *data;
+};
+
+struct proc_state_data {
+	int grp_id;
+	int state_param;
 };
 #endif

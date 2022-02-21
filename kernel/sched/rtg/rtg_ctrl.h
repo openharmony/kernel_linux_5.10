@@ -36,6 +36,18 @@
 #define MAX_FREQ_CYCLE 16
 #define DEFAULT_INVALID_INTERVAL 50
 
+/* proc_state */
+enum proc_state {
+	STATE_MIN = 0,
+	FRAME_DRAWING,
+	FRAME_RME_MAX = 19,
+	/* rme end */
+	FRAME_END_STATE = FRAME_RME_MAX + 1,
+
+	FRAME_CLICK = 100,
+	STATE_MAX,
+};
+
 enum rtg_config {
 	RTG_FREQ_CYCLE,
 	RTG_FRAME_MAX_UTIL,
