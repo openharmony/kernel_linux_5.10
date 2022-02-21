@@ -58,6 +58,7 @@ struct frame_info {
 	unsigned int frame_max_util;
 	unsigned int prev_min_util;
 	unsigned int prev_max_util;
+	unsigned int frame_boost_min_util;
 
 	bool margin_imme;
 	bool timestamp_skipped;

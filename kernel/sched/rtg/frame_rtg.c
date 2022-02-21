@@ -184,7 +184,7 @@ int set_frame_rate(struct frame_info *frame_info, int rate)
 	frame_info->frame_rate = (unsigned int)rate;
 	frame_info->frame_time = frame_info->frame_time = div_u64(NSEC_PER_SEC, rate);
 	frame_info->max_vload_time =
-		frame_info->frame_time / NSEC_PER_MSEC +
+		div_u64(frame_info->frame_time, NSEC_PER_MSEC) +
 		frame_info->vload_margin;
 	id = frame_info->rtg->id;
 	trace_rtg_frame_sched(id, "FRAME_QOS", rate);
@@ -811,6 +811,12 @@ static inline struct frame_info *rtg_frame_info_inner(
 	return (struct frame_info *)grp->private_data;
 }
 
+static inline void frame_boost(struct frame_info *frame_info)
+{
+	if (frame_info->frame_util < frame_info->frame_boost_min_util)
+		frame_info->frame_util = frame_info->frame_boost_min_util;
+}
+
 /*
  * update CPUFREQ and PLACEMENT when frame task running (in tick) and migration
  */
@@ -842,6 +848,7 @@ static void update_frame_info_tick(struct related_thread_group *grp)
 	if (update_frame_info_tick_inner(grp->id, frame_info, timeline) == -EINVAL)
 		return;
 
+	frame_boost(frame_info);
 	trace_rtg_frame_sched(id, "frame_vload", frame_info->frame_vload);
 	trace_rtg_frame_sched(id, "frame_util", frame_info->frame_util);
 
@@ -856,6 +863,253 @@ static void update_frame_info_tick(struct related_thread_group *grp)
 const struct rtg_class frame_rtg_class = {
 	.sched_update_rtg_tick = update_frame_info_tick,
 };
+
+int set_frame_margin(struct frame_info *frame_info, int margin)
+{
+	int id;
+
+	if ((margin < MIN_VLOAD_MARGIN) || (margin > MAX_VLOAD_MARGIN)) {
+		pr_err("[FRAME_RTG]: %s invalid MARGIN value\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	if (!frame_info || !frame_info->rtg)
+		return -EINVAL;
+
+	frame_info->vload_margin = margin;
+	frame_info->max_vload_time =
+		div_u64(frame_info->frame_time, NSEC_PER_MSEC) +
+		frame_info->vload_margin;
+	id = frame_info->rtg->id;
+	trace_rtg_frame_sched(id, "FRAME_MARGIN", margin);
+	trace_rtg_frame_sched(id, "FRAME_MAX_TIME", frame_info->max_vload_time);
+
+	return 0;
+}
+
+static void set_frame_start(struct frame_info *frame_info)
+{
+	int id = frame_info->rtg->id;
+
+	if (likely(frame_info->status == FRAME_START)) {
+		/*
+		 * START -=> START -=> ......
+		 * FRMAE_START is
+		 *	the end of last frame
+		 *	the start of the current frame
+		 */
+		update_frame_prev_load(frame_info, false);
+	} else if ((frame_info->status == FRAME_END) ||
+		(frame_info->status == FRAME_INVALID)) {
+		/* START -=> END -=> [START]
+		 *  FRAME_START is
+		 *	only the start of current frame
+		 * we shoudn't tracking the last rtg-window
+		 * [FRAME_END, FRAME_START]
+		 * it's not an available frame window
+		 */
+		update_frame_prev_load(frame_info, true);
+		frame_info->status = FRAME_START;
+	}
+	trace_rtg_frame_sched(id, "FRAME_STATUS", frame_info->status);
+	trace_rtg_frame_sched(id, "frame_last_task_time",
+		frame_info->prev_frame_exec);
+	trace_rtg_frame_sched(id, "frame_last_time", frame_info->prev_frame_time);
+	trace_rtg_frame_sched(id, "frame_last_load", frame_info->prev_frame_load);
+	trace_rtg_frame_sched(id, "frame_last_load_util",
+		frame_info->prev_frame_load_util);
+
+	/* new_frame_start */
+	if (!frame_info->margin_imme) {
+		frame_info->frame_vload = 0;
+		frame_info->frame_util = clamp_t(unsigned long,
+			frame_info->prev_frame_load_util,
+			frame_info->frame_min_util,
+			frame_info->frame_max_util);
+	} else {
+		frame_info->frame_vload = calc_frame_vload(frame_info, 0);
+		frame_info->frame_util = calc_frame_util(frame_info, false);
+	}
+
+	trace_rtg_frame_sched(id, "frame_vload", frame_info->frame_vload);
+}
+
+static void set_frame_end(struct frame_info *frame_info)
+{
+	trace_rtg_frame_sched(frame_info->rtg->id, "FRAME_STATUS", FRAME_END);
+	do_frame_end(frame_info, false);
+}
+
+static int update_frame_timestamp(unsigned long status,
+	struct frame_info *frame_info, struct related_thread_group *grp)
+{
+	int id = frame_info->rtg->id;
+
+	/* SCHED_FRAME timestamp */
+	switch (status) {
+	case FRAME_START:
+		/* collect frame_info when frame_end timestamp coming */
+		set_frame_start(frame_info);
+		break;
+	case FRAME_END:
+		/* FRAME_END should only set and update freq once */
+		if (unlikely(frame_info->status == FRAME_END))
+			return 0;
+		set_frame_end(frame_info);
+		break;
+	default:
+		pr_err("[FRAME_RTG]: %s invalid timestamp(status)\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	frame_boost(frame_info);
+	trace_rtg_frame_sched(id, "frame_util", frame_info->frame_util);
+
+	/* update cpufreq force when frame_stop */
+	sched_set_group_normalized_util(grp->id,
+		frame_info->frame_util, RTG_FREQ_FORCE_UPDATE);
+	if (grp->preferred_cluster)
+		trace_rtg_frame_sched(id, "preferred_cluster",
+			grp->preferred_cluster->id);
+
+	return 0;
+}
+
+static int set_frame_status(struct frame_info *frame_info, unsigned long status)
+{
+	struct related_thread_group *grp = NULL;
+	int id;
+
+	if (!frame_info)
+		return -EINVAL;
+
+	grp = frame_info->rtg;
+	if (unlikely(!grp))
+		return -EINVAL;
+
+	if (atomic_read(&frame_info->frame_sched_state) == 0)
+		return -EINVAL;
+
+	if (!(status & FRAME_SETTIME) ||
+		(status == (unsigned long)FRAME_SETTIME_PARAM)) {
+		pr_err("[FRAME_RTG]: %s invalid timetsamp(status)\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	if (status & FRAME_TIMESTAMP_SKIP_START) {
+		frame_info->timestamp_skipped = true;
+		status &= ~FRAME_TIMESTAMP_SKIP_START;
+	} else if (status & FRAME_TIMESTAMP_SKIP_END) {
+		frame_info->timestamp_skipped = false;
+		status &= ~FRAME_TIMESTAMP_SKIP_END;
+	} else if (frame_info->timestamp_skipped) {
+		/*
+		 * skip the following timestamp until
+		 * FRAME_TIMESTAMP_SKIPPED reset
+		 */
+		return 0;
+	}
+	id = grp->id;
+	trace_rtg_frame_sched(id, "FRAME_TIMESTAMP_SKIPPED",
+		frame_info->timestamp_skipped);
+	trace_rtg_frame_sched(id, "FRAME_MAX_UTIL", frame_info->frame_max_util);
+
+	if (status & FRAME_USE_MARGIN_IMME) {
+		frame_info->margin_imme = true;
+		status &= ~FRAME_USE_MARGIN_IMME;
+	} else {
+		frame_info->margin_imme = false;
+	}
+	trace_rtg_frame_sched(id, "FRAME_MARGIN_IMME", frame_info->margin_imme);
+	trace_rtg_frame_sched(id, "FRAME_TIMESTAMP", status);
+
+	return update_frame_timestamp(status, frame_info, grp);
+}
+
+int set_frame_timestamp(struct frame_info *frame_info, unsigned long timestamp)
+{
+	int ret;
+
+	if (!frame_info || !frame_info->rtg)
+		return -EINVAL;
+
+	if (atomic_read(&frame_info->frame_sched_state) == 0)
+		return -EINVAL;
+
+	ret = sched_set_group_window_rollover(frame_info->rtg->id);
+	if (!ret)
+		ret = set_frame_status(frame_info, timestamp);
+
+	return ret;
+}
+
+int set_frame_min_util(struct frame_info *frame_info, int min_util, bool is_boost)
+{
+	int id;
+
+	if (unlikely((min_util < 0) || (min_util > SCHED_CAPACITY_SCALE))) {
+		pr_err("[FRAME_RTG]: %s invalid min_util value\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	if (!frame_info || !frame_info->rtg)
+		return -EINVAL;
+
+	id = frame_info->rtg->id;
+	if (is_boost) {
+		frame_info->frame_boost_min_util = min_util;
+		trace_rtg_frame_sched(id, "FRAME_BOOST_MIN_UTIL", min_util);
+	} else {
+		frame_info->frame_min_util = min_util;
+
+		frame_info->frame_util = calc_frame_util(frame_info, false);
+		trace_rtg_frame_sched(id, "frame_util", frame_info->frame_util);
+		sched_set_group_normalized_util(id,
+			frame_info->frame_util, RTG_FREQ_FORCE_UPDATE);
+	}
+
+	return 0;
+}
+
+int set_frame_max_util(struct frame_info *frame_info, int max_util)
+{
+	int id;
+
+	if ((max_util < 0) || (max_util > SCHED_CAPACITY_SCALE)) {
+		pr_err("[FRAME_RTG]: %s invalid max_util value\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	if (!frame_info || !frame_info->rtg)
+		return -EINVAL;
+
+	frame_info->frame_max_util = max_util;
+	id = frame_info->rtg->id;
+	trace_rtg_frame_sched(id, "FRAME_MAX_UTIL", frame_info->frame_max_util);
+
+	return 0;
+}
+
+struct frame_info *lookup_frame_info_by_grp_id(int grp_id)
+{
+	if (grp_id >= (MULTI_FRAME_ID + MULTI_FRAME_NUM) || (grp_id <= 0))
+		return NULL;
+	if (grp_id >= MULTI_FRAME_ID) {
+		read_lock(&g_id_manager.lock);
+		if (!test_bit(grp_id - MULTI_FRAME_ID, g_id_manager.id_map)) {
+			read_unlock(&g_id_manager.lock);
+			return NULL;
+		}
+		read_unlock(&g_id_manager.lock);
+		return rtg_frame_info(grp_id);
+	} else
+		return rtg_frame_info(grp_id);
+}
 
 static int _init_frame_info(struct frame_info *frame_info, int id)
 {

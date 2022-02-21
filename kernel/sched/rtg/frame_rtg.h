@@ -22,6 +22,12 @@
 #define FRAME_START (1 << 0)
 #define FRAME_END (1 << 1)
 #define FRAME_INVALID (1 << 2)
+#define FRAME_USE_MARGIN_IMME (1 << 4)
+#define FRAME_TIMESTAMP_SKIP_START (1 << 5)
+#define FRAME_TIMESTAMP_SKIP_END (1 << 6)
+#define FRAME_SETTIME (FRAME_START | FRAME_END | \
+	FRAME_USE_MARGIN_IMME)
+#define FRAME_SETTIME_PARAM (-1)
 
 #define DEFAULT_FRAME_RATE 60
 #define MIN_FRAME_RATE 1
@@ -90,4 +96,9 @@ struct group_ravg *frame_info_rtg_load(const struct frame_info *frame_info)
 	return &frame_info_rtg(frame_info)->ravg;
 }
 void set_frame_sched_state(struct frame_info *frame_info, bool enable);
+int set_frame_margin(struct frame_info *frame_info, int margin);
+int set_frame_timestamp(struct frame_info *frame_info, unsigned long timestamp);
+int set_frame_max_util(struct frame_info *frame_info, int max_util);
+int set_frame_min_util(struct frame_info *frame_info, int min_util, bool is_boost);
+struct frame_info *lookup_frame_info_by_grp_id(int grp_id);
 #endif
