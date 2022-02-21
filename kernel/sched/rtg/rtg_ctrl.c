@@ -15,35 +15,119 @@
 #include <trace/events/rtg.h>
 
 atomic_t g_rtg_enable = ATOMIC_INIT(0);
+atomic_t g_enable_type = ATOMIC_INIT(ALL_ENABLE); // default: all enable
+static atomic_t g_rt_frame_num = ATOMIC_INIT(0);
+static int g_frame_max_util = DEFAULT_MAX_UTIL;
 typedef long (*rtg_ctrl_func)(int abi, void __user *arg);
+
+static long ctrl_set_enable(int abi, void __user *uarg);
 
 static rtg_ctrl_func g_func_array[RTG_CTRL_MAX_NR] = {
 	NULL, /* reserved */
 	ctrl_set_enable,  // 1
 };
 
-static void rtg_enable(const struct rtg_enable_data *data)
+static int init_proc_state(const int *config, int len);
+static void deinit_proc_state(void);
+
+static int set_enable_config(char *config_str)
+{
+	char *p = NULL;
+	char *tmp = NULL;
+	int value;
+	int config[RTG_CONFIG_NUM];
+	int i;
+	int ret = 0;
+
+	for (i = 0; i < RTG_CONFIG_NUM; i++)
+		config[i] = INVALID_VALUE;
+	/* eg: key1:value1;key2:value2;key3:value3 */
+	for (p = strsep(&config_str, ";"); p != NULL;
+		p = strsep(&config_str, ";")) {
+		tmp = strsep(&p, ":");
+		if ((tmp == NULL) || (p == NULL))
+			continue;
+		if (kstrtoint((const char *)p, DECIMAL, &value))
+			return -INVALID_ARG;
+
+		if (!strcmp(tmp, "sched_cycle"))
+			config[RTG_FREQ_CYCLE] = value;
+		else if (!strcmp(tmp, "frame_max_util"))
+			config[RTG_FRAME_MAX_UTIL] = value;
+		else if (!strcmp(tmp, "invalid_interval"))
+			config[RTG_INVALID_INTERVAL] = value;
+		else if (!strcmp(tmp, "enable_type"))
+			atomic_set(&g_enable_type, value);
+		else
+			continue;
+	}
+
+	for (i = 0; i < RTG_CONFIG_NUM; i++)
+		pr_info("[SCHED_RTG] config[%d] = %d\n", i, config[i]);
+
+	ret = init_proc_state(config, RTG_CONFIG_NUM);
+
+	return ret;
+}
+
+static void rtg_enable(int abi, const struct rtg_enable_data *data)
 {
 	char temp[MAX_DATA_LEN];
+	int ret = -1;
 
 	if (atomic_read(&g_rtg_enable) == 1) {
 		pr_info("[SCHED_RTG] already enabled!\n");
 		return;
 	}
+
 	if ((data->len <= 0) || (data->len >= MAX_DATA_LEN)) {
 		pr_err("[SCHED_RTG] %s data len invalid\n", __func__);
 		return;
 	}
-	if (copy_from_user(&temp, (void __user *)data->data, data->len)) {
+
+	switch (abi) {
+	case IOCTL_ABI_ARM32:
+		ret = copy_from_user(&temp,
+			(void __user *)compat_ptr((compat_uptr_t)data->data), data->len);
+		break;
+	case IOCTL_ABI_AARCH64:
+		ret = copy_from_user(&temp, (void __user *)data->data, data->len);
+		break;
+	default:
+		pr_err("[SCHED_RTG] abi format error\n");
+		break;
+	}
+	if (ret) {
 		pr_err("[SCHED_RTG] %s copy user data failed\n", __func__);
 		return;
 	}
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
+	temp[data->len] = '\0';
+
+	if (set_enable_config(&temp) != SUCC) {
+		pr_err("[SCHED_RTG] %s failed!\n", __func__);
+		return;
+	}
+#pragma GCC diagnostic pop
 
 	atomic_set(&g_rtg_enable, 1);
 	pr_info("[SCHED_RTG] enabled!\n");
 }
 
-long ctrl_set_enable(int abi, void __user *uarg)
+static void rtg_disable(void)
+{
+	if (atomic_read(&g_rtg_enable) == 0) {
+		pr_info("[SCHED_RTG] already disabled!\n");
+		return;
+	}
+	pr_info("[SCHED_RTG] disabled!\n");
+	atomic_set(&g_rtg_enable, 0);
+	deinit_proc_state();
+}
+
+static long ctrl_set_enable(int abi, void __user *uarg)
 {
 	struct rtg_enable_data rs_enable;
 
@@ -51,9 +135,32 @@ long ctrl_set_enable(int abi, void __user *uarg)
 		pr_err("[SCHED_RTG] CMD_ID_SET_ENABLE copy data failed\n");
 		return -INVALID_ARG;
 	}
-	rtg_enable(&rs_enable);
+	if (rs_enable.enable == 1)
+		rtg_enable(abi, &rs_enable);
+	else
+		rtg_disable();
 
 	return SUCC;
+}
+
+static void clear_rtg_frame_thread(struct frame_info *frame_info, bool reset)
+{
+	struct frame_thread_info frame_thread_info;
+	int i;
+
+	if (!reset && frame_info)
+		frame_thread_info.prio = frame_info->prio;
+	else
+		frame_thread_info.prio = NOT_RT_PRIO;
+	for (i = 0; i < MAX_TID_NUM; i++)
+		frame_thread_info.thread[i] = -1;
+	frame_thread_info.thread_num = MAX_TID_NUM;
+	update_frame_thread_info(frame_info, &frame_thread_info);
+	if (reset) {
+		atomic_set(&frame_info->max_rt_thread_num, DEFAULT_MAX_RT_THREAD);
+		atomic_set(&frame_info->frame_sched_state, 0);
+		trace_rtg_frame_sched(frame_info->rtg->id, "FRAME_SCHED_ENABLE", 0);
+	}
 }
 
 static long do_proc_rtg_ioctl(int abi, struct file *file, unsigned int cmd, unsigned long arg)
@@ -66,16 +173,17 @@ static long do_proc_rtg_ioctl(int abi, struct file *file, unsigned int cmd, unsi
 		return -EINVAL;
 	}
 
-	if ((cmd != CMD_ID_SET_ENABLE) && !atomic_read(&g_rtg_enable)) {
-		pr_err("[SCHED_RTG] Rtg not enabled yet.\n");
-		return -RTG_DISABLED;
-	}
-
 	if (_IOC_TYPE(cmd) != RTG_SCHED_IPC_MAGIC) {
 		pr_err("[SCHED_RTG] %s: RTG_SCHED_IPC_MAGIC fail, TYPE=%d\n",
 			__func__, _IOC_TYPE(cmd));
 		return -INVALID_MAGIC;
 	}
+
+	if ((func_id != SET_ENABLE) && !atomic_read(&g_rtg_enable)) {
+		pr_err("[SCHED_RTG] CMD_ID %x error: Rtg not enabled yet.\n", cmd);
+		return -RTG_DISABLED;
+	}
+
 	if (func_id >= RTG_CTRL_MAX_NR) {
 		pr_err("[SCHED_RTG] %s: RTG_MAX_NR fail, _IOC_NR(cmd)=%d, MAX_NR=%d\n",
 			__func__, _IOC_NR(cmd), RTG_CTRL_MAX_NR);
@@ -86,6 +194,93 @@ static long do_proc_rtg_ioctl(int abi, struct file *file, unsigned int cmd, unsi
 		return (*g_func_array[func_id])(abi, uarg);
 
 	return -EINVAL;
+}
+
+static void reset_frame_info(struct frame_info *frame_info)
+{
+	clear_rtg_frame_thread(frame_info, true);
+	atomic_set(&frame_info->frame_state, -1);
+	atomic_set(&frame_info->curr_rt_thread_num, 0);
+	atomic_set(&frame_info->max_rt_thread_num, DEFAULT_MAX_RT_THREAD);
+}
+
+static int do_init_proc_state(int rtgid, const int *config, int len)
+{
+	struct related_thread_group *grp = NULL;
+	struct frame_info *frame_info = NULL;
+
+	grp = lookup_related_thread_group(rtgid);
+	if (unlikely(!grp))
+		return -EINVAL;
+
+	frame_info = (struct frame_info *)grp->private_data;
+	if (!frame_info)
+		return -EINVAL;
+
+	reset_frame_info(frame_info);
+
+	if ((config[RTG_FREQ_CYCLE] >= MIN_FREQ_CYCLE) &&
+		(config[RTG_FREQ_CYCLE] <= MAX_FREQ_CYCLE))
+		sched_set_group_freq_update_interval(rtgid,
+				(unsigned int)config[RTG_FREQ_CYCLE]);
+	else
+		sched_set_group_freq_update_interval(rtgid,
+				DEFAULT_FREQ_CYCLE);
+
+	if (config[RTG_INVALID_INTERVAL] != INVALID_VALUE)
+		sched_set_group_util_invalid_interval(rtgid,
+				config[RTG_INVALID_INTERVAL]);
+	else
+		sched_set_group_util_invalid_interval(rtgid,
+				DEFAULT_INVALID_INTERVAL);
+
+	set_frame_max_util(frame_info, g_frame_max_util);
+
+	return SUCC;
+}
+
+static int init_proc_state(const int *config, int len)
+{
+	int ret;
+	int id;
+
+	if ((config == NULL) || (len != RTG_CONFIG_NUM))
+		return -INVALID_ARG;
+
+	if ((config[RTG_FRAME_MAX_UTIL] > 0) &&
+		(config[RTG_FRAME_MAX_UTIL] < DEFAULT_MAX_UTIL))
+		g_frame_max_util = config[RTG_FRAME_MAX_UTIL];
+
+	for (id = MULTI_FRAME_ID; id < (MULTI_FRAME_ID + MULTI_FRAME_NUM); id++) {
+		ret = do_init_proc_state(id, config, len);
+		if (ret) {
+			pr_err("[SCHED_RTG] init proc state for FRAME_ID=%d failed, ret=%d\n",
+			       id, ret);
+			return ret;
+		}
+	}
+	atomic_set(&g_rt_frame_num, 0);
+
+	return SUCC;
+}
+
+static void deinit_proc_state(void)
+{
+	int id;
+	struct frame_info *frame_info = NULL;
+	struct related_thread_group *grp = NULL;
+
+	for (id = MULTI_FRAME_ID; id < (MULTI_FRAME_ID + MULTI_FRAME_NUM); id++) {
+		grp = lookup_related_thread_group(id);
+		if (unlikely(!grp))
+			return;
+
+		frame_info = (struct frame_info *)grp->private_data;
+		if (frame_info)
+			reset_frame_info(frame_info);
+	}
+	clear_multi_frame_info();
+	atomic_set(&g_rt_frame_num, 0);
 }
 
 static int proc_rtg_open(struct inode *inode, struct file *filp)

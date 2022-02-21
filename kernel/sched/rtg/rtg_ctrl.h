@@ -31,13 +31,27 @@
 #define ADD_RTG_FRAME (1 << 1)
 #define CLEAR_RTG_FRAME (1 << 2)
 
-/* rtg_ctrl func list */
-long ctrl_set_enable(int abi, void __user *uarg);
+#define DEFAULT_FREQ_CYCLE 4
+#define MIN_FREQ_CYCLE 1
+#define MAX_FREQ_CYCLE 16
+#define DEFAULT_INVALID_INTERVAL 50
+
+enum rtg_config {
+	RTG_FREQ_CYCLE,
+	RTG_FRAME_MAX_UTIL,
+	RTG_INVALID_INTERVAL,
+	RTG_CONFIG_NUM,
+};
+
 enum rtg_err_no {
 	SUCC = 0,
 	RTG_DISABLED = 1,
 	INVALID_ARG,
 	INVALID_MAGIC,
 	INVALID_CMD,
+};
+enum enable_type {
+	ALL_ENABLE = 1,
+	ENABLE_MAX
 };
 #endif
