@@ -457,6 +457,8 @@ u64 write_group_objs(struct zram *zram, u16 gid, u64 req_size)
 
 	if (!CHECK(zram->zgrp, "zram group is not enable!\n"))
 		return 0;
+	if (!CHECK(zram->zgrp->wbgrp.enable, "zram group writeback is not enable!\n"))
+		return 0;
 	if (!CHECK_BOUND(gid, 1, zram->zgrp->nr_grp - 1))
 		return 0;
 
