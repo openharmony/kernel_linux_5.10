@@ -14,7 +14,6 @@
 #include <linux/mount.h>
 
 #include "authority/authentication.h"
-#include "comm/fault_inject.h"
 #include "hmdfs.h"
 #include "hmdfs_dentryfile.h"
 #include "hmdfs_trace.h"
@@ -71,39 +70,6 @@ void remove_file_from_conn(struct hmdfs_peer *conn, __u32 file_id)
 	spin_lock(lock);
 	idr_remove(idr, file_id);
 	spin_unlock(lock);
-}
-
-struct file *hmdfs_open_photokit_path(struct hmdfs_sb_info *sbi,
-				      const char *path)
-{
-	struct file *file;
-	int err;
-	const char *root_name = sbi->local_dst;
-	char *real_path;
-	int path_len;
-
-	path_len = strlen(root_name) + strlen(path) + 2;
-	if (path_len >= PATH_MAX) {
-		err = -EINVAL;
-		return ERR_PTR(err);
-	}
-	real_path = kzalloc(path_len, GFP_KERNEL);
-	if (!real_path) {
-		err = -ENOMEM;
-		return ERR_PTR(err);
-	}
-
-	sprintf(real_path, "%s/%s", root_name, path);
-	file = filp_open(real_path, O_RDWR | O_LARGEFILE, 0644);
-	if (IS_ERR(file)) {
-		hmdfs_info("filp_open failed: %ld", PTR_ERR(file));
-	} else {
-		hmdfs_info("get file with magic %lu",
-			   file->f_inode->i_sb->s_magic);
-	}
-
-	kfree(real_path);
-	return file;
 }
 
 struct file *hmdfs_open_path(struct hmdfs_sb_info *sbi, const char *path)
@@ -212,38 +178,6 @@ void __init hmdfs_server_add_node_evt_cb(void)
 	hmdfs_node_add_evt_cb(server_cb, ARRAY_SIZE(server_cb));
 }
 
-static int hmdfs_get_inode_by_name(struct hmdfs_peer *con, const char *filename,
-				   uint64_t *ino)
-{
-	int ret = 0;
-	struct path root_path;
-	struct path dst_path;
-	struct inode *inode = NULL;
-
-	ret = kern_path(con->sbi->local_dst, 0, &root_path);
-	if (ret) {
-		hmdfs_err("kern_path failed err = %d", ret);
-		return ret;
-	}
-
-	ret = vfs_path_lookup(root_path.dentry, root_path.mnt, filename, 0,
-			      &dst_path);
-	if (ret) {
-		path_put(&root_path);
-		return ret;
-	}
-
-	inode = d_inode(dst_path.dentry);
-	if (con->sbi->sb == inode->i_sb)
-		inode = hmdfs_i(inode)->lower_inode;
-	*ino = generate_u64_ino(inode->i_ino, inode->i_generation);
-
-	path_put(&dst_path);
-	path_put(&root_path);
-
-	return 0;
-}
-
 static const char *datasl_str[] = {
 	"s0", "s1", "s2", "s3", "s4"
 };
@@ -349,17 +283,14 @@ static struct file *hmdfs_open_file(struct hmdfs_peer *con,
 		return ERR_PTR(-EACCES);
 	}
 
-	if (hm_islnk(file_type))
-		file = hmdfs_open_photokit_path(con->sbi, filename);
-	else {
-		if (hm_isshare(file_type)) {
-			err = hmdfs_check_share_access_permission(con->sbi,
-						filename, con->cid, &item);
-			if (err)
-				return ERR_PTR(err);
-		}
-		file = hmdfs_open_path(con->sbi, filename);
+	if (hm_isshare(file_type)) {
+		err = hmdfs_check_share_access_permission(con->sbi,
+					filename, con->cid, &item);
+		if (err)
+			return ERR_PTR(err);
 	}
+	file = hmdfs_open_path(con->sbi, filename);
+
 	if (IS_ERR(file))
 		return file;
 
@@ -412,14 +343,6 @@ static uint64_t hmdfs_server_pack_fid_ver(struct hmdfs_peer *con,
 {
 	uint64_t boot_cookie = con->sbi->boot_cookie;
 	uint16_t con_cookie = con->fid_cookie;
-
-	if (hmdfs_should_fake_fid_ver(&con->sbi->fault_inject, con,
-				      cmd, T_BOOT_COOKIE))
-		boot_cookie = hmdfs_gen_boot_cookie();
-
-	if (hmdfs_should_fake_fid_ver(&con->sbi->fault_inject, con,
-				      cmd, T_CON_COOKIE))
-		con_cookie++;
 
 	return (boot_cookie |
 		(con_cookie & ((1 << HMDFS_FID_VER_BOOT_COOKIE_SHIFT) - 1)));
@@ -520,15 +443,8 @@ static int hmdfs_get_open_info(struct hmdfs_peer *con, uint8_t file_type,
 		info->stat_valid = true;
 	}
 
-	/* if open a link file, get ino from link inode */
-	if (hm_islnk(file_type)) {
-		ret = hmdfs_get_inode_by_name(con, filename, &info->real_ino);
-		if (ret)
-			return ret;
-	} else {
-		info->real_ino = generate_u64_ino(info->inode->i_ino,
+	info->real_ino = generate_u64_ino(info->inode->i_ino,
 						  info->inode->i_generation);
-	}
 
 	return 0;
 }
@@ -543,8 +459,6 @@ void hmdfs_server_open(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	int ret = 0;
 
 	trace_hmdfs_server_open_enter(con, recv);
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &ret))
-		goto out_err;
 
 	resp = kzalloc(sizeread, GFP_KERNEL);
 	info = kmalloc(sizeof(*info), GFP_KERNEL);
@@ -584,7 +498,6 @@ err_close:
 err_free:
 	kfree(resp);
 	kfree(info);
-out_err:
 	trace_hmdfs_server_open_exit(con, NULL, NULL, ret);
 	hmdfs_send_err_response(con, cmd, ret);
 }
@@ -605,9 +518,7 @@ static int hmdfs_check_and_create(struct path *path_parent,
 	} else {
 		if (is_excl)
 			err = -EEXIST;
-		/* if inode aready exist, see if it's symlink */
-		else if (S_ISREG(d_inode(dentry)->i_mode) &&
-			 hm_islnk(hmdfs_d(dentry)->file_type))
+		else if (S_ISLNK(d_inode(dentry)->i_mode))
 			err = -EINVAL;
 		else if (S_ISDIR(d_inode(dentry)->i_mode))
 			err = -EISDIR;
@@ -741,9 +652,6 @@ void hmdfs_server_atomic_open(struct hmdfs_peer *con,
 	struct atomic_open_response *resp = NULL;
 	struct hmdfs_open_info *info = NULL;
 
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &err))
-		goto out;
-
 	info = kmalloc(sizeof(*info), GFP_KERNEL);
 	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
 	if (!resp || !info) {
@@ -860,14 +768,10 @@ void hmdfs_server_fsync(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		goto out;
 	}
 
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &ret))
-		goto out_put_file;
-
 	ret = vfs_fsync_range(file, start, end, datasync);
 	if (ret)
 		hmdfs_err("fsync fail, ret %d", ret);
 
-out_put_file:
 	hmdfs_close_path(file);
 out:
 	hmdfs_send_err_response(con, cmd, ret);
@@ -896,9 +800,6 @@ void hmdfs_server_readpage(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		ret = PTR_ERR(file);
 		goto fail;
 	}
-
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &ret))
-		goto fail_put_file;
 
 	read_len = (size_t)le32_to_cpu(readpage_recv->size);
 	if (read_len == 0)
@@ -1051,9 +952,6 @@ void hmdfs_server_readpages_open(struct hmdfs_peer *con,
 	size_t read_len = 0;
 	size_t resp_len = 0;
 	struct hmdfs_open_info *info = NULL;
-
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &ret))
-		goto fail;
 
 	info = kmalloc(sizeof(*info), GFP_KERNEL);
 	if (!info) {
@@ -1283,9 +1181,6 @@ void hmdfs_server_readdir(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		goto send_err;
 	}
 
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &err))
-		goto err_lookup_path;
-
 	if (le32_to_cpu(readdir_recv->verify_cache)) {
 		if (hmdfs_client_cache_validate(con->sbi, readdir_recv, &lo_p))
 			goto out_response;
@@ -1417,9 +1312,6 @@ void hmdfs_server_rmdir(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	char *name = NULL;
 	struct rmdir_request *rmdir_recv = data;
 
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &err))
-		goto out;
-
 	path = rmdir_recv->path;
 	name = rmdir_recv->path + le32_to_cpu(rmdir_recv->path_len) + 1;
 	err = kern_path(con->sbi->local_dst, 0, &root_path);
@@ -1427,7 +1319,7 @@ void hmdfs_server_rmdir(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		err = hmdfs_root_rmdir(con->device_id, &root_path, path, name);
 		path_put(&root_path);
 	}
-out:
+
 	hmdfs_send_err_response(con, cmd, err);
 }
 
@@ -1440,9 +1332,6 @@ void hmdfs_server_unlink(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	char *name = NULL;
 	struct unlink_request *unlink_recv = data;
 
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &err))
-		goto out;
-
 	path = unlink_recv->path;
 	name = unlink_recv->path + le32_to_cpu(unlink_recv->path_len) + 1;
 	err = kern_path(con->sbi->local_dst, 0, &root_path);
@@ -1450,7 +1339,7 @@ void hmdfs_server_unlink(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		err = hmdfs_root_unlink(con->device_id, &root_path, path, name);
 		path_put(&root_path);
 	}
-out:
+
 	hmdfs_send_err_response(con, cmd, err);
 }
 
@@ -1469,9 +1358,6 @@ void hmdfs_server_rename(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	char *name_new = NULL;
 	struct rename_request *recv = data;
 
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &err))
-		goto out;
-
 	old_path_len = le32_to_cpu(recv->old_path_len);
 	new_path_len = le32_to_cpu(recv->new_path_len);
 	old_name_len = le32_to_cpu(recv->old_name_len);
@@ -1486,50 +1372,8 @@ void hmdfs_server_rename(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 
 	err = hmdfs_root_rename(con->sbi, con->device_id, path_old, name_old,
 				path_new, name_new, flags);
-out:
+
 	hmdfs_send_err_response(con, cmd, err);
-}
-
-static int hmdfs_lookup_symlink(struct path *link_path, const char *path_fmt,
-				...)
-{
-	int ret;
-	va_list args;
-	char *path = kmalloc(PATH_MAX, GFP_KERNEL);
-
-	if (!path)
-		return -ENOMEM;
-
-	va_start(args, path_fmt);
-	ret = vsnprintf(path, PATH_MAX, path_fmt, args);
-	va_end(args);
-
-	if (ret >= PATH_MAX) {
-		ret = -ENAMETOOLONG;
-		goto out;
-	}
-
-	/*
-	 * Todo: when rebuild dentryfile, there maybe deadlock
-	 *       because iterate_dir already hold the parent
-	 *       lock, but now, we didn't know the symlink
-	 *       src's parent.
-	 */
-	ret = kern_path(path, LOOKUP_FOLLOW, link_path);
-	if (ret) {
-		hmdfs_err("kern_path failed err = %d", ret);
-		goto out;
-	}
-
-	if (!S_ISREG(d_inode(link_path->dentry)->i_mode)) {
-		hmdfs_err("path is dir symlink");
-		path_put(link_path);
-		ret = -EOPNOTSUPP;
-		goto out;
-	}
-out:
-	kfree(path);
-	return ret;
 }
 
 static int hmdfs_filldir_real(struct dir_context *ctx, const char *name,
@@ -1572,25 +1416,6 @@ static int hmdfs_filldir_real(struct dir_context *ctx, const char *name,
 	if (d_type == DT_REG || d_type == DT_DIR) {
 		create_dentry(child, d_inode(child), gc->file, gc->sbi);
 		gc->num++;
-	} else if (d_type == DT_LNK) {
-		struct path link_path;
-
-		res = hmdfs_lookup_symlink(&link_path, "%s/%s/%s",
-					   gc->sbi->local_src, gc->dir,
-					   namestr);
-		if (!res) {
-			create_dentry(child, d_inode(link_path.dentry),
-				      gc->file, gc->sbi);
-			path_put(&link_path);
-			gc->num++;
-		} else if (res == -ENOENT) {
-			/*
-			 * If source file do not exist, use the info from link
-			 * inode.
-			 */
-			create_dentry(child, d_inode(child), gc->file, gc->sbi);
-			gc->num++;
-		}
 	}
 
 	dput(child);
@@ -1702,16 +1527,12 @@ void hmdfs_server_writepage(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		goto out;
 	}
 
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &err))
-		goto out_put_file;
-
 	pos = (loff_t)le64_to_cpu(writepage_recv->index) << HMDFS_PAGE_OFFSET;
 	count = le32_to_cpu(writepage_recv->count);
 	ret = kernel_write(file, writepage_recv->buf, count, &pos);
 	if (ret != count)
 		err = -EIO;
 
-out_put_file:
 	hmdfs_close_path(file);
 out:
 	hmdfs_send_err_response(con, cmd, err);
@@ -1719,27 +1540,6 @@ out:
 	hswb = con->sbi->h_swb;
 	if (!err && hswb->dirty_writeback_control)
 		hmdfs_server_check_writeback(hswb);
-}
-
-static int hmdfs_lookup_linkpath(struct hmdfs_sb_info *sbi,
-				 const char *path_name, struct path *dst_path)
-{
-	struct path link_path;
-	int err;
-
-	err = hmdfs_lookup_symlink(&link_path, "%s/%s", sbi->local_dst,
-				   path_name);
-	if (err)
-		return err;
-
-	if (d_inode(link_path.dentry)->i_sb != sbi->sb) {
-		path_put(dst_path);
-		*dst_path = link_path;
-	} else {
-		path_put(&link_path);
-	}
-
-	return 0;
 }
 
 static struct inode *hmdfs_verify_path(struct dentry *dentry, char *recv_buf,
@@ -1791,9 +1591,6 @@ void hmdfs_server_setattr(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	struct iattr attr;
 	__u32 valid = le32_to_cpu(recv->valid);
 
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &err))
-		goto out;
-
 	err = kern_path(con->sbi->local_dst, 0, &root_path);
 	if (err) {
 		hmdfs_err("kern_path failed err = %d", err);
@@ -1811,14 +1608,9 @@ void hmdfs_server_setattr(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		goto out_put_dst;
 	}
 
-	/* We need to follow if symlink was found */
 	if (S_ISLNK(inode->i_mode)) {
-		err = hmdfs_lookup_linkpath(con->sbi, recv->buf, &dst_path);
-		/* if source file doesn't exist, use link inode */
-		if (err == -ENOENT)
-			err = 0;
-		else if (err)
-			goto out_put_dst;
+		err = -EPERM;
+		goto out_put_dst;
 	}
 
 	dentry = dst_path.dentry;
@@ -1884,9 +1676,6 @@ void hmdfs_server_getattr(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	unsigned int recv_flags = le32_to_cpu(recv->lookup_flags);
 	unsigned int lookup_flags = 0;
 
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &err))
-		goto err;
-
 	err = hmdfs_convert_lookup_flags(recv_flags, &lookup_flags);
 	if (err)
 		goto err;
@@ -1901,7 +1690,7 @@ void hmdfs_server_getattr(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		hmdfs_err("kern_path failed err = %d", err);
 		goto err_free_resp;
 	}
-	//TODO: local_dst -->local_src
+
 	err = vfs_path_lookup(root_path.dentry, root_path.mnt, recv->buf,
 			      lookup_flags, &dst_path);
 	if (err)
@@ -1912,12 +1701,10 @@ void hmdfs_server_getattr(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		err = -ENOENT;
 		goto out_put_dst;
 	}
-	/* We need to follow if symlink was found */
+
 	if (S_ISLNK(inode->i_mode)) {
-		err = hmdfs_lookup_linkpath(con->sbi, recv->buf, &dst_path);
-		/* if source file doesn't exist, use link inode */
-		if (err && err != -ENOENT)
-			goto out_put_dst;
+		err = -EPERM;
+		goto out_put_dst;
 	}
 
 	err = vfs_getattr(&dst_path, &ks, STATX_BASIC_STATS | STATX_BTIME, 0);
@@ -1979,9 +1766,6 @@ void hmdfs_server_statfs(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	struct kstatfs *st = NULL;
 	int err = 0;
 
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &err))
-		goto out;
-
 	st = kzalloc(sizeof(*st), GFP_KERNEL);
 	if (!st) {
 		err = -ENOMEM;
@@ -2037,11 +1821,6 @@ void hmdfs_server_syncfs(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	 * 3. Wait all remote async calls(writepages) return in step 1
 	 */
 	int ret = 0;
-
-	if (hmdfs_should_fail_req(&con->sbi->fault_inject, con, cmd, &ret)) {
-		hmdfs_send_err_response(con, cmd, ret);
-		return;
-	}
 
 	hmdfs_send_err_response(con, cmd, ret);
 }

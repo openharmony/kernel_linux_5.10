@@ -142,10 +142,6 @@ int hmdfs_sendmessage(struct hmdfs_peer *node, struct hmdfs_send_data *msg)
 		goto out;
 	}
 
-	if (hmdfs_should_fail_sendmsg(&node->sbi->fault_inject, node, msg,
-				      &ret))
-		goto out;
-
 	old_cred = hmdfs_override_creds(node->sbi->system_cred);
 
 	do {

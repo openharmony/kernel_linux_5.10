@@ -38,11 +38,3 @@ config HMDFS_FS_DEBUG
 	  it works.
 
 	  If unsure, say N.
-
-config HMDFS_FS_FAULT_INJECT
-	bool "HMDFS fault inject"
-	depends on HMDFS_FS
-	help
-	  HMDFS provide fault inject for test.
-
-	  If unsure, say N.

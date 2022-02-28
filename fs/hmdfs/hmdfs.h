@@ -16,7 +16,6 @@
 #include <linux/version.h>
 
 #include "comm/protocol.h"
-#include "comm/fault_inject.h"
 
 #if KERNEL_VERSION(4, 15, 0) < LINUX_VERSION_CODE
 #define hmdfs_time_t	   timespec64
@@ -185,7 +184,6 @@ struct hmdfs_sb_info {
 	/* To bridge the userspace utils */
 	struct kfifo notify_fifo;
 	spinlock_t notify_fifo_lock;
-	struct hmdfs_fault_inject fault_inject;
 
 	/* For reboot detect */
 	uint64_t boot_cookie;

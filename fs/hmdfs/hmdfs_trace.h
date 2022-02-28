@@ -205,12 +205,6 @@ define_hmdfs_lookup_op_end_event(hmdfs_create_merge);
 define_hmdfs_lookup_op_end_event(hmdfs_lookup_share);
 define_hmdfs_lookup_op_end_event(hmdfs_lookup_share_end);
 
-define_hmdfs_lookup_op_end_event(hmdfs_symlink_merge);
-define_hmdfs_lookup_op_end_event(hmdfs_symlink_local);
-
-define_hmdfs_lookup_op_end_event(hmdfs_get_link_merge);
-define_hmdfs_lookup_op_end_event(hmdfs_get_link_local);
-
 TRACE_EVENT(hmdfs_show_comrade,
 
 	TP_PROTO(struct dentry *d, struct dentry *lo_d, uint64_t devid),

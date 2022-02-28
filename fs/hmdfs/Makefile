@@ -12,5 +12,3 @@ hmdfs-y += comm/connection.o comm/socket_adapter.o comm/transport.o
 hmdfs-$(CONFIG_HMDFS_FS_ENCRYPTION) += comm/crypto.o
 hmdfs-$(CONFIG_HMDFS_FS_PERMISSION) += authority/authentication.o
 hmdfs-$(CONFIG_HMDFS_FS_PERMISSION) += authority/config.o
-
-hmdfs-$(CONFIG_FS_FAULT_INJECTION) += comm/fault_inject.o
