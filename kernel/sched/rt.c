@@ -17,6 +17,14 @@ static int do_sched_rt_period_timer(struct rt_bandwidth *rt_b, int overrun);
 
 struct rt_bandwidth def_rt_bandwidth;
 
+#ifdef CONFIG_SCHED_RT_CAS
+unsigned int sysctl_sched_enable_rt_cas = 1;
+#endif
+
+#ifdef CONFIG_SCHED_RT_ACTIVE_LB
+unsigned int sysctl_sched_enable_rt_active_lb = 1;
+#endif
+
 static enum hrtimer_restart sched_rt_period_timer(struct hrtimer *timer)
 {
 	struct rt_bandwidth *rt_b =
@@ -1705,6 +1713,170 @@ static struct task_struct *pick_highest_pushable_task(struct rq *rq, int cpu)
 	return NULL;
 }
 
+#ifdef CONFIG_SCHED_RT_CAS
+static int find_cas_cpu(struct sched_domain *sd,
+		 struct task_struct *task, struct cpumask *lowest_mask)
+{
+	struct root_domain *rd = cpu_rq(smp_processor_id())->rd;
+	struct sched_group *sg = NULL;
+	struct sched_group *sg_target = NULL;
+	struct sched_group *sg_backup = NULL;
+	struct cpumask search_cpu, backup_search_cpu;
+	int cpu = -1;
+	int target_cpu = -1;
+	unsigned long cpu_capacity;
+	unsigned long boosted_tutil = uclamp_task_util(task);
+	unsigned long target_capacity = ULONG_MAX;
+	unsigned long util;
+	unsigned long target_cpu_util = ULONG_MAX;
+	int prev_cpu = task_cpu(task);
+#ifdef CONFIG_SCHED_RTG
+	struct cpumask *rtg_target = NULL;
+#endif
+	bool boosted = uclamp_boosted(task);
+
+	if (!sysctl_sched_enable_rt_cas)
+		return -1;
+
+	rcu_read_lock();
+
+#ifdef CONFIG_SCHED_RTG
+	rtg_target = find_rtg_target(task);
+#endif
+
+	sd = rcu_dereference(per_cpu(sd_asym_cpucapacity, 0));
+	if (!sd) {
+		rcu_read_unlock();
+		return -1;
+	}
+
+	sg = sd->groups;
+	do {
+		if (!cpumask_intersects(lowest_mask, sched_group_span(sg)))
+			continue;
+
+		if (boosted) {
+			if (cpumask_test_cpu(rd->max_cap_orig_cpu,
+					     sched_group_span(sg))) {
+				sg_target = sg;
+				break;
+			}
+		}
+
+		cpu = group_first_cpu(sg);
+#ifdef CONFIG_SCHED_RTG
+		/* honor the rtg tasks */
+		if (rtg_target) {
+			if (cpumask_test_cpu(cpu, rtg_target)) {
+				sg_target = sg;
+				break;
+			}
+
+			/* active LB or big_task favor cpus with more capacity */
+			if (task->state == TASK_RUNNING || boosted) {
+				if (capacity_orig_of(cpu) >
+				    capacity_orig_of(cpumask_any(rtg_target))) {
+					sg_target = sg;
+					break;
+				}
+
+				sg_backup = sg;
+				continue;
+			}
+		}
+#endif
+		/*
+		 * 1. add margin to support task migration
+		 * 2. if task_util is high then all cpus, make sure the
+		 * sg_backup with the most powerful cpus is selected
+		 */
+		if (!rt_task_fits_capacity(task, cpu)) {
+			sg_backup = sg;
+			continue;
+		}
+
+		/* support task boost */
+		cpu_capacity = capacity_orig_of(cpu);
+		if (boosted_tutil > cpu_capacity) {
+			sg_backup = sg;
+			continue;
+		}
+
+		/* sg_target: select the sg with smaller capacity */
+		if (cpu_capacity < target_capacity) {
+			target_capacity = cpu_capacity;
+			sg_target = sg;
+		}
+	} while (sg = sg->next, sg != sd->groups);
+
+	if (!sg_target)
+		sg_target = sg_backup;
+
+	if (sg_target) {
+		cpumask_and(&search_cpu, lowest_mask, sched_group_span(sg_target));
+		cpumask_copy(&backup_search_cpu, lowest_mask);
+		cpumask_andnot(&backup_search_cpu, &backup_search_cpu, &search_cpu);
+	} else {
+		cpumask_copy(&search_cpu, lowest_mask);
+		cpumask_clear(&backup_search_cpu);
+	}
+
+retry:
+	cpu = cpumask_first(&search_cpu);
+	do {
+		trace_sched_find_cas_cpu_each(task, cpu, target_cpu,
+			cpu_isolated(cpu),
+			idle_cpu(cpu), boosted_tutil, cpu_util(cpu),
+			capacity_orig_of(cpu));
+
+		if (cpu_isolated(cpu))
+			continue;
+
+		if (!cpumask_test_cpu(cpu, task->cpus_ptr))
+			continue;
+
+		/* find best cpu with smallest max_capacity */
+		if (target_cpu != -1 &&
+		    capacity_orig_of(cpu) > capacity_orig_of(target_cpu))
+			continue;
+
+		util = cpu_util(cpu);
+
+		/* Find the least loaded CPU */
+		if (util > target_cpu_util)
+			continue;
+
+		/*
+		 * If the preivous CPU has same load, keep it as
+		 * target_cpu
+		 */
+		if (target_cpu_util == util && target_cpu == prev_cpu)
+			continue;
+
+		/*
+		 * If candidate CPU is the previous CPU, select it.
+		 * If all above conditions are same, select the least
+		 * cumulative window demand CPU.
+		 */
+		target_cpu_util = util;
+		target_cpu = cpu;
+	} while ((cpu = cpumask_next(cpu, &search_cpu)) < nr_cpu_ids);
+
+	if (target_cpu != -1 && cpumask_test_cpu(target_cpu, lowest_mask)) {
+		goto done;
+	} else if (!cpumask_empty(&backup_search_cpu)) {
+		cpumask_copy(&search_cpu, &backup_search_cpu);
+		cpumask_clear(&backup_search_cpu);
+		goto retry;
+	}
+
+done:
+	trace_sched_find_cas_cpu(task, lowest_mask, boosted_tutil, prev_cpu, target_cpu);
+	rcu_read_unlock();
+	return target_cpu;
+}
+#endif
+
 static DEFINE_PER_CPU(cpumask_var_t, local_cpu_mask);
 
 static int find_lowest_rq(struct task_struct *task)
@@ -1714,6 +1886,9 @@ static int find_lowest_rq(struct task_struct *task)
 	int this_cpu = smp_processor_id();
 	int cpu      = task_cpu(task);
 	int ret;
+#ifdef CONFIG_SCHED_RT_CAS
+	int cas_cpu;
+#endif
 
 	/* Make sure the mask is initialized first */
 	if (unlikely(!lowest_mask))
@@ -1739,6 +1914,12 @@ static int find_lowest_rq(struct task_struct *task)
 
 	if (!ret)
 		return -1; /* No targets found */
+
+#ifdef CONFIG_SCHED_RT_CAS
+	cas_cpu = find_cas_cpu(sd, task, lowest_mask);
+	if (cas_cpu != -1)
+		return cas_cpu;
+#endif
 
 	/*
 	 * At this point we have built a mask of CPUs representing the
@@ -2443,6 +2624,89 @@ static void task_tick_rt(struct rq *rq, struct task_struct *p, int queued)
 	}
 }
 
+#ifdef CONFIG_SCHED_RT_ACTIVE_LB
+static int rt_active_load_balance_cpu_stop(void *data)
+{
+	struct rq *busiest_rq = data;
+	struct task_struct *next_task = busiest_rq->rt_push_task;
+	struct rq *lowest_rq = NULL;
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&busiest_rq->lock, flags);
+	busiest_rq->rt_active_balance = 0;
+
+	/* find_lock_lowest_rq locks the rq if found */
+	lowest_rq = find_lock_lowest_rq(next_task, busiest_rq);
+	if (!lowest_rq)
+		goto out;
+
+	if (capacity_orig_of(cpu_of(lowest_rq)) <= capacity_orig_of(task_cpu(next_task)))
+		goto unlock;
+
+	deactivate_task(busiest_rq, next_task, 0);
+	set_task_cpu(next_task, lowest_rq->cpu);
+	activate_task(lowest_rq, next_task, 0);
+
+	resched_curr(lowest_rq);
+unlock:
+	double_unlock_balance(busiest_rq, lowest_rq);
+out:
+	put_task_struct(next_task);
+	raw_spin_unlock_irqrestore(&busiest_rq->lock, flags);
+
+	return 0;
+}
+
+static void check_for_migration_rt(struct rq *rq, struct task_struct *p)
+{
+	bool need_actvie_lb = false;
+	bool misfit_task = false;
+	int cpu = task_cpu(p);
+	unsigned long cpu_orig_cap;
+#ifdef CONFIG_SCHED_RTG
+	struct cpumask *rtg_target = NULL;
+#endif
+
+	if (!sysctl_sched_enable_rt_active_lb)
+		return;
+
+	if (p->nr_cpus_allowed == 1)
+		return;
+
+	cpu_orig_cap = capacity_orig_of(cpu);
+	/* cpu has max capacity, no need to do balance */
+	if (cpu_orig_cap ==  rq->rd->max_cpu_capacity)
+		return;
+
+#ifdef CONFIG_SCHED_RTG
+	rtg_target = find_rtg_target(p);
+	if (rtg_target)
+		misfit_task = capacity_orig_of(cpumask_first(rtg_target)) >
+				cpu_orig_cap;
+	else
+		misfit_task = !rt_task_fits_capacity(p, cpu);
+#else
+	misfit_task = !rt_task_fits_capacity(p, cpu);
+#endif
+
+	if (misfit_task) {
+		raw_spin_lock(&rq->lock);
+		if (!rq->active_balance && !rq->rt_active_balance) {
+			rq->rt_active_balance = 1;
+			rq->rt_push_task = p;
+			get_task_struct(p);
+			need_actvie_lb = true;
+		}
+		raw_spin_unlock(&rq->lock);
+
+		if (need_actvie_lb)
+			stop_one_cpu_nowait(task_cpu(p),
+					    rt_active_load_balance_cpu_stop,
+					    rq, &rq->rt_active_balance_work);
+	}
+}
+#endif
+
 static unsigned int get_rr_interval_rt(struct rq *rq, struct task_struct *task)
 {
 	/*
@@ -2490,6 +2754,9 @@ const struct sched_class rt_sched_class
 #endif
 #ifdef CONFIG_SCHED_WALT
 	.fixup_walt_sched_stats	= fixup_walt_sched_stats_common,
+#endif
+#ifdef CONFIG_SCHED_RT_ACTIVE_LB
+	.check_for_migration	= check_for_migration_rt,
 #endif
 };
 

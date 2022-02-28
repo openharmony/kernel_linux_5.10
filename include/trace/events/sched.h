@@ -10,6 +10,10 @@
 #include <linux/tracepoint.h>
 #include <linux/binfmts.h>
 
+#ifdef CONFIG_SCHED_RT_CAS
+#include "eas_sched.h"
+#endif
+
 /*
  * Tracepoint for calling kthread_stop, performed to end a kthread:
  */

@@ -860,6 +860,26 @@ config UCLAMP_BUCKETS_COUNT
 
 source "kernel/sched/rtg/Kconfig"
 
+config SCHED_EAS
+	bool "EAS scheduler optimization"
+	default n
+	help
+	  Check and migrate the CFS process to a more suitable CPU in the tick.
+
+config SCHED_RT_CAS
+	bool "rt-cas optimization"
+	depends on SCHED_EAS
+	default n
+	help
+	  RT task detects capacity during CPU selection
+
+config SCHED_RT_ACTIVE_LB
+	bool "RT Capacity Aware Misfit Task"
+	depends on SCHED_EAS
+	default n
+	help
+	  Check and migrate the RT process to a more suitable CPU in the tick.
+
 endmenu
 
 #

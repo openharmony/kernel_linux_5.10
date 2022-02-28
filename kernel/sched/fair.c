@@ -3953,14 +3953,22 @@ static inline unsigned long task_util_est(struct task_struct *p)
 }
 
 #ifdef CONFIG_UCLAMP_TASK
+#ifdef CONFIG_SCHED_RT_CAS
+unsigned long uclamp_task_util(struct task_struct *p)
+#else
 static inline unsigned long uclamp_task_util(struct task_struct *p)
+#endif
 {
 	return clamp(task_util_est(p),
 		     uclamp_eff_value(p, UCLAMP_MIN),
 		     uclamp_eff_value(p, UCLAMP_MAX));
 }
 #else
+#ifdef CONFIG_SCHED_RT_CAS
+unsigned long uclamp_task_util(struct task_struct *p)
+#else
 static inline unsigned long uclamp_task_util(struct task_struct *p)
+#endif
 {
 	return task_util_est(p);
 }
@@ -10110,9 +10118,13 @@ static int active_load_balance_cpu_stop(void *data)
 	int busiest_cpu = cpu_of(busiest_rq);
 	int target_cpu = busiest_rq->push_cpu;
 	struct rq *target_rq = cpu_rq(target_cpu);
-	struct sched_domain *sd;
+	struct sched_domain *sd = NULL;
 	struct task_struct *p = NULL;
 	struct rq_flags rf;
+#ifdef CONFIG_SCHED_EAS
+	struct task_struct *push_task;
+	int push_task_detached = 0;
+#endif
 
 	rq_lock_irq(busiest_rq, &rf);
 	/*
@@ -10138,6 +10150,32 @@ static int active_load_balance_cpu_stop(void *data)
 	 * Bjorn Helgaas on a 128-CPU setup.
 	 */
 	BUG_ON(busiest_rq == target_rq);
+
+#ifdef CONFIG_SCHED_EAS
+	push_task = busiest_rq->push_task;
+	target_cpu = busiest_rq->push_cpu;
+	if (push_task) {
+		struct lb_env env = {
+			.sd		= sd,
+			.dst_cpu	= target_cpu,
+			.dst_rq		= target_rq,
+			.src_cpu	= busiest_rq->cpu,
+			.src_rq		= busiest_rq,
+			.idle		= CPU_IDLE,
+			.flags		= 0,
+			.loop		= 0,
+		};
+		if (task_on_rq_queued(push_task) &&
+		    push_task->state ==  TASK_RUNNING &&
+		    task_cpu(push_task) == busiest_cpu &&
+		    cpu_online(target_cpu)) {
+			update_rq_clock(busiest_rq);
+			detach_task(push_task, &env);
+			push_task_detached = 1;
+		}
+		goto out_unlock;
+	}
+#endif
 
 	/* Search for an sd spanning us and the target CPU. */
 	rcu_read_lock();
@@ -10178,7 +10216,22 @@ static int active_load_balance_cpu_stop(void *data)
 	rcu_read_unlock();
 out_unlock:
 	busiest_rq->active_balance = 0;
+
+#ifdef CONFIG_SCHED_EAS
+	push_task = busiest_rq->push_task;
+	if (push_task)
+		busiest_rq->push_task = NULL;
+#endif
 	rq_unlock(busiest_rq, &rf);
+
+#ifdef CONFIG_SCHED_EAS
+	if (push_task) {
+		if (push_task_detached)
+			attach_one_task(target_rq, push_task);
+
+		put_task_struct(push_task);
+	}
+#endif
 
 	if (p)
 		attach_one_task(target_rq, p);
@@ -10979,6 +11032,97 @@ static void rq_offline_fair(struct rq *rq)
 	unthrottle_offline_cfs_rqs(rq);
 }
 
+#ifdef CONFIG_SCHED_EAS
+static inline int
+kick_active_balance(struct rq *rq, struct task_struct *p, int new_cpu)
+{
+	unsigned long flags;
+	int rc = 0;
+
+	if (cpu_of(rq) == new_cpu)
+		return rc;
+
+	/* Invoke active balance to force migrate currently running task */
+	raw_spin_lock_irqsave(&rq->lock, flags);
+	if (!rq->active_balance) {
+		rq->active_balance = 1;
+		rq->push_cpu = new_cpu;
+		get_task_struct(p);
+		rq->push_task = p;
+		rc = 1;
+	}
+	raw_spin_unlock_irqrestore(&rq->lock, flags);
+	return rc;
+}
+
+DEFINE_RAW_SPINLOCK(migration_lock);
+static void check_for_migration_fair(struct rq *rq, struct task_struct *p)
+{
+	int active_balance;
+	int new_cpu = -1;
+	int prev_cpu = task_cpu(p);
+	int ret;
+
+#ifdef CONFIG_SCHED_RTG
+	bool need_down_migrate = false;
+	struct cpumask *rtg_target = find_rtg_target(p);
+
+	if (rtg_target &&
+	    (capacity_orig_of(prev_cpu) >
+	     capacity_orig_of(cpumask_first(rtg_target))))
+		need_down_migrate = true;
+#endif
+
+	if (rq->misfit_task_load) {
+		if (rq->curr->state != TASK_RUNNING ||
+		    rq->curr->nr_cpus_allowed == 1)
+			return;
+
+		raw_spin_lock(&migration_lock);
+#ifdef CONFIG_SCHED_RTG
+		if (rtg_target) {
+			new_cpu = find_rtg_cpu(p);
+
+			if (new_cpu != -1 && need_down_migrate &&
+			    cpumask_test_cpu(new_cpu, rtg_target) &&
+			    idle_cpu(new_cpu))
+				goto do_active_balance;
+
+			if (new_cpu != -1 &&
+			    capacity_orig_of(new_cpu) > capacity_orig_of(prev_cpu))
+				goto do_active_balance;
+
+			goto out_unlock;
+		}
+#endif
+		rcu_read_lock();
+		new_cpu = find_energy_efficient_cpu(p, prev_cpu);
+		rcu_read_unlock();
+
+		if (new_cpu == -1 ||
+		    capacity_orig_of(new_cpu) <= capacity_orig_of(prev_cpu))
+			goto out_unlock;
+#ifdef CONFIG_SCHED_RTG
+do_active_balance:
+#endif
+		active_balance = kick_active_balance(rq, p, new_cpu);
+		if (active_balance) {
+			mark_reserved(new_cpu);
+			raw_spin_unlock(&migration_lock);
+			ret = stop_one_cpu_nowait(prev_cpu,
+				active_load_balance_cpu_stop, rq,
+				&rq->active_balance_work);
+			if (!ret)
+				clear_reserved(new_cpu);
+			else
+				wake_up_if_idle(new_cpu);
+			return;
+		}
+out_unlock:
+		raw_spin_unlock(&migration_lock);
+	}
+}
+#endif /* CONFIG_SCHED_EAS */
 #endif /* CONFIG_SMP */
 
 /*
@@ -11529,6 +11673,9 @@ const struct sched_class fair_sched_class
 #endif
 #ifdef CONFIG_SCHED_WALT
 	.fixup_walt_sched_stats	= walt_fixup_sched_stats_fair,
+#endif
+#ifdef CONFIG_SCHED_EAS
+	.check_for_migration	= check_for_migration_fair,
 #endif
 };
 

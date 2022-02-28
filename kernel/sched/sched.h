@@ -87,6 +87,10 @@
 struct rq;
 struct cpuidle_state;
 
+#ifdef CONFIG_SCHED_RT_CAS
+extern unsigned long uclamp_task_util(struct task_struct *p);
+#endif
+
 #ifdef CONFIG_SCHED_WALT
 extern unsigned int sched_ravg_window;
 extern unsigned int walt_cpu_util_freq_divisor;
@@ -893,6 +897,9 @@ struct root_domain {
 	 * CPUs of the rd. Protected by RCU.
 	 */
 	struct perf_domain __rcu *pd;
+#ifdef CONFIG_SCHED_RT_CAS
+	int max_cap_orig_cpu;
+#endif
 };
 
 extern void init_defrootdomain(void);
@@ -1047,7 +1054,17 @@ struct rq {
 	/* For active balancing */
 	int			active_balance;
 	int			push_cpu;
+#ifdef CONFIG_SCHED_EAS
+	struct task_struct	*push_task;
+#endif
 	struct cpu_stop_work	active_balance_work;
+
+	/* For rt active balancing */
+#ifdef CONFIG_SCHED_RT_ACTIVE_LB
+	int rt_active_balance;
+	struct task_struct *rt_push_task;
+	struct cpu_stop_work rt_active_balance_work;
+#endif
 
 	/* CPU of this runqueue: */
 	int			cpu;
@@ -1925,6 +1942,9 @@ struct sched_class {
 	void (*fixup_walt_sched_stats)(struct rq *rq, struct task_struct *p,
 					u16 updated_demand_scaled);
 #endif
+#ifdef CONFIG_SCHED_EAS
+	void  (*check_for_migration)(struct rq *rq, struct task_struct *p);
+#endif
 } __aligned(STRUCT_ALIGNMENT); /* STRUCT_ALIGN(), vmlinux.lds.h */
 
 static inline void put_prev_task(struct rq *rq, struct task_struct *prev)
@@ -2569,6 +2589,11 @@ out:
 	return clamp(util, min_util, max_util);
 }
 
+static inline bool uclamp_boosted(struct task_struct *p)
+{
+	return uclamp_eff_value(p, UCLAMP_MIN) > 0;
+}
+
 /*
  * When uclamp is compiled in, the aggregation at rq level is 'turned off'
  * by default in the fast path and only gets turned on once userspace performs
@@ -2587,6 +2612,11 @@ unsigned long uclamp_rq_util_with(struct rq *rq, unsigned long util,
 				  struct task_struct *p)
 {
 	return util;
+}
+
+static inline bool uclamp_boosted(struct task_struct *p)
+{
+	return false;
 }
 
 static inline bool uclamp_is_used(void)
@@ -2768,6 +2798,7 @@ extern bool task_fits_max(struct task_struct *p, int cpu);
 extern unsigned long capacity_spare_without(int cpu, struct task_struct *p);
 extern int update_preferred_cluster(struct related_thread_group *grp,
 			struct task_struct *p, u32 old_load, bool from_tick);
+extern struct cpumask *find_rtg_target(struct task_struct *p);
 #endif
 
 #ifdef CONFIG_SCHED_WALT

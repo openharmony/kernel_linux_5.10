@@ -4134,6 +4134,11 @@ void scheduler_tick(void)
 #ifdef CONFIG_SMP
 	rq->idle_balance = idle_cpu(cpu);
 	trigger_load_balance(rq);
+
+#ifdef CONFIG_SCHED_EAS
+	if (curr->sched_class->check_for_migration)
+		curr->sched_class->check_for_migration(rq, curr);
+#endif
 #endif
 }
 
@@ -7025,6 +7030,32 @@ void migrate_tasks(struct rq *dead_rq, struct rq_flags *rf,
 		attach_tasks_core(&tasks, rq);
 }
 
+#ifdef CONFIG_SCHED_EAS
+static void clear_eas_migration_request(int cpu)
+{
+	struct rq *rq = cpu_rq(cpu);
+	unsigned long flags;
+
+	clear_reserved(cpu);
+	if (rq->push_task) {
+		struct task_struct *push_task = NULL;
+
+		raw_spin_lock_irqsave(&rq->lock, flags);
+		if (rq->push_task) {
+			clear_reserved(rq->push_cpu);
+			push_task = rq->push_task;
+			rq->push_task = NULL;
+		}
+		rq->active_balance = 0;
+		raw_spin_unlock_irqrestore(&rq->lock, flags);
+		if (push_task)
+			put_task_struct(push_task);
+	}
+}
+#else
+static inline void clear_eas_migration_request(int cpu) {}
+#endif
+
 #ifdef CONFIG_CPU_ISOLATION_OPT
 int do_isolation_work_cpu_stop(void *data)
 {
@@ -7058,6 +7089,7 @@ int do_isolation_work_cpu_stop(void *data)
 		set_rq_online(rq);
 	rq_unlock(rq, &rf);
 
+	clear_eas_migration_request(cpu);
 	local_irq_enable();
 	return 0;
 }
@@ -7425,6 +7457,7 @@ int sched_cpu_starting(unsigned int cpu)
 {
 	sched_rq_cpu_starting(cpu);
 	sched_tick_start(cpu);
+	clear_eas_migration_request(cpu);
 	return 0;
 }
 
@@ -7446,6 +7479,8 @@ int sched_cpu_dying(unsigned int cpu)
 	migrate_tasks(rq, &rf, true);
 	BUG_ON(rq->nr_running != 1);
 	rq_unlock_irqrestore(rq, &rf);
+
+	clear_eas_migration_request(cpu);
 
 	calc_load_migrate(rq);
 	update_max_interval();
