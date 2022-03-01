@@ -57,49 +57,84 @@ int hmdfs_file_release_local(struct inode *inode, struct file *file)
 	return 0;
 }
 
-ssize_t hmdfs_read_local(struct kiocb *iocb, struct iov_iter *iter)
+static void hmdfs_file_accessed(struct file *file)
 {
-	struct file *lower_file = hmdfs_f(iocb->ki_filp)->lower_file;
-	int err;
+	struct file *lower_file = hmdfs_f(file)->lower_file;
+	struct inode *inode = file_inode(file);
+	struct inode *lower_inode = file_inode(lower_file);
 
-	if (iter->type & ITER_KVEC)
-		err = kernel_read(lower_file, iter->iov->iov_base,
-						  iter->iov->iov_len, &(iocb->ki_pos));
-	else
-		err = vfs_read(lower_file, iter->iov->iov_base,
-					   iter->iov->iov_len, &(iocb->ki_pos));
+	if (file->f_flags & O_NOATIME)
+		return;
 
-	if (err >= 0)
-		file_inode(iocb->ki_filp)->i_atime = file_inode(lower_file)->i_atime;
-	return err;
+	inode->i_atime = lower_inode->i_atime;
 }
 
-ssize_t hmdfs_write_local(struct kiocb *iocb, struct iov_iter *iter)
+ssize_t hmdfs_do_read_iter(struct file *file, struct iov_iter *iter,
+	loff_t *ppos)
 {
-	struct file *lower_file = hmdfs_f(iocb->ki_filp)->lower_file;
-	struct inode *inode = file_inode(iocb->ki_filp);
+	ssize_t ret;
+	struct file *lower_file = hmdfs_f(file)->lower_file;
+
+	if (!iov_iter_count(iter))
+		return 0;
+
+	ret = vfs_iter_read(lower_file, iter, ppos, 0);
+	hmdfs_file_accessed(file);
+
+	return ret;
+}
+
+static ssize_t hmdfs_local_read_iter(struct kiocb *iocb, struct iov_iter *iter)
+{
+	return hmdfs_do_read_iter(iocb->ki_filp, iter, &iocb->ki_pos);
+}
+
+static void hmdfs_file_modified(struct file *file)
+{
+	struct inode *inode = file_inode(file);
+	struct dentry *dentry = file_dentry(file);
+	struct file *lower_file = hmdfs_f(file)->lower_file;
 	struct inode *lower_inode = file_inode(lower_file);
-	struct dentry *dentry = file_dentry(iocb->ki_filp);
-	int err;
 
-	if (iter->type & ITER_KVEC)
-		err = kernel_write(lower_file, iter->iov->iov_base,
-						   iter->iov->iov_len, &(iocb->ki_pos));
-	else
-		err = vfs_write(lower_file, iter->iov->iov_base,
-						iter->iov->iov_len, &(iocb->ki_pos));
+	inode->i_atime = lower_inode->i_atime;
+	inode->i_ctime = lower_inode->i_ctime;
+	inode->i_mtime = lower_inode->i_mtime;
+	i_size_write(inode, i_size_read(lower_inode));
 
-	if (err >= 0) {
-		inode_lock(inode);
-		i_size_write(inode, i_size_read(lower_inode));
-		inode->i_atime = lower_inode->i_atime;
-		inode->i_ctime = lower_inode->i_ctime;
-		inode->i_mtime = lower_inode->i_mtime;
-		if (!hmdfs_i_merge(hmdfs_i(inode)))
-			update_inode_to_dentry(dentry, inode);
-		inode_unlock(inode);
-	}
-	return err;
+	if (!hmdfs_i_merge(hmdfs_i(inode)))
+		update_inode_to_dentry(dentry, inode);
+}
+
+ssize_t hmdfs_do_write_iter(struct file *file, struct iov_iter *iter,
+	loff_t *ppos)
+{
+	ssize_t ret;
+	struct file *lower_file = hmdfs_f(file)->lower_file;
+	struct inode *inode = file_inode(file);
+
+	if (!iov_iter_count(iter))
+		return 0;
+
+	inode_lock(inode);
+
+	ret = file_remove_privs(file);
+	if (ret)
+		goto out_unlock;
+
+	file_start_write(lower_file);
+	ret = vfs_iter_write(lower_file, iter, ppos, 0);
+	file_end_write(lower_file);
+
+	hmdfs_file_modified(file);
+
+out_unlock:
+	inode_unlock(inode);
+	return ret;
+}
+
+ssize_t hmdfs_local_write_iter(struct kiocb *iocb, struct iov_iter *iter)
+{
+	return hmdfs_do_write_iter(iocb->ki_filp, iter, &iocb->ki_pos);
 }
 
 int hmdfs_fsync_local(struct file *file, loff_t start, loff_t end, int datasync)
@@ -164,8 +199,8 @@ int hmdfs_file_mmap_local(struct file *file, struct vm_area_struct *vma)
 const struct file_operations hmdfs_file_fops_local = {
 	.owner = THIS_MODULE,
 	.llseek = hmdfs_file_llseek_local,
-	.read_iter = hmdfs_read_local,
-	.write_iter = hmdfs_write_local,
+	.read_iter = hmdfs_local_read_iter,
+	.write_iter = hmdfs_local_write_iter,
 	.mmap = hmdfs_file_mmap_local,
 	.open = hmdfs_file_open_local,
 	.release = hmdfs_file_release_local,
