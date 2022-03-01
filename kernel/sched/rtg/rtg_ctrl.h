@@ -67,10 +67,6 @@ enum rtg_err_no {
 	INVALID_RTG_ID,
 	NO_RT_FRAME,
 };
-enum enable_type {
-	ALL_ENABLE = 1,
-	ENABLE_MAX
-};
 
 struct rtg_grp_data {
 	int rtg_cmd;
