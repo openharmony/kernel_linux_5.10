@@ -6,6 +6,8 @@
 #ifndef BLACKBOX_STORAGE_H
 #define BLACKBOX_STORAGE_H
 
+#include <linux/kmsg_dump.h>
+
 struct reboot_crashlog_storage {
 	int (*storage_log)(void *out, unsigned int outlen);
 	int (*get_log)(void *in, unsigned int inlen);

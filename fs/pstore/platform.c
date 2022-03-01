@@ -389,6 +389,7 @@ void pstore_record_init(struct pstore_record *record,
 #ifdef CONFIG_PSTORE_BLACKBOX
 #define PSTORE_FLAG           "PSTORE"
 #define CALLSTACK_MAX_ENTRIES 20
+#if defined(CONFIG_PSTORE_BLK)
 static void dump_stacktrace(char *pbuf, size_t buf_size, bool is_panic)
 {
 	int i;
@@ -427,13 +428,18 @@ static void dump_stacktrace(char *pbuf, size_t buf_size, bool is_panic)
 	memcpy(pbuf + com_len, tmp_buf, stack_len);
 	*(pbuf + buf_size - 1) = '\0';
 }
+#endif
 
 void pstore_blackbox_dump(struct kmsg_dumper *dumper,
 						enum kmsg_dump_reason reason)
 {
 #if defined(CONFIG_PSTORE_BLK)
+	struct fault_log_info *pfault_log_info;
+	struct pstore_record record;
+	size_t dst_size;
 	const char *why;
-	int        ret;
+	char *dst;
+	int ret;
 
 	if (!pstore_blk_ready)
 		return;
@@ -453,10 +459,7 @@ void pstore_blackbox_dump(struct kmsg_dumper *dumper,
 		}
 	}
 
-	char *dst;
-	size_t dst_size;
-	struct pstore_record record;
-	struct fault_log_info *pfault_log_info = (struct fault_log_info *)psinfo->buf;
+	pfault_log_info = (struct fault_log_info *)psinfo->buf;
 
 	memset(pfault_log_info, 0, sizeof(*pfault_log_info));
 

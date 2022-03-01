@@ -467,21 +467,6 @@ static int save_error_log(void *pparam)
 	return 0;
 }
 
-#ifdef CONFIG_BLACKBOX_DEBUG
-static void print_module_ops(void)
-{
-	struct bbox_ops *temp = NULL;
-
-	bbox_print_info("The following modules have been registered!\n");
-	list_for_each_entry(temp, &ops_list, list) {
-		bbox_print_info("module: %s, dump: %p, reset: %p, get_last_log_info: %p,
-			save_last_log: %p\n",
-			temp->ops.module, temp->ops.dump, temp->ops.reset, temp->ops.get_last_log_info,
-			temp->ops.save_last_log);
-	}
-}
-#endif
-
 int bbox_register_module_ops(struct module_ops *ops)
 {
 	struct bbox_ops *new_ops = NULL;
@@ -518,9 +503,6 @@ __out:
 	bbox_print_info("[%s] is registered successfully!\n", ops->module);
 	list_add_tail(&new_ops->list, &ops_list);
 	spin_unlock_irqrestore(&ops_list_lock, flags);
-#ifdef CONFIG_BLACKBOX_DEBUG
-	print_module_ops();
-#endif
 
 	return 0;
 }
