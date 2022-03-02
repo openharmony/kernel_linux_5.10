@@ -205,6 +205,8 @@ const struct file_operations hmdfs_file_fops_local = {
 	.open = hmdfs_file_open_local,
 	.release = hmdfs_file_release_local,
 	.fsync = hmdfs_fsync_local,
+	.splice_read = generic_file_splice_read,
+	.splice_write = iter_file_splice_write,
 };
 
 static int hmdfs_iterate_local(struct file *file, struct dir_context *ctx)

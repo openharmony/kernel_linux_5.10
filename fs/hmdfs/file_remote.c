@@ -624,6 +624,8 @@ const struct file_operations hmdfs_dev_file_fops_remote = {
 	.release = hmdfs_file_release_remote,
 	.flush = hmdfs_file_flush,
 	.fsync = hmdfs_file_fsync_remote,
+	.splice_read = generic_file_splice_read,
+	.splice_write = iter_file_splice_write,
 };
 
 static void hmdfs_fill_page_zero(struct page *page)

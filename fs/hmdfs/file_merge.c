@@ -578,4 +578,6 @@ const struct file_operations hmdfs_file_fops_merge = {
 	.flush = hmdfs_file_flush_merge,
 	.release = hmdfs_file_release_local,
 	.fsync = hmdfs_fsync_local,
+	.splice_read = generic_file_splice_read,
+	.splice_write = iter_file_splice_write,
 };
