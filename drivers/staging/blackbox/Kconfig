@@ -3,7 +3,6 @@ menu "Blackbox Options"
 
 config BLACKBOX
 	bool "Support for blackbox"
-	depends on !ARCH_HAS_SYSCALL_WRAPPER
 	select STORAGE if BLACKBOX_STORAGE_MATERIAL
 	default y
 	help

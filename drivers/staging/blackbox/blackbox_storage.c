@@ -10,6 +10,7 @@
 #include <linux/dirent.h>
 #include <linux/pstore.h>
 #include <linux/blackbox_storage.h>
+#include <linux/blackbox_common.h>
 
 char *storage_material =
 #ifdef CONFIG_DEF_BLACKBOX_STORAGE
@@ -55,7 +56,7 @@ static void do_kmsg_dump(struct kmsg_dumper *dumper,
 	}
 	pinfo = (struct fault_log_info *)lastlog;
 	(void)kmsg_dump_get_buffer(dumper, true, lastlog + sizeof(*pinfo),
-			lastlog_len - sizeof(*pinfo), &pinfo->len);
+			lastlog_len - sizeof(*pinfo), (size_t *)&pinfo->len);
 	up(&kmsg_sem);
 }
 #endif
@@ -82,73 +83,49 @@ struct sys_st {
 
 static bool is_pstore_part_ready(char *pstore_file)
 {
-	mm_segment_t old_fs;
-	int fd = -1;
-	void *buf = NULL;
+	const char *cur_name = NULL;
+	struct dentry *root_dentry;
+	struct dentry *cur_dentry;
+	struct file *filp = NULL;
 	char *full_path = NULL;
-	struct linux_dirent64 *dirp;
-	int num;
-	int ret = -1;
 	struct sys_st st;
+	int ret = -1;
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
+	if (unlikely(!pstore_file))
+		return -EINVAL;
+	memset(pstore_file, 0, sizeof(*pstore_file));
 
-	fd = sys_open(PSTORE_MOUNT_POINT, O_RDONLY, 0);
-	if (fd < 0) {
-		bbox_print_err("open dir [%s] failed!\n", PSTORE_MOUNT_POINT);
-		goto __out;
+	filp = file_open(PSTORE_MOUNT_POINT, O_RDONLY, 0);
+	if (IS_ERR(filp)) {
+		bbox_print_err("open %s failed! err is [%ld]\n", PSTORE_MOUNT_POINT, PTR_ERR(filp));
+		return -EBADF;
 	}
-
-	buf = vmalloc(PATH_MAX_LEN);
-	if (!buf)
-		goto __out;
 
 	full_path = vmalloc(PATH_MAX_LEN);
 	if (!full_path)
 		goto __out;
 
-	dirp = buf;
+	root_dentry = filp->f_path.dentry;
+	list_for_each_entry(cur_dentry, &root_dentry->d_subdirs, d_child) {
+		cur_name = cur_dentry->d_name.name;
 
-	num = sys_getdents64(fd, dirp, PATH_MAX_LEN);
-	while (num > 0) {
-		while (num > 0) {
-			if ((strcmp(dirp->d_name, ".") == 0) || (strcmp(dirp->d_name, "..") == 0)) {
-				num -= dirp->d_reclen;
-				dirp = (void *)dirp + dirp->d_reclen;
-				continue;
-			}
+		memset(full_path, 0, PATH_MAX_LEN);
+		snprintf(full_path, PATH_MAX_LEN - 1, "%s%s", PSTORE_MOUNT_POINT, cur_name);
+		memset((void *)&st, 0, sizeof(struct sys_st));
 
-			memset(full_path, 0, PATH_MAX_LEN);
-			snprintf(full_path, PATH_MAX_LEN - 1, "%s%s", PSTORE_MOUNT_POINT, dirp->d_name);
-
-			memset((void *)&st, 0, sizeof(struct sys_st));
-
-			ret = sys_lstat(full_path, &st.__st);
-			if ((ret == 0) && (S_ISREG(st.__st.st_mode)) &&
-				(strncmp(dirp->d_name, "blackbox", strlen("blackbox")) == 0)) {
-				if (strcmp(full_path, pstore_file) > 0)
-					strncpy(pstore_file, full_path, strlen(full_path));
-				bbox_print_info("get pstore file name %s %s!\n", pstore_file,
-						ret ? "failed" : "successfully");
-			}
-
-			num -= dirp->d_reclen;
-			dirp = (void *)dirp + dirp->d_reclen;
+		ret = sys_lstat(full_path, &st.__st);
+		if (!ret && (S_ISREG(st.__st.st_mode)) &&
+		    (strncmp(cur_name, "blackbox", strlen("blackbox")) == 0)) {
+			if (strcmp(full_path, pstore_file) > 0)
+				strncpy(pstore_file, full_path, strlen(full_path));
 		}
-
-		dirp = buf;
-		memset(buf, 0, PATH_MAX_LEN);
-		num = sys_getdents64(fd, dirp, PATH_MAX_LEN);
 	}
 
+	if (strlen(pstore_file))
+		bbox_print_info("get pstore file name %s successfully!\n", pstore_file);
+
 __out:
-	if (fd >= 0)
-		sys_close(fd);
-
-	set_fs(old_fs);
-
-	vfree(buf);
+	file_close(filp);
 	vfree(full_path);
 
 	return ret == 0;
@@ -157,12 +134,13 @@ __out:
 static int get_log_by_pstore_blk(void *in, unsigned int inlen)
 {
 	char pstore_file[PATH_MAX_LEN];
+	struct file *filp = NULL;
+	char *pathname = NULL;
+	mm_segment_t old_fs;
 	void *pbuf = NULL;
-	void *pbuf_temp = NULL;
+	loff_t pos = 0;
 	static int retry;
-	int need_read_size = 0;
-	int fd = -1;
-	int ret = 0;
+	int ret = -1;
 
 	memset(pstore_file, 0, PATH_MAX_LEN);
 	while (!is_pstore_part_ready((char *)&pstore_file)) {
@@ -173,46 +151,36 @@ static int get_log_by_pstore_blk(void *in, unsigned int inlen)
 	}
 
 	if (likely(in)) {
-		fd = sys_open(pstore_file, O_RDONLY, FILE_LIMIT);
-		if (fd < 0) {
-			bbox_print_err("%s():%d: open %s failed! [%d]\n", __func__,
-					__LINE__, pstore_file, fd);
+		filp = file_open(pstore_file, O_RDONLY, FILE_LIMIT);
+		if (IS_ERR(filp)) {
+			bbox_print_err("open %s failed! err is [%ld]\n", pstore_file,
+				       PTR_ERR(filp));
 			return -EBADF;
 		}
 		memset(in, 0, inlen);
-		need_read_size = inlen;
 		pbuf = in;
 
-		pbuf_temp = kzalloc(SZ_4K, GFP_KERNEL);
-		if (!pbuf_temp)
-			goto __out;
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
 
-		while (need_read_size > 0) {
-			ret = sys_read(fd, pbuf_temp, SZ_4K);
-			if (ret < 0) {
-				bbox_print_err("%s():%d: read failed! [%d]\n", __func__,
-					__LINE__, ret);
-				goto __error;
-			}
-
-			if (ret == 0)
-				break;
-
-			memcpy((void *)pbuf, (const void *)pbuf_temp, ret);
-			pbuf += ret;
-			need_read_size -= ret;
+		ret = vfs_read(filp, pbuf, inlen, &pos);
+		if (ret < 0) {
+			pathname = getfullpath(filp);
+			bbox_print_err("read %s failed! err is [%d]\n", pathname ? pathname : "",
+				       ret);
+			goto __error;
 		}
-		kfree(pbuf_temp);
+
+		set_fs(old_fs);
+		file_close(filp);
+		file_delete(filp);
+		return 0;
 	}
 
-	sys_close(fd);
-
-	return 0;
-
+	return -EBADF;
 __error:
-	kfree(pbuf_temp);
-__out:
-	sys_close(fd);
+	set_fs(old_fs);
+	file_close(filp);
 	return -EIO;
 }
 #endif

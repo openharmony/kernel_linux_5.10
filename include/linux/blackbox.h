@@ -31,11 +31,15 @@
 #define EVENT_HUNGTASK       "HUNGTASK"
 #define EVENT_BOOTFAIL       "BOOTFAIL"
 
-#define bbox_print_err(format, ...)  \
-	pr_err("bbox: func: %s, line: %d, err: " \
-	format, __func__, __LINE__, ##__VA_ARGS__)
-#define bbox_print_info(format, ...)  \
-	pr_err("bbox: info: " format,  ##__VA_ARGS__)
+#define FILE_NAME(x) (strrchr(x, '/') ? (strrchr(x, '/') + 1) : x)
+#define BBOX_DECORATOR_HILOG(level, fmt, args...)  \
+	pr_err("bbox:[%s][%s:%d] " fmt, level, FILE_NAME(__FILE__), __LINE__, ##args)
+
+#define bbox_print_fatal(fmt, args...) BBOX_DECORATOR_HILOG("fatal", fmt, ##args)
+#define bbox_print_err(fmt, args...) BBOX_DECORATOR_HILOG("err", fmt, ##args)
+#define bbox_print_warn(fmt, args...) BBOX_DECORATOR_HILOG("warn", fmt, ##args)
+#define bbox_print_info(fmt, args...) BBOX_DECORATOR_HILOG("info", fmt, ##args)
+#define bbox_print_debug(fmt, args...) BBOX_DECORATOR_HILOG("debug", fmt, ##args)
 
 struct error_info {
 	char event[EVENT_MAX_LEN];
