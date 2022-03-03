@@ -63,7 +63,7 @@ struct error_info_to_category {
 static LIST_HEAD(ops_list);
 static DEFINE_SPINLOCK(ops_list_lock);
 static DEFINE_SEMAPHORE(temp_error_info_sem);
-static struct error_info_to_category error_info_categorys[] = {
+static struct error_info_to_category error_info_categories[] = {
 	{
 		MODULE_SYSTEM,
 		{EVENT_SYSREBOOT, CATEGORY_SYSTEM_REBOOT, TOP_CATEGORY_SYSTEM_RESET}
@@ -107,16 +107,15 @@ struct error_info *temp_error_info;
 /* ---- local function prototypes ---- */
 static const char *get_top_category(const char *module, const char *event);
 static const char *get_category(const char *module, const char *event);
-static void format_log_dir(char *buf, size_t buf_size,
-				const char *log_root_dir, const char event[EVENT_MAX_LEN],
-				const char *timestamp);
-static void save_history_log(const char *log_root_dir,
-				struct error_info *info, const char *timestamp, int need_sys_reset);
+static void format_log_dir(char *buf, size_t buf_size, const char *log_root_dir,
+			   const char *timestamp);
+static void save_history_log(const char *log_root_dir, struct error_info *info,
+			     const char *timestamp, int need_sys_reset);
+static void save_invalid_log(const struct bbox_ops *ops, const struct error_info *info);
 static void wait_for_log_part(void);
-static void format_error_info(struct error_info *info,
-				const char event[EVENT_MAX_LEN],
-				const char module[MODULE_MAX_LEN],
-				const char error_desc[ERROR_DESC_MAX_LEN]);
+static void format_error_info(struct error_info *info, const char event[EVENT_MAX_LEN],
+			      const char module[MODULE_MAX_LEN],
+			      const char error_desc[ERROR_DESC_MAX_LEN]);
 static void save_last_log(void);
 static int save_error_log(void *pparam);
 
@@ -126,7 +125,7 @@ static int save_error_log(void *pparam);
 static const char *get_top_category(const char *module, const char *event)
 {
 	int i;
-	int count = (int)ARRAY_SIZE(error_info_categorys);
+	int count = (int)ARRAY_SIZE(error_info_categories);
 
 	if (unlikely(!module || !event)) {
 		bbox_print_err("module: %p, event: %p\n", module, event);
@@ -134,9 +133,9 @@ static const char *get_top_category(const char *module, const char *event)
 	}
 
 	for (i = 0; i < count; i++) {
-		if (!strcmp(error_info_categorys[i].module, module) &&
-			!strcmp(error_info_categorys[i].map.event, event)) {
-			return error_info_categorys[i].map.top_category;
+		if (!strcmp(error_info_categories[i].module, module) &&
+		    !strcmp(error_info_categories[i].map.event, event)) {
+			return error_info_categories[i].map.top_category;
 		}
 	}
 	if (!strcmp(module, MODULE_SYSTEM))
@@ -148,7 +147,7 @@ static const char *get_top_category(const char *module, const char *event)
 static const char *get_category(const char *module, const char *event)
 {
 	int i;
-	int count = (int)ARRAY_SIZE(error_info_categorys);
+	int count = (int)ARRAY_SIZE(error_info_categories);
 
 	if (unlikely(!module || !event)) {
 		bbox_print_err("module: %p, event: %p\n", module, event);
@@ -156,9 +155,9 @@ static const char *get_category(const char *module, const char *event)
 	}
 
 	for (i = 0; i < count; i++) {
-		if (!strcmp(error_info_categorys[i].module, module) &&
-			!strcmp(error_info_categorys[i].map.event, event)) {
-			return error_info_categorys[i].map.category;
+		if (!strcmp(error_info_categories[i].module, module) &&
+		    !strcmp(error_info_categories[i].map.event, event)) {
+			return error_info_categories[i].map.category;
 		}
 	}
 	if (!strcmp(module, MODULE_SYSTEM))
@@ -167,25 +166,23 @@ static const char *get_category(const char *module, const char *event)
 	return CATEGORY_SUBSYSTEM_CUSTOM;
 }
 
-static void format_log_dir(char *buf, size_t buf_size,
-				const char *log_root_dir, const char event[EVENT_MAX_LEN],
-				const char *timestamp)
+static void format_log_dir(char *buf, size_t buf_size, const char *log_root_dir,
+			   const char *timestamp)
 {
 	if (unlikely(!buf || buf_size == 0 || !log_root_dir ||
-				 !event || !timestamp)) {
-		bbox_print_err("buf: %p, buf_size: %u, log_root_dir: %p, event: %p,	timestamp: %p\n",
-				buf, (unsigned int)buf_size, log_root_dir, event, timestamp);
+				 !timestamp)) {
+		bbox_print_err("buf: %p, buf_size: %u, log_root_dir: %p, timestamp: %p\n",
+			       buf, (unsigned int)buf_size, log_root_dir, timestamp);
 		return;
 	}
 
 	memset(buf, 0, buf_size);
-	scnprintf(buf, buf_size - 1, "%s/%s_%s", log_root_dir, event, timestamp);
+	scnprintf(buf, buf_size - 1, "%s/%s", log_root_dir, timestamp);
 }
 
-static void format_error_info(struct error_info *info,
-				const char event[EVENT_MAX_LEN],
-				const char module[MODULE_MAX_LEN],
-				const char error_desc[ERROR_DESC_MAX_LEN])
+static void format_error_info(struct error_info *info, const char event[EVENT_MAX_LEN],
+			      const char module[MODULE_MAX_LEN],
+			      const char error_desc[ERROR_DESC_MAX_LEN])
 {
 	if (unlikely(!info || !event || !module || !error_desc)) {
 		bbox_print_err("info: %p, event: %p, module: %p, error_desc: %p\n",
@@ -203,8 +200,8 @@ static void format_error_info(struct error_info *info,
 				sizeof(info->error_desc) - 1));
 }
 
-static void save_history_log(const char *log_root_dir,
-				struct error_info *info, const char *timestamp, int need_sys_reset)
+static void save_history_log(const char *log_root_dir, struct error_info *info,
+			     const char *timestamp, int need_sys_reset)
 {
 	char history_log_path[PATH_MAX_LEN];
 	char *buf;
@@ -228,21 +225,31 @@ static void save_history_log(const char *log_root_dir,
 	scnprintf(history_log_path, sizeof(history_log_path) - 1,
 			"%s/%s", log_root_dir, HISTORY_LOG_NAME);
 	full_write_file(history_log_path, buf, strlen(buf), 1);
-	change_own_mode(history_log_path, AID_ROOT, AID_SYSTEM, BBOX_FILE_LIMIT);
+	change_own(history_log_path, AID_ROOT, AID_SYSTEM);
 	vfree(buf);
+}
+
+static void save_invalid_log(const struct bbox_ops *ops, const struct error_info *info)
+{
+	char invalid_log_path[PATH_MAX_LEN];
+	char timestamp[TIMESTAMP_MAX_LEN];
+
+	if (unlikely(!ops || !info)) {
+		bbox_print_err("ops: %p, info: %p\n", ops, info);
+		return;
+	}
+
+	get_timestamp(timestamp, sizeof(timestamp));
+	format_log_dir(invalid_log_path, PATH_MAX_LEN, CONFIG_BLACKBOX_LOG_PART_REPRESENTATIVE,
+		       timestamp);
+	create_log_dir(invalid_log_path);
+	if (ops->ops.save_last_log(invalid_log_path, (struct error_info *)info) != 0)
+		bbox_print_err("[%s] failed to save invalid log!\n", ops->ops.module);
 }
 
 static bool is_log_part_mounted(void)
 {
-	int ret;
-	mm_segment_t old_fs;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	ret = sys_access(CONFIG_BLACKBOX_LOG_PART_REPRESENTATIVE, 0);
-	set_fs(old_fs);
-
-	return ret == 0;
+	return file_exists(CONFIG_BLACKBOX_LOG_PART_REPRESENTATIVE) == 0;
 }
 
 static void wait_for_log_part(void)
@@ -258,8 +265,7 @@ static void wait_for_log_part(void)
 
 static bool find_module_ops(struct error_info *info, struct bbox_ops **ops)
 {
-	struct list_head *cur = NULL;
-	struct list_head *next = NULL;
+	struct bbox_ops *cur = NULL;
 	bool find_module = false;
 
 	if (unlikely(!info || !ops)) {
@@ -267,9 +273,9 @@ static bool find_module_ops(struct error_info *info, struct bbox_ops **ops)
 		return find_module;
 	}
 
-	list_for_each_safe(cur, next, &ops_list) {
-		*ops = list_entry(cur, struct bbox_ops, list);
-		if (*ops && !strcmp((*ops)->ops.module, info->module)) {
+	list_for_each_entry(cur, &ops_list, list) {
+		if (!strcmp(cur->ops.module, info->module)) {
+			*ops = cur;
 			find_module = true;
 			break;
 		}
@@ -327,7 +333,7 @@ static void save_log_without_reset(struct error_info *info)
 		/* create log root path */
 		if (log_dir) {
 			format_log_dir(log_dir, PATH_MAX_LEN,
-						CONFIG_BLACKBOX_LOG_ROOT_PATH, info->event, timestamp);
+						CONFIG_BLACKBOX_LOG_ROOT_PATH, timestamp);
 			create_log_dir(log_dir);
 		} else
 			bbox_print_err("vmalloc failed!\n");
@@ -372,6 +378,7 @@ static void save_temp_error_info(const char event[EVENT_MAX_LEN],
 static void do_save_last_log(const struct bbox_ops *ops, const struct error_info *info)
 {
 	char *log_dir = NULL;
+	int ret;
 
 	if (unlikely(!ops || !info)) {
 		bbox_print_err("ops: %p, info: %p\n",
@@ -380,8 +387,11 @@ static void do_save_last_log(const struct bbox_ops *ops, const struct error_info
 	}
 
 	memset((void *)info, 0, sizeof(*info));
-	if (ops->ops.get_last_log_info((struct error_info *)info) != 0) {
+	ret = ops->ops.get_last_log_info((struct error_info *)info);
+	if (ret) {
 		bbox_print_err("[%s] failed to get log info!\n", ops->ops.module);
+		if (ret == -ENOMSG)
+			save_invalid_log(ops, info);
 		return;
 	}
 	bbox_print_info("[%s] starts saving log!\n", ops->ops.module);
@@ -396,7 +406,7 @@ static void do_save_last_log(const struct bbox_ops *ops, const struct error_info
 		get_timestamp((char *)info->error_time, TIMESTAMP_MAX_LEN);
 
 	format_log_dir(log_dir, PATH_MAX_LEN, CONFIG_BLACKBOX_LOG_ROOT_PATH,
-				info->event, info->error_time);
+				   info->error_time);
 	create_log_dir(log_dir);
 	if (ops->ops.save_last_log(log_dir, (struct error_info *)info) == 0)
 		save_history_log(CONFIG_BLACKBOX_LOG_ROOT_PATH,
@@ -410,22 +420,14 @@ static void save_last_log(void)
 {
 	unsigned long flags;
 	struct error_info *info = NULL;
-	struct list_head *cur = NULL;
-	struct list_head *next = NULL;
+	struct bbox_ops *ops = NULL;
 
 	info = vmalloc(sizeof(*info));
 	if (!info)
 		return;
 
 	spin_lock_irqsave(&ops_list_lock, flags);
-	list_for_each_safe(cur, next, &ops_list) {
-		struct bbox_ops *ops = list_entry(cur, struct bbox_ops, list);
-
-		if (!ops) {
-			bbox_print_err("ops is NULL!\n");
-			continue;
-		}
-
+	list_for_each_entry(ops, &ops_list, list) {
 		if (ops->ops.get_last_log_info &&
 			ops->ops.save_last_log) {
 			spin_unlock_irqrestore(&ops_list_lock, flags);
@@ -471,8 +473,6 @@ int bbox_register_module_ops(struct module_ops *ops)
 {
 	struct bbox_ops *new_ops = NULL;
 	struct bbox_ops *temp = NULL;
-	struct list_head *cur = NULL;
-	struct list_head *next = NULL;
 	unsigned long flags;
 
 	if (unlikely(!ops)) {
@@ -489,8 +489,7 @@ int bbox_register_module_ops(struct module_ops *ops)
 	if (list_empty(&ops_list))
 		goto __out;
 
-	list_for_each_safe(cur, next, &ops_list) {
-		temp = list_entry(cur, struct bbox_ops, list);
+	list_for_each_entry(temp, &ops_list, list) {
 		if (!strcmp(temp->ops.module, ops->module)) {
 			spin_unlock_irqrestore(&ops_list_lock, flags);
 			vfree(new_ops);
