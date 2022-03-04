@@ -28,6 +28,8 @@
 #define ZRAM_WM_RATIO 0
 #define MAX_RATIO 100
 
+#define CHECK_BUFFER_VALID(var1, var2) (((var2) != 0) && ((var1) > (var2)))
+
 struct zswapd_param {
 	unsigned int min_score;
 	unsigned int max_score;
@@ -146,6 +148,11 @@ static ssize_t avail_buffers_params_write(struct kernfs_open_file *of,
 	buf = strstrip(buf);
 
 	if (sscanf(buf, "%u %u %u %llu", &buffers, &min_buffers, &high_buffers, &threshold) != 4)
+		return -EINVAL;
+
+	if (CHECK_BUFFER_VALID(min_buffers, buffers) ||
+	    CHECK_BUFFER_VALID(min_buffers, high_buffers) ||
+	    CHECK_BUFFER_VALID(buffers, high_buffers))
 		return -EINVAL;
 
 	atomic_set(&avail_buffers, buffers);
@@ -410,7 +417,8 @@ static ssize_t zswapd_single_memcg_param_write(struct kernfs_open_file *of,
 			&refault_threshold) != 3)
 		return -EINVAL;
 
-	if (ub_mem2zram_ratio > MAX_RATIO || ub_zram2ufs_ratio > MAX_RATIO)
+	if (ub_mem2zram_ratio > MAX_RATIO || ub_zram2ufs_ratio > MAX_RATIO ||
+	    refault_threshold > MAX_RATIO)
 		return -EINVAL;
 
 	atomic_set(&memcg->memcg_reclaimed.ub_mem2zram_ratio,
