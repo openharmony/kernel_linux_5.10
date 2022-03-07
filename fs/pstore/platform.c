@@ -389,7 +389,6 @@ void pstore_record_init(struct pstore_record *record,
 #ifdef CONFIG_PSTORE_BLACKBOX
 #define PSTORE_FLAG           "PSTORE"
 #define CALLSTACK_MAX_ENTRIES 20
-#if defined(CONFIG_PSTORE_BLK)
 static void dump_stacktrace(char *pbuf, size_t buf_size, bool is_panic)
 {
 	int i;
@@ -428,12 +427,9 @@ static void dump_stacktrace(char *pbuf, size_t buf_size, bool is_panic)
 	memcpy(pbuf + com_len, tmp_buf, stack_len);
 	*(pbuf + buf_size - 1) = '\0';
 }
-#endif
 
-void pstore_blackbox_dump(struct kmsg_dumper *dumper,
-						enum kmsg_dump_reason reason)
+void pstore_blackbox_dump(struct kmsg_dumper *dumper, enum kmsg_dump_reason reason)
 {
-#if defined(CONFIG_PSTORE_BLK)
 	struct fault_log_info *pfault_log_info;
 	struct pstore_record record;
 	size_t dst_size;
@@ -441,8 +437,10 @@ void pstore_blackbox_dump(struct kmsg_dumper *dumper,
 	char *dst;
 	int ret;
 
-	if (!pstore_blk_ready)
+#if defined(CONFIG_PSTORE_BLK) || defined(CONFIG_PSTORE_RAM)
+	if (!pstore_ready)
 		return;
+#endif
 
 	why = kmsg_dump_reason_str(reason);
 
@@ -450,7 +448,7 @@ void pstore_blackbox_dump(struct kmsg_dumper *dumper,
 		/* Failed to acquire lock: give up if we cannot wait. */
 		if (pstore_cannot_wait(reason)) {
 			pr_err("dump skipped in %s path: may corrupt error record\n",
-					in_nmi() ? "NMI" : why);
+			       in_nmi() ? "NMI" : why);
 			return;
 		}
 		if (down_interruptible(&psinfo->buf_lock)) {
@@ -483,15 +481,13 @@ void pstore_blackbox_dump(struct kmsg_dumper *dumper,
 
 	dst_size -= sizeof(struct fault_log_info);
 
-	(void)kmsg_dump_get_buffer(dumper, true, dst + sizeof(struct fault_log_info),
-								dst_size, &(pfault_log_info->len));
+	(void)kmsg_dump_get_buffer(dumper, true, dst + sizeof(struct fault_log_info), dst_size,
+				   &(pfault_log_info->len));
 
 	record.size = sizeof(struct fault_log_info) + pfault_log_info->len;
 	ret = psinfo->write(&record);
 
 	up(&psinfo->buf_lock);
-
-#endif
 }
 EXPORT_SYMBOL_GPL(pstore_blackbox_dump);
 #endif

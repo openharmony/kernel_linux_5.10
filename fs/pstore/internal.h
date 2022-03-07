@@ -51,6 +51,6 @@ int __init	pstore_init_fs(void);
 void __exit	pstore_exit_fs(void);
 
 #ifdef CONFIG_PSTORE_BLACKBOX
-extern bool pstore_blk_ready;                /* flag which pstore_blk is ready */
+extern bool pstore_ready;                /* flag which pstore_blk is ready */
 #endif
 #endif

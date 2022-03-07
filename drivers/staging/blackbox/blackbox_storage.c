@@ -61,25 +61,12 @@ static void do_kmsg_dump(struct kmsg_dumper *dumper,
 }
 #endif
 
-#if IS_ENABLED(CONFIG_DEF_BLACKBOX_STORAGE_BY_PSTORE_BLK)
+#if defined(CONFIG_DEF_BLACKBOX_STORAGE_BY_PSTORE_BLK) ||  \
+	defined(CONFIG_DEF_BLACKBOX_STORAGE_BY_PSTORE_RAM)
 #define LOG_FILE_WAIT_TIME               1000 /* unit: ms */
 #define RETRY_MAX_COUNT                  10
 #define PSTORE_MOUNT_POINT               "/sys/fs/pstore/"
 #define FILE_LIMIT                       (0660)
-
-#if __BITS_PER_LONG == 64
-#define      sys_lstat    sys_newlstat
-#else
-#define      sys_lstat    sys_lstat64
-#endif
-
-struct sys_st {
-#if __BITS_PER_LONG == 64
-	struct stat __st;
-#else
-	struct stat64 __st;
-#endif
-};
 
 static bool is_pstore_part_ready(char *pstore_file)
 {
@@ -88,8 +75,7 @@ static bool is_pstore_part_ready(char *pstore_file)
 	struct dentry *cur_dentry;
 	struct file *filp = NULL;
 	char *full_path = NULL;
-	struct sys_st st;
-	int ret = -1;
+	bool is_ready = false;
 
 	if (unlikely(!pstore_file))
 		return -EINVAL;
@@ -111,27 +97,26 @@ static bool is_pstore_part_ready(char *pstore_file)
 
 		memset(full_path, 0, PATH_MAX_LEN);
 		snprintf(full_path, PATH_MAX_LEN - 1, "%s%s", PSTORE_MOUNT_POINT, cur_name);
-		memset((void *)&st, 0, sizeof(struct sys_st));
 
-		ret = sys_lstat(full_path, &st.__st);
-		if (!ret && (S_ISREG(st.__st.st_mode)) &&
-		    (strncmp(cur_name, "blackbox", strlen("blackbox")) == 0)) {
+		if (S_ISREG(d_inode(cur_dentry)->i_mode) && !strncmp(cur_name, "blackbox",
+								     strlen("blackbox"))) {
+			is_ready = true;
 			if (strcmp(full_path, pstore_file) > 0)
 				strncpy(pstore_file, full_path, strlen(full_path));
 		}
 	}
 
-	if (strlen(pstore_file))
+	if (is_ready && strlen(pstore_file))
 		bbox_print_info("get pstore file name %s successfully!\n", pstore_file);
 
 __out:
 	file_close(filp);
 	vfree(full_path);
 
-	return ret == 0;
+	return is_ready;
 }
 
-static int get_log_by_pstore_blk(void *in, unsigned int inlen)
+static int get_log_by_pstore(void *in, unsigned int inlen)
 {
 	char pstore_file[PATH_MAX_LEN];
 	struct file *filp = NULL;
@@ -196,13 +181,15 @@ const struct reboot_crashlog_storage storage_lastwords[] = {
 #endif
 #if IS_ENABLED(CONFIG_DEF_BLACKBOX_STORAGE_BY_PSTORE_BLK)
 	{
-		.get_log = get_log_by_pstore_blk,
+		.get_log = get_log_by_pstore,
 		.blackbox_dump = pstore_blackbox_dump,
 		.material = "pstore_blk",
 	},
 #endif
 #if IS_ENABLED(CONFIG_DEF_BLACKBOX_STORAGE_BY_PSTORE_RAM)
 	{
+		.get_log = get_log_by_pstore,
+		.blackbox_dump = pstore_blackbox_dump,
 		.material = "pstore_ram",
 	},
 #endif

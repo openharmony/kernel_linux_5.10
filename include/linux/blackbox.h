@@ -50,7 +50,7 @@ struct error_info {
 
 struct fault_log_info {
 	char flag[8];  /* 8 is the length of the flag */
-	int len;  /* length of the kernel fault log */
+	size_t len;  /* length of the kernel fault log */
 	struct error_info info;
 };
 

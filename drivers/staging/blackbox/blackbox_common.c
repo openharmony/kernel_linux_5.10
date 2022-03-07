@@ -178,6 +178,7 @@ void get_timestamp(char *buf, size_t buf_size)
 			tm.tm_hour, tm.tm_min, tm.tm_sec, get_ticks());
 	buf[buf_size - 1] = '\0';
 }
+EXPORT_SYMBOL_GPL(get_timestamp);
 
 unsigned long long get_ticks(void)
 {

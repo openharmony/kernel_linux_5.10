@@ -16,6 +16,9 @@
 #include <linux/vmalloc.h>
 #include <linux/version.h>
 #include <linux/sched/debug.h>
+#ifdef CONFIG_DFX_ZEROHUNG
+#include <dfx/zrhung.h>
+#endif
 #include <linux/blackbox_common.h>
 #include <linux/blackbox_storage.h>
 
@@ -221,6 +224,9 @@ static void save_history_log(const char *log_root_dir, struct error_info *info,
 			get_top_category(info->module, info->event), info->module,
 			get_category(info->module, info->event), info->event, timestamp,
 			need_sys_reset ? "true" : "false", info->error_desc);
+#ifdef CONFIG_DFX_ZEROHUNG
+	zrhung_send_event("KERNEL_VENDOR", "PANIC", info->error_desc);
+#endif
 	memset(history_log_path, 0, sizeof(history_log_path));
 	scnprintf(history_log_path, sizeof(history_log_path) - 1,
 			"%s/%s", log_root_dir, HISTORY_LOG_NAME);
