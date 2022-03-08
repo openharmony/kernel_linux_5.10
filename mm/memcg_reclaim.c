@@ -215,6 +215,18 @@ void shrink_anon_memcg(struct pglist_data *pgdat,
 	sc->nr_reclaimed_anon += nr_reclaimed;
 }
 
+static inline bool memcg_is_child_of(struct mem_cgroup *mcg, struct mem_cgroup *tmcg)
+{
+	while (!mem_cgroup_is_root(mcg)) {
+		if (mcg == tmcg)
+			break;
+
+		mcg = parent_mem_cgroup(mcg);
+	}
+
+	return (mcg == tmcg);
+}
+
 static void shrink_anon(struct pglist_data *pgdat,
 		struct scan_control *sc, unsigned long *nr)
 {
@@ -229,7 +241,12 @@ static void shrink_anon(struct pglist_data *pgdat,
 			node_lruvec(pgdat), LRU_INACTIVE_ANON, MAX_NR_ZONES);
 
 	while ((memcg = get_next_memcg(memcg))) {
-		struct lruvec *lruvec = mem_cgroup_lruvec(memcg, pgdat);
+		struct lruvec *lruvec = NULL;
+
+		if (!memcg_is_child_of(memcg, target_memcg))
+			continue;
+
+		lruvec = mem_cgroup_lruvec(memcg, pgdat);
 
 		reclaimed = sc->nr_reclaimed;
 		scanned = sc->nr_scanned;
@@ -438,8 +455,10 @@ bool shrink_node_hyperhold(struct pglist_data *pgdat, struct scan_control *sc)
 
 		get_scan_count_hyperhold(pgdat, sc, nr, &node_lru_pages);
 
-		/* Shrink the Total-File-LRU */
-		shrink_file(pgdat, sc, nr);
+		if (!cgroup_reclaim(sc)) {
+			/* Shrink the Total-File-LRU */
+			shrink_file(pgdat, sc, nr);
+		}
 
 		/* Shrink Anon by iterating score_list */
 		shrink_anon(pgdat, sc, nr);
