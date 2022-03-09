@@ -53,7 +53,7 @@ MODULE_PARM_DESC(ftrace_size, "ftrace size in kbytes");
 
 #if IS_ENABLED(CONFIG_PSTORE_BLACKBOX)
 static long blackbox_size = CONFIG_PSTORE_BLK_BLACKBOX_SIZE;
-bool pstore_blk_ready;
+bool pstore_ready;
 #else
 static long blackbox_size = -1;
 #endif
@@ -504,7 +504,7 @@ static int __init pstore_blk_init(void)
 
 #if IS_ENABLED(CONFIG_PSTORE_BLACKBOX)
 	if (best_effort && blkdev[0])
-		pstore_blk_ready = true;
+		pstore_ready = true;
 #endif
 
 	return ret;
