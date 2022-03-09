@@ -182,7 +182,7 @@ int set_frame_rate(struct frame_info *frame_info, int rate)
 		return -EINVAL;
 
 	frame_info->frame_rate = (unsigned int)rate;
-	frame_info->frame_time = frame_info->frame_time = div_u64(NSEC_PER_SEC, rate);
+	frame_info->frame_time = div_u64(NSEC_PER_SEC, rate);
 	frame_info->max_vload_time =
 		div_u64(frame_info->frame_time, NSEC_PER_MSEC) +
 		frame_info->vload_margin;
@@ -419,8 +419,6 @@ skip_setpolicy:
 	}
 	err = sched_set_group_id(task, grpid);
 	if (err < 0) {
-		pr_err("[FRAME_RTG]: %s task:%d set_group_id err:%d\n",
-				__func__, task->pid, err);
 		if (is_rtg) {
 			policy = SCHED_NORMAL;
 			sp.sched_priority = 0;
