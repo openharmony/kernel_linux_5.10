@@ -17,7 +17,7 @@
 
 struct list_head score_head;
 bool score_head_inited;
-DEFINE_SPINLOCK(score_list_lock);
+DEFINE_RWLOCK(score_list_lock);
 DEFINE_MUTEX(reclaim_para_lock);
 
 /**
@@ -40,7 +40,7 @@ struct mem_cgroup *get_next_memcg(struct mem_cgroup *prev)
 	if (unlikely(!score_head_inited))
 		return NULL;
 
-	spin_lock_irqsave(&score_list_lock, flags);
+	read_lock_irqsave(&score_list_lock, flags);
 
 	if (unlikely(!prev))
 		pos = &score_head;
@@ -60,7 +60,7 @@ struct mem_cgroup *get_next_memcg(struct mem_cgroup *prev)
 		memcg = NULL;
 
 unlock:
-	spin_unlock_irqrestore(&score_list_lock, flags);
+	read_unlock_irqrestore(&score_list_lock, flags);
 
 	if (prev)
 		css_put(&prev->css);
@@ -83,7 +83,7 @@ struct mem_cgroup *get_prev_memcg(struct mem_cgroup *next)
 	if (unlikely(!score_head_inited))
 		return NULL;
 
-	spin_lock_irqsave(&score_list_lock, flags);
+	read_lock_irqsave(&score_list_lock, flags);
 
 	if (unlikely(!next))
 		pos = &score_head;
@@ -106,7 +106,7 @@ struct mem_cgroup *get_prev_memcg(struct mem_cgroup *next)
 		memcg = NULL;
 
 unlock:
-	spin_unlock_irqrestore(&score_list_lock, flags);
+	read_unlock_irqrestore(&score_list_lock, flags);
 
 	if (next)
 		css_put(&next->css);
@@ -125,7 +125,7 @@ void memcg_app_score_update(struct mem_cgroup *target)
 	struct list_head *tmp;
 	unsigned long flags;
 
-	spin_lock_irqsave(&score_list_lock, flags);
+	write_lock_irqsave(&score_list_lock, flags);
 	list_for_each_prev_safe(pos, tmp, &score_head) {
 		struct mem_cgroup *memcg = list_entry(pos,
 				struct mem_cgroup, score_node);
@@ -134,7 +134,7 @@ void memcg_app_score_update(struct mem_cgroup *target)
 			break;
 	}
 	list_move_tail(&target->score_node, pos);
-	spin_unlock_irqrestore(&score_list_lock, flags);
+	write_unlock_irqrestore(&score_list_lock, flags);
 }
 
 static u64 mem_cgroup_app_score_read(struct cgroup_subsys_state *css,

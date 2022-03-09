@@ -5496,9 +5496,9 @@ static void mem_cgroup_css_offline(struct cgroup_subsys_state *css)
 #ifdef CONFIG_HYPERHOLD_MEMCG
 	unsigned long flags;
 
-	spin_lock_irqsave(&score_list_lock, flags);
+	write_lock_irqsave(&score_list_lock, flags);
 	list_del_init(&memcg->score_node);
-	spin_unlock_irqrestore(&score_list_lock, flags);
+	write_unlock_irqrestore(&score_list_lock, flags);
 	css_put(css);
 #endif
 
