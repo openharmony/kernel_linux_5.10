@@ -363,7 +363,8 @@ static void save_log_with_reset(struct error_info *info)
 		return;
 
 	invoke_module_ops("", info, ops);
-	sys_reset();
+	if (strcmp(info->event, EVENT_SYSREBOOT))
+		sys_reset();
 }
 
 static void save_temp_error_info(const char event[EVENT_MAX_LEN],
