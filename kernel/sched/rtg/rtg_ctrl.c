@@ -15,7 +15,6 @@
 #include <trace/events/rtg.h>
 
 atomic_t g_rtg_enable = ATOMIC_INIT(0);
-atomic_t g_enable_type = ATOMIC_INIT(ALL_ENABLE); // default: all enable
 static atomic_t g_rt_frame_num = ATOMIC_INIT(0);
 static int g_frame_max_util = DEFAULT_MAX_UTIL;
 static int g_max_rt_frames = DEFAULT_MAX_RT_FRAME;
@@ -55,11 +54,6 @@ static rtg_ctrl_func g_func_array[RTG_CTRL_MAX_NR] = {
 static int init_proc_state(const int *config, int len);
 static void deinit_proc_state(void);
 
-int get_enable_type(void)
-{
-	return atomic_read(&g_enable_type);
-}
-
 static int set_enable_config(char *config_str)
 {
 	char *p = NULL;
@@ -86,8 +80,6 @@ static int set_enable_config(char *config_str)
 			config[RTG_FRAME_MAX_UTIL] = value;
 		else if (!strcmp(tmp, "invalid_interval"))
 			config[RTG_INVALID_INTERVAL] = value;
-		else if (!strcmp(tmp, "enable_type"))
-			atomic_set(&g_enable_type, value);
 		else
 			continue;
 	}
@@ -242,7 +234,7 @@ static long ctrl_set_enable(int abi, void __user *uarg)
 
 static long ctrl_get_enable(int abi, void __user *uarg)
 {
-	return get_enable_type();
+	return atomic_read(&g_rtg_enable);
 }
 
 static int parse_config(const struct rtg_str_data *rs_data)
@@ -713,12 +705,11 @@ static int parse_add_rtg_thread(const struct rtg_grp_data *rs_data)
 		return -INVALID_RTG_ID;
 	}
 	if (frame_info->thread_num + add_num > MAX_TID_NUM) {
-		pr_err("[SCHED_RTG] frame info thread up to max already.\n");
 		write_unlock(&frame_info->lock);
 		return -INVALID_RTG_ID;
 	}
 	add_index = frame_info->thread_num;
-	prio = frame_info->prio;
+	prio = (proc_info.type == NORMAL_TASK) ? NOT_RT_PRIO : frame_info->prio;
 	for (i = 0; i < add_num; i++) {
 		frame_info->thread[add_index] = update_frame_thread(frame_info, prio, prio,
 								    rs_data->tids[i],
@@ -902,7 +893,7 @@ static long do_proc_rtg_ioctl(int abi, struct file *file, unsigned int cmd, unsi
 		return -INVALID_MAGIC;
 	}
 
-	if ((func_id != SET_ENABLE) && !atomic_read(&g_rtg_enable)) {
+	if (!atomic_read(&g_rtg_enable) && (func_id != SET_ENABLE) && (func_id != GET_ENABLE)) {
 		pr_err("[SCHED_RTG] CMD_ID %x error: Rtg not enabled yet.\n", cmd);
 		return -RTG_DISABLED;
 	}
