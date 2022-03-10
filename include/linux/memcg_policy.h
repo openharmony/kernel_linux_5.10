@@ -15,7 +15,7 @@ struct scan_control;
 
 extern struct list_head score_head;
 extern bool score_head_inited;
-extern spinlock_t score_list_lock;
+extern rwlock_t score_list_lock;
 extern struct cgroup_subsys memory_cgrp_subsys;
 #ifdef CONFIG_HYPERHOLD_FILE_LRU
 void shrink_anon_memcg(struct pglist_data *pgdat,
