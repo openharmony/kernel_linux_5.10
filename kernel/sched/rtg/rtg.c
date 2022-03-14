@@ -313,8 +313,6 @@ static int __sched_set_group_id(struct task_struct *p, unsigned int group_id)
 			remove_task_from_group(p);
 		} else {
 #endif
-			pr_err("%s[%d] switching group from %d to %d failed.\n",
-			       p->comm, p->pid, old_grp->id, group_id);
 			rc = -EINVAL;
 			goto done;
 #ifdef CONFIG_SCHED_RTG_CGROUP
