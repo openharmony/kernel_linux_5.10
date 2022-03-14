@@ -381,14 +381,14 @@ void set_frame_prio(struct frame_info *frame_info, int prio)
 	if (!frame_info)
 		return;
 
-	write_lock(&frame_info->lock);
+	mutex_lock(&frame_info->lock);
 	if (frame_info->prio == prio)
 		goto out;
 
 	update_frame_task_prio(frame_info, prio);
 	frame_info->prio = prio;
 out:
-	write_unlock(&frame_info->lock);
+	mutex_unlock(&frame_info->lock);
 }
 
 static int do_set_rtg_sched(struct task_struct *task, bool is_rtg,
@@ -558,7 +558,7 @@ void update_frame_thread_info(struct frame_info *frame_info,
 
 	// reset curr_rt_thread_num
 	atomic_set(&frame_info->curr_rt_thread_num, 0);
-	write_lock(&frame_info->lock);
+	mutex_lock(&frame_info->lock);
 	old_prio = frame_info->prio;
 	real_thread = 0;
 	for (i = 0; i < thread_num; i++) {
@@ -570,7 +570,7 @@ void update_frame_thread_info(struct frame_info *frame_info,
 	}
 	frame_info->prio = prio;
 	frame_info->thread_num = real_thread;
-	write_unlock(&frame_info->lock);
+	mutex_unlock(&frame_info->lock);
 }
 
 static void do_set_frame_sched_state(struct frame_info *frame_info,
@@ -629,14 +629,14 @@ void set_frame_sched_state(struct frame_info *frame_info, bool enable)
 
 	/* reset curr_rt_thread_num */
 	atomic_set(&frame_info->curr_rt_thread_num, 0);
-	write_lock(&frame_info->lock);
+	mutex_lock(&frame_info->lock);
 	prio = frame_info->prio;
 	for (i = 0; i < MAX_TID_NUM; i++) {
 		if (frame_info->thread[i])
 			do_set_frame_sched_state(frame_info, frame_info->thread[i],
 						 enable, prio);
 	}
-	write_unlock(&frame_info->lock);
+	mutex_unlock(&frame_info->lock);
 
 	trace_rtg_frame_sched(frame_info->rtg->id, "FRAME_STATUS",
 			      frame_info->status);
@@ -1167,9 +1167,9 @@ static int _init_frame_info(struct frame_info *frame_info, int id)
 	unsigned long flags;
 
 	memset(frame_info, 0, sizeof(struct frame_info));
-	rwlock_init(&frame_info->lock);
+	mutex_init(&frame_info->lock);
 
-	write_lock(&frame_info->lock);
+	mutex_lock(&frame_info->lock);
 	frame_info->frame_rate = DEFAULT_FRAME_RATE;
 	frame_info->frame_time = div_u64(NSEC_PER_SEC, frame_info->frame_rate);
 	frame_info->thread_num = 0;
@@ -1190,7 +1190,7 @@ static int _init_frame_info(struct frame_info *frame_info, int id)
 
 	grp = frame_rtg(id);
 	if (unlikely(!grp)) {
-		write_unlock(&frame_info->lock);
+		mutex_unlock(&frame_info->lock);
 		return -EINVAL;
 	}
 
@@ -1200,7 +1200,7 @@ static int _init_frame_info(struct frame_info *frame_info, int id)
 	raw_spin_unlock_irqrestore(&grp->lock, flags);
 
 	frame_info->rtg = grp;
-	write_unlock(&frame_info->lock);
+	mutex_unlock(&frame_info->lock);
 
 	return 0;
 }

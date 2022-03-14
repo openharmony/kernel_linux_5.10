@@ -21,7 +21,7 @@ struct frame_info {
 	 * rtg->prev_window_exec  -=> the thread's runtime of last frame
 	 * rtg->prev_window_time  -=> the actual time of the last frame
 	 */
-	rwlock_t lock;
+	struct mutex lock;
 	struct related_thread_group *rtg;
 	int prio;
 	struct task_struct *thread[MAX_TID_NUM];
