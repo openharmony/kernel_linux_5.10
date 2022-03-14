@@ -162,7 +162,7 @@ static int do_update_rt_frame_num(struct frame_info *frame_info, int new_type)
 	int old_type;
 	int ret = SUCC;
 
-	read_lock(&frame_info->lock);
+	mutex_lock(&frame_info->lock);
 	old_type = frame_info->prio - DEFAULT_RT_PRIO;
 	if (is_rt_type(new_type) == is_rt_type(old_type))
 		goto out;
@@ -180,7 +180,7 @@ static int do_update_rt_frame_num(struct frame_info *frame_info, int new_type)
 		}
 	}
 out:
-	read_unlock(&frame_info->lock);
+	mutex_unlock(&frame_info->lock);
 
 	return ret;
 }
@@ -697,15 +697,15 @@ static int parse_add_rtg_thread(const struct rtg_grp_data *rs_data)
 		pr_err("[SCHED_RTG] grp not created yet.\n");
 		return -INVALID_ARG;
 	}
-	write_lock(&frame_info->lock);
+	mutex_lock(&frame_info->lock);
 	add_num = rs_data->tid_num;
 	if ((frame_info->thread_num < 0) || (add_num < 0)) {
+		mutex_unlock(&frame_info->lock);
 		pr_err("[SCHED_RTG] Unexception err: frame_info num < 0.\n");
-		write_unlock(&frame_info->lock);
 		return -INVALID_RTG_ID;
 	}
 	if (frame_info->thread_num + add_num > MAX_TID_NUM) {
-		write_unlock(&frame_info->lock);
+		mutex_unlock(&frame_info->lock);
 		return -INVALID_RTG_ID;
 	}
 	add_index = frame_info->thread_num;
@@ -721,7 +721,7 @@ static int parse_add_rtg_thread(const struct rtg_grp_data *rs_data)
 			fail_num++;
 		}
 	}
-	write_unlock(&frame_info->lock);
+	mutex_unlock(&frame_info->lock);
 
 	return fail_num;
 }
