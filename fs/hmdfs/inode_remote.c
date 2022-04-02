@@ -14,6 +14,7 @@
 #include "hmdfs.h"
 #include "hmdfs_client.h"
 #include "hmdfs_dentryfile.h"
+#include "hmdfs_share.h"
 #include "hmdfs_trace.h"
 #include "authority/authentication.h"
 #include "stash.h"
@@ -400,19 +401,6 @@ struct inode *fill_inode_remote(struct super_block *sb, struct hmdfs_peer *con,
 bad_inode:
 	iget_failed(inode);
 	return ERR_PTR(ret);
-}
-
-static bool in_share_dir(struct dentry *child_dentry)
-{
-	struct dentry *parent_dentry = dget_parent(child_dentry);
-	bool ret = false;
-	const char *share_dir = ".share";
-
-	if (!strncmp(parent_dentry->d_name.name, share_dir, strlen(share_dir)))
-		ret = true;
-
-	dput(parent_dentry);
-	return ret;
 }
 
 static struct dentry *hmdfs_lookup_remote_dentry(struct inode *parent_inode,

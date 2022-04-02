@@ -27,6 +27,7 @@
 #include "comm/socket_adapter.h"
 #include "hmdfs_merge_view.h"
 #include "server_writeback.h"
+#include "hmdfs_share.h"
 
 #include "comm/node_cb.h"
 #include "stash.h"
@@ -241,6 +242,7 @@ void hmdfs_put_super(struct super_block *sb)
 	hmdfs_cfn_destroy(sbi);
 	hmdfs_unregister_sysfs(sbi);
 	hmdfs_connections_stop(sbi);
+	hmdfs_clear_share_table(sbi);
 	hmdfs_destroy_server_writeback(sbi);
 	hmdfs_exit_stash(sbi);
 	atomic_dec(&lower_sb->s_active);
@@ -660,14 +662,6 @@ static void hmdfs_init_cmd_timeout(struct hmdfs_sb_info *sbi)
 	set_cmd_timeout(sbi, F_LISTXATTR, TIMEOUT_COMMON);
 }
 
-static void init_share_table(struct hmdfs_sb_info *sbi)
-{
-	spin_lock_init(&sbi->share_table.item_list_lock);
-	INIT_LIST_HEAD(&sbi->share_table.item_list_head);
-	sbi->share_table.item_cnt = 0;
-	sbi->share_table.max_cnt = HMDFS_SHARE_ITEMS_MAX;
-}
-
 static int hmdfs_init_sbi(struct hmdfs_sb_info *sbi)
 {
 	int ret;
@@ -718,7 +712,7 @@ static int hmdfs_init_sbi(struct hmdfs_sb_info *sbi)
 	mutex_init(&sbi->connections.node_lock);
 	INIT_LIST_HEAD(&sbi->connections.node_list);
 
-	init_share_table(sbi);
+	hmdfs_init_share_table(sbi);
 	init_waitqueue_head(&sbi->async_readdir_wq);
 	INIT_LIST_HEAD(&sbi->async_readdir_msg_list);
 	INIT_LIST_HEAD(&sbi->async_readdir_work_list);

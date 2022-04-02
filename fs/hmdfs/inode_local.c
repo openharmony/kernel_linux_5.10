@@ -18,6 +18,7 @@
 #include "hmdfs_client.h"
 #include "hmdfs_dentryfile.h"
 #include "hmdfs_device_view.h"
+#include "hmdfs_share.h"
 #include "hmdfs_trace.h"
 
 extern struct kmem_cache *hmdfs_dentry_cachep;
@@ -61,13 +62,10 @@ static inline void set_sharefile_flag(struct hmdfs_dentry_info *gdi)
 	gdi->file_type = HM_SHARE;
 }
 
-static inline void check_and_fixup_share_ops(struct inode *inode,
+static void check_and_fixup_share_ops(struct inode *inode,
 					const char *name)
 {
-	const char *share_dir = ".share";
-
-	if (S_ISDIR(inode->i_mode) &&
-		!strncmp(name, share_dir, strlen(share_dir))) {
+	if (is_share_dir(inode, name)) {
 		inode->i_op = &hmdfs_dir_inode_ops_share;
 		inode->i_fop = &hmdfs_dir_ops_share;
 	}
@@ -800,39 +798,6 @@ static ssize_t hmdfs_local_listxattr(struct dentry *dentry, char *list,
 
 	return res;
 }
-
-int hmdfs_get_path_from_share_table(struct hmdfs_sb_info *sbi,
-			struct dentry *cur_dentry, struct path *src_path)
-{
-	struct hmdfs_share_item *item;
-	const char *path_name;
-	struct qstr relative_path;
-	int err = 0;
-
-	path_name = hmdfs_get_dentry_relative_path(cur_dentry);
-	if (unlikely(!path_name)) {
-		err = -ENOMEM;
-		goto err_out;
-	}
-	relative_path.name = path_name;
-	relative_path.len = strlen(path_name);
-
-	spin_lock(&sbi->share_table.item_list_lock);
-	item = hmdfs_lookup_share_item(&sbi->share_table, &relative_path);
-	if (!item) {
-		spin_unlock(&sbi->share_table.item_list_lock);
-		err = -ENOENT;
-		goto err_out;
-	}
-	*src_path = item->file->f_path;
-	path_get(src_path);
-
-	kfree(path_name);
-	spin_unlock(&sbi->share_table.item_list_lock);
-err_out:
-	return err;
-}
-
 struct dentry *hmdfs_lookup_share(struct inode *parent_inode,
 				struct dentry *child_dentry, unsigned int flags)
 {
@@ -855,7 +820,7 @@ struct dentry *hmdfs_lookup_share(struct inode *parent_inode,
 		goto err_out;
 	}
 
-	err = hmdfs_get_path_from_share_table(sbi, child_dentry, &src_path);
+	err = get_path_from_share_table(sbi, child_dentry, &src_path);
 	if (err) {
 		ret = ERR_PTR(err);
 		goto err_out;
@@ -883,8 +848,6 @@ struct dentry *hmdfs_lookup_share(struct inode *parent_inode,
 	check_and_fixup_ownership(parent_inode, child_inode);
 
 err_out:
-	if (!err)
-		hmdfs_set_time(child_dentry, jiffies);
 	trace_hmdfs_lookup_share_end(parent_inode, child_dentry, err);
 	return ret;
 }
