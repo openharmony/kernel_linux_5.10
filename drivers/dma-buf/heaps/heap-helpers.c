@@ -30,6 +30,7 @@ struct dma_buf *heap_helper_export_dmabuf(struct heap_helper_buffer *buffer,
 {
 	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
 
+	exp_info.exp_name = dma_heap_get_name(buffer->heap);
 	exp_info.ops = &heap_helper_ops;
 	exp_info.size = buffer->size;
 	exp_info.flags = fd_flags;
