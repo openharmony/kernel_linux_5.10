@@ -14,3 +14,5 @@ dmabuf_selftests-y := \
 	st-dma-fence-chain.o
 
 obj-$(CONFIG_DMABUF_SELFTESTS)	+= dmabuf_selftests.o
+
+obj-$(CONFIG_DMABUF_PROCESS_INFO)	+= dma-buf-process-info.o
