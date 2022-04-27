@@ -289,6 +289,8 @@ struct dma_buf_ops {
  * @list_node: node for dma_buf accounting and debugging.
  * @priv: exporter specific private data for this buffer object.
  * @resv: reservation object linked to this dma-buf
+ * @exp_pid: pid of exporter task which created this obj
+ * @exp_task_comm: process name of exporter task which created this obj
  * @poll: for userspace poll support
  * @cb_excl: for userspace poll support
  * @cb_shared: for userspace poll support
@@ -320,6 +322,10 @@ struct dma_buf {
 	struct list_head list_node;
 	void *priv;
 	struct dma_resv *resv;
+#ifdef CONFIG_DMABUF_PROCESS_INFO
+	pid_t exp_pid;
+	char exp_task_comm[TASK_COMM_LEN];
+#endif
 
 	/* poll support */
 	wait_queue_head_t poll;
@@ -514,4 +520,16 @@ int dma_buf_mmap(struct dma_buf *, struct vm_area_struct *,
 		 unsigned long);
 void *dma_buf_vmap(struct dma_buf *);
 void dma_buf_vunmap(struct dma_buf *, void *vaddr);
+
+#ifdef CONFIG_DMABUF_PROCESS_INFO
+/**
+ * get_dma_buf_from_file - Get struct dma_buf* from struct file*
+ * @f:	[in]	pointer to struct file, which is associated with a
+ *		dma_buf object.
+ *
+ * If @f IS_ERR_OR_NULL, return NULL.
+ * If @f is not a file associated with dma_buf, return NULL.
+ */
+struct dma_buf *get_dma_buf_from_file(struct file *f);
+#endif /* CONFIG_DMABUF_PROCESS_INFO */
 #endif /* __DMA_BUF_H__ */

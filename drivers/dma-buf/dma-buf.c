@@ -30,6 +30,7 @@
 #include <uapi/linux/magic.h>
 
 #include "dma-buf-sysfs-stats.h"
+#include "dma-buf-process-info.h"
 
 static inline int is_dma_buf_file(struct file *);
 
@@ -593,6 +594,7 @@ struct dma_buf *dma_buf_export(const struct dma_buf_export_info *exp_info)
 	list_add(&dmabuf->list_node, &db_list.head);
 	mutex_unlock(&db_list.lock);
 
+	init_dma_buf_task_info(dmabuf);
 	return dmabuf;
 
 err_sysfs:
@@ -1302,8 +1304,10 @@ static int dma_buf_debug_show(struct seq_file *s, void *unused)
 		return ret;
 
 	seq_puts(s, "\nDma-buf Objects:\n");
-	seq_printf(s, "%-8s\t%-8s\t%-8s\t%-8s\texp_name\t%-8s\n",
-		   "size", "flags", "mode", "count", "ino");
+	seq_printf(s, "%-8s\t%-8s\t%-8s\t%-8s\texp_name\t%-8s\t"
+		   "%-16s\t%-16s\t%-16s\n",
+		   "size", "flags", "mode", "count", "ino",
+		   "buf_name", "exp_pid",  "exp_task_comm");
 
 	list_for_each_entry(buf_obj, &db_list.head, list_node) {
 
@@ -1311,13 +1315,16 @@ static int dma_buf_debug_show(struct seq_file *s, void *unused)
 		if (ret)
 			goto error_unlock;
 
-		seq_printf(s, "%08zu\t%08x\t%08x\t%08ld\t%s\t%08lu\t%s\n",
+		seq_printf(s, "%08zu\t%08x\t%08x\t%08ld\t%s\t%08lu\t%s\t"
+			   "%-16d\t%-16s\n",
 				buf_obj->size,
 				buf_obj->file->f_flags, buf_obj->file->f_mode,
 				file_count(buf_obj->file),
 				buf_obj->exp_name,
 				file_inode(buf_obj->file)->i_ino,
-				buf_obj->name ?: "");
+				buf_obj->name ?: "NULL",
+				dma_buf_exp_pid(buf_obj),
+				dma_buf_exp_task_comm(buf_obj) ?: "NULL");
 
 		robj = buf_obj->resv;
 		while (true) {
@@ -1398,6 +1405,7 @@ static int dma_buf_init_debugfs(void)
 		err = PTR_ERR(d);
 	}
 
+	dma_buf_process_info_init_debugfs(dma_buf_debugfs_dir);
 	return err;
 }
 
@@ -1415,6 +1423,19 @@ static inline void dma_buf_uninit_debugfs(void)
 }
 #endif
 
+#ifdef CONFIG_DMABUF_PROCESS_INFO
+struct dma_buf *get_dma_buf_from_file(struct file *f)
+{
+	if (IS_ERR_OR_NULL(f))
+		return NULL;
+
+	if (!is_dma_buf_file(f))
+		return NULL;
+
+	return f->private_data;
+}
+#endif /* CONFIG_DMABUF_PROCESS_INFO */
+
 static int __init dma_buf_init(void)
 {
 	int ret;
@@ -1430,6 +1451,7 @@ static int __init dma_buf_init(void)
 	mutex_init(&db_list.lock);
 	INIT_LIST_HEAD(&db_list.head);
 	dma_buf_init_debugfs();
+	dma_buf_process_info_init_procfs();
 	return 0;
 }
 subsys_initcall(dma_buf_init);
@@ -1439,5 +1461,6 @@ static void __exit dma_buf_deinit(void)
 	dma_buf_uninit_debugfs();
 	kern_unmount(dma_buf_mnt);
 	dma_buf_uninit_sysfs_statistics();
+	dma_buf_process_info_uninit_procfs();
 }
 __exitcall(dma_buf_deinit);
