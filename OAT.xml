@@ -1,0 +1,448 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright (c) 2021 Huawei Device Co., Ltd.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+          http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+
+    This is the configuration file template for OpenHarmony OSS Audit Tool, please copy it to your project root dir and modify it refer to OpenHarmony/tools_oat/README.
+
+-->
+
+<configuration>
+    <oatconfig>
+        <licensefile>COPYING</licensefile>
+        <policylist>
+            <policy name="projectPolicy" desc="">
+				<policyitem type="compatibility" name="GPL-1.0+" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="GPL-2.0+" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="SPDX:LGPL-2.1" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="SPDX:GPL-2.0+" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="GPLStyleLicense" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="Linux-OpenIB" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="SPDX:Zlib" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="SPDX:X11" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="Unicode-TOU" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="HPND-sell-variant" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="zlib-acknowledgement" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="Linux-syscall-note" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="LGPLStyleLicense" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="MPL-1.1" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="GCC-exception-2.0" path=".*" desc="linux kernel license"/>
+				<policyitem type="compatibility" name="GPL-COMPATIBLE-ID" path=".*" desc="linux kernel license"/>
+				<policyitem type="copyright" name="Huawei Device Co., Ltd." path="fs/hmdfs/.*" desc="huawei copyright"/>
+            </policy>
+        </policylist>
+        <filefilterlist>
+            <filefilter name="defaultFilter" desc="Files not to check">
+                <filteritem type="filepath" name="Documentation/.*" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/sgetem.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/x_fline.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/MISC" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/math-emu/fp_log.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/mips/include/asm/mips-boards/bonito64.h" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/ldt.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/sysrq_32.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/shared/sysdep/syscalls_32.h" desc="shield"/>
+				<filteritem type="filepath" name="crypto/cts.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/host_pci.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_modeset_helper.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/i915/display/intel_dvo_dev.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/subdev/i2c/busnv50.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/ethernet/broadcom/bgmac.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/reset.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/scsi/dpt/dptsig.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/driver_gige.c" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_encoder.h" desc="shield"/>
+				<filteritem type="filepath" name="include/linux/sunrpc/gss_asn1.h" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm/bcm4708.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/bpf/progs/test_subprogs_unused.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/fd-002-posix-eq.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/setns-dcache.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/x_operr.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/mac/iop.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/sysrq_64.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/shared/sysdep/syscalls_64.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/host_soc.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_blend.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_fb_helper.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_ttm.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/vce_v4_0.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/isdn/mISDN/dsp_core.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/netdevsim/bpf.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/rfbuffer.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/scsi/dpt/osd_defs.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/driver_gpio.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/usb/gadget/function/ndis.h" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_color_mgmt.h" desc="shield"/>
+				<filteritem type="filepath" name="include/uapi/linux/aio_abi.h" desc="shield"/>
+				<filteritem type="filepath" name="lib/test_siphash.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/laptop/dslm/dslm.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/fd-003-kthread.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/setns-sysvipc.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm64/boot/dts/sprd/sc9836-openphone.dts" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/do_func.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/skeleton.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/x_ovfl.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/src/fplsp.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/tls_32.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/asm/processor_32.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/main.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/ast/ast_cursor.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/radeon_ttm.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/desc.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/rfgain.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/rtc/rtc-starfire.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/scsi/dpt/osd_util.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/driver_mipscore.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/nfs/blocklayout/blocklayout.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/reiserfs/namei.c" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_connector.h" desc="shield"/>
+				<filteritem type="filepath" name="include/linux/sunrpc/gss_krb5.h" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm/bcm5301x.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm64/sprd/sharkl64.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/proc-fsconfig-hidepid.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/thread-self.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm64/boot/dts/sprd/sc9836.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/fpsp.h" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/x_snan.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/src/fpsp.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/um/Makefile-os-Linux" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/ptrace_32.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/asm/processor_64.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/core.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/scan.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/char/pcmcia/cm4000_cs.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/ethernet/i825xx/sun3_82586.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/netdevsim/dev.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/desc.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/rfkill.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/scsi/cxgbi/cxgb3i/cxgb3i.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/scsi/dpt/sys_info.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/driver_pcicore.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/nfs/blocklayout/blocklayout.h" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_fb_helper.h" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_plane.h" desc="shield"/>
+				<filteritem type="filepath" name="include/net/slhc_vj.h" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm/bcm53340-ubnt-unifi-switch8.dts" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/proc-loadavg-001.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/gen_except.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/x_store.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/src/ftest.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/math-emu/fp_trig.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/um/Makefile-skas" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/ptrace_64.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/shared/sysdep/faultinfo_32.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_chipcommon.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/char/pcmcia/cm4040_cs.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_object.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/radeon_mn.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/appletalk/cops_ffdrv.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/ethernet/agere/et131x.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/ethernet/chelsio/cxgb4/clip_tbl.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/ethernet/i825xx/sun3_82586.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wan/sbni.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/dma.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/embedded.c" desc="shield"/>
+				<filteritem type="filepath" name="net/sunrpc/auth_gss/gss_krb5_crypto.c" desc="shield"/>
+				<filteritem type="filepath" name="samples/bpf/sock_flags_kern.c" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm64/arm/juno-clocks.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/proc-multiple-procfs.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/smovecr.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/x_unfl.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/src/ilsp.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/math-emu/fp_trig.h" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/ptrace_user.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/shared/sysdep/faultinfo_64.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_chipcommon_b.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/sprom.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/block/z2ram.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_fourcc.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/ast/ast_drv.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/qxl/qxl_release.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/radeon_uvd.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/appletalk/cops_ltdrv.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/ethernet/agere/et131x.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/ethernet/chelsio/cxgb4/clip_tbl.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/netdevsim/fib.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/eeprom.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/intersil/orinoco/orinoco_pci.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/host_soc.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/nfs/pnfs.c" desc="shield"/>
+				<filteritem type="filepath" name="net/sunrpc/auth_gss/gss_krb5_keys.c" desc="shield"/>
+				<filteritem type="filepath" name="samples/bpf/sockex1_kern.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/proc-pid-vm.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/kernel_ex.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/x_unimp.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/src/isp.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/sh/drivers/platform_early.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_chipcommon_nflash.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_dp_helper.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_framebuffer.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_plane.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_bo_list.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_sa.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/ast/ast_drv.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/exynos/exynos_drm_ipp.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/subdev/i2c/auxg94.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/radeon_object.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/radeon_vce.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/eeprom.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/main.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/nfs/pnfs.h" desc="shield"/>
+				<filteritem type="filepath" name="fs/nfs/blocklayout/rpc_pipefs.c" desc="shield"/>
+				<filteritem type="filepath" name="include/dt-bindings/net/mscc-phy-vsc8531.h" desc="shield"/>
+				<filteritem type="filepath" name="include/linux/zconf.h" desc="shield"/>
+				<filteritem type="filepath" name="lib/zlib_inflate/inffast.c" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm64/arm/juno-motherboard.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/proc-self-map-files-001.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm64/boot/dts/sprd/sharkl64.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/res_func.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/x_unsupp.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/fskeleton.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/src/itest.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/asm/archparam.h" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/shared/sysdep/mcontext.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_chipcommon_pflash.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_dp_mst_topology.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_uvd.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/ast/ast_main.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/engine/gr/nv04.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/i2c/busses/i2c-sh7760.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/gpio.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/pci.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/nfs/pnfs_dev.c" desc="shield"/>
+				<filteritem type="filepath" name="include/linux/timex.h" desc="shield"/>
+				<filteritem type="filepath" name="lib/zlib_inflate/inffast.h" desc="shield"/>
+				<filteritem type="filepath" name="samples/pktgen/functions.sh" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm64/arm/juno-r1.dts" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/dt-bindings/net/mscc-phy-vsc8531.h" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/bpf/progs/sockmap_parse_prog.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/proc-self-map-files-002.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/round.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/ssinh.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/src/pfpsp.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/signal.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/asm/vm-flags.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_chipcommon_pmu.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_color_mgmt.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/ast/ast_mm.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/gma500/mdfld_output.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/engine/gr/nv10.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/subdev/i2c/auxgm200.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/netdevsim/netdev.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/initvals.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/pcihost_wrapper.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/nfs/filelayout/filelayout.c" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_fourcc.h" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_property.h" desc="shield"/>
+				<filteritem type="filepath" name="include/uapi/linux/parport.h" desc="shield"/>
+				<filteritem type="filepath" name="lib/siphash.c" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm64/arm/juno-r2.dts" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/bpf/progs/sockmap_tcp_msg_prog.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/proc-self-syscall.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm/boot/dts/bcm4708-netgear-r6250.dts" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm/boot/dts/bcm947189acdbmr.dts" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm64/boot/dts/arm/juno-clocks.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/sacos.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/stan.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/shared/sysdep/ptrace_32.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_chipcommon_sflash.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_connector.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_jpeg.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_vce.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/ast/ast_mode.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/gma500/mdfld_output.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/qxl/qxl_draw.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/netdevsim/netdevsim.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/slip/slhc.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/pcmcia.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/nfs/filelayout/filelayout.h" desc="shield"/>
+				<filteritem type="filepath" name="fs/reiserfs/super.c" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_framebuffer.h" desc="shield"/>
+				<filteritem type="filepath" name="lib/zlib_inflate/inflate.c" desc="shield"/>
+				<filteritem type="filepath" name="samples/bpf/tracex7_kern.c" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm64/arm/juno.dts" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/proc-self-wchan.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/usb/usbip/INSTALL" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/sasin.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/stanh.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/mips/include/asm/mach-au1x00/gpio-au1000.h" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/bugs_32.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/asm/checksum_32.h" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/shared/sysdep/ptrace_64.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_gmac_cmn.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_probe_helper.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/ast/ast_post.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/engine/gr/nv15.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/subdev/i2c/bit.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/radeon_fence.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/radeon_reg.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/ethernet/broadcom/tg3.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/b43_pci_bridge.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/scan.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/hostfs/hostfs_kern.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/nfs/filelayout/filelayoutdev.c" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_mode_config.h" desc="shield"/>
+				<filteritem type="filepath" name="include/linux/siphash.h" desc="shield"/>
+				<filteritem type="filepath" name="kernel/bpf/offload.c" desc="shield"/>
+				<filteritem type="filepath" name="lib/zlib_inflate/inflate.h" desc="shield"/>
+				<filteritem type="filepath" name="net/sunrpc/auth_gss/gss_krb5_wrap.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/proc-uptime-001.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm64/boot/dts/arm/juno-motherboard.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/satan.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/sto_res.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/iskeleton.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/bugs_64.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/stub_segv.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/asm/checksum_64.h" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/os-Linux/prctl.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_gpio.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_crtc.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_dumb_buffers.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_property.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_gmc.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_vcn.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/ast/ast_tables.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/engine/gr/nv17.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/vgem/vgem_drv.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/ath5k.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/bridge_pcmcia_80211.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/sdio.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/hostfs/hostfs_user.c" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_dp_helper.h" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_mode_object.h" desc="shield"/>
+				<filteritem type="filepath" name="include/uapi/linux/timex.h" desc="shield"/>
+				<filteritem type="filepath" name="lib/zlib_deflate/deflate.c" desc="shield"/>
+				<filteritem type="filepath" name="samples/bpf/trace_output_kern.c" desc="shield"/>
+				<filteritem type="filepath" name="scripts/package/mkspec" desc="shield"/>
+				<filteritem type="filepath" name="tools/power/cpupower/po/cs.po" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/proc-uptime-002.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/vDSO/parse_vdso.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm/boot/dts/bcm4708.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm/mach-bcm/bcm_5301x.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm64/boot/dts/arm/juno-r1.dts" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/satanh.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/os-Linux/registers.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_mips.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_crtc_helper.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_sync.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/radeon_sa.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/host1x/mipi.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/mtd/maps/uclinux.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/attach.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/pcu.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/driver_chipcommon.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/sprom.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/video/fbdev/sunxvr1000.c" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_blend.h" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_dp_mst_helper.h" desc="shield"/>
+				<filteritem type="filepath" name="include/linux/parport.h" desc="shield"/>
+				<filteritem type="filepath" name="include/linux/zutil.h" desc="shield"/>
+				<filteritem type="filepath" name="lib/zlib_inflate/inftrees.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/power/cpupower/po/de.po" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/exec/recursion-depth.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/proc-uptime.h" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm64/boot/dts/arm/juno-r2.dts" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/scale.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/tbldo.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/asm/elf.h" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/shared/sysdep/stub_32.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_pci.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_mode_config.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/vce_v2_0.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/mgag200/mgag200_i2c.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/subdev/i2c/busgf119.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/subdev/pmu/fuc/arith.fuc" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/radeon_semaphore.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/vgem/vgem_fence.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/ethernet/broadcom/bgmac-bcma-mdio.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/phy.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/driver_chipcommon_pmu.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/video/fbdev/sunxvr2500.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/video/fbdev/intelfb/intelfb_i2c.c" desc="shield"/>
+				<filteritem type="filepath" name="fs/hugetlbfs/inode.c" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_bridge.h" desc="shield"/>
+				<filteritem type="filepath" name="include/drm/drm_modeset_helper.h" desc="shield"/>
+				<filteritem type="filepath" name="lib/zlib_deflate/deftree.c" desc="shield"/>
+				<filteritem type="filepath" name="lib/zlib_inflate/inftrees.h" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm/bcm4708-netgear-r6250.dts" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm/bcm947189acdbmr.dts" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm64/sprd/sc9836-openphone.dts" desc="shield"/>
+				<filteritem type="filepath" name="tools/power/cpupower/po/fr.po" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/bpf/test_offload.py" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm/boot/dts/bcm5301x.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm64/boot/dts/arm/juno.dts" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/scosh.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/util.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/asm/irq_vectors.h" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/shared/sysdep/stub_64.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_pci_host.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_encoder.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/drm_mode_object.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/mgag200/mgag200_mm.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/subdev/i2c/busnv04.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/radeon_sync.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/vce_v1_0.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/ethernet/broadcom/bgmac-bcma.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/qcu.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/parport/ieee1284.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/parport/share.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/driver_chipcommon_sflash.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/video/fbdev/sunxvr500.c" desc="shield"/>
+				<filteritem type="filepath" name="include/linux/rtc/ds1307.h" desc="shield"/>
+				<filteritem type="filepath" name="scripts/dtc/include-prefixes/arm64/sprd/sc9836.dtsi" desc="shield"/>
+				<filteritem type="filepath" name="tools/power/cpupower/po/it.po" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/read.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/timers/leapcrash.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/tmpfs/bug-link-o-tmpfile.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/arm/boot/dts/bcm53340-ubnt-unifi-switch8.dts" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/fpsp040/x_bsun.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/CHANGES" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/os.S" desc="shield"/>
+				<filteritem type="filepath" name="arch/sh/include/asm/platform_early.h" desc="shield"/>
+				<filteritem type="filepath" name="arch/sh/kernel/cpu/sh4/softfloat.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/fault.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/syscalls_64.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/x86/um/asm/mm_context.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/bcma/driver_pcie2.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_fence.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/amdgpu_mn.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/amd/amdgpu/vce_v3_0.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/nouveau/nvkm/subdev/i2c/busnv4e.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/gpu/drm/radeon/vce_v2_0.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/caps.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/net/wireless/ath/ath5k/reg.h" desc="shield"/>
+				<filteritem type="filepath" name="drivers/spi/spi-bcm63xx-hsspi.c" desc="shield"/>
+				<filteritem type="filepath" name="drivers/ssb/driver_extif.c" desc="shield"/>
+				<filteritem type="filepath" name="include/linux/remoteproc.h" desc="shield"/>
+				<filteritem type="filepath" name="include/linux/input/lm8333.h" desc="shield"/>
+				<filteritem type="filepath" name="lib/decompress_bunzip2.c" desc="shield"/>
+				<filteritem type="filepath" name="lib/zlib_inflate/infutil.h" desc="shield"/>
+				<filteritem type="filepath" name="tools/power/cpupower/po/pt.po" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/bpf/progs/freplace_connect4.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/bpf/progs/test_subprogs.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/bpf/progs/test_xdp_meta.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/fd-001-lookup.c" desc="shield"/>
+				<filteritem type="filepath" name="tools/testing/selftests/proc/self.c" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/TEST.DOC" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/fplsp.doc" desc="shield"/>
+				<filteritem type="filepath" name="scripts/Makefile.lib" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/fpsp.doc" desc="shield"/>
+				<filteritem type="filepath" name="tools/perf/tests/pe-file.exe" desc="shield"/>
+				<filteritem type="filepath" name="tools/perf/tests/pe-file.exe.debug" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/ilsp.doc" desc="shield"/>
+				<filteritem type="filepath" name="arch/m68k/ifpsp060/isp.doc" desc="shield"/>
+            </filefilter>
+        </filefilterlist>
+    </oatconfig>
+</configuration>
