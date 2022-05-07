@@ -54,6 +54,13 @@ config ANDROID_BINDER_IPC_SELFTEST
 	  exhaustively with combinations of various buffer sizes and
 	  alignments.
 
+config BINDER_TRANSACTION_PROC_BRIEF
+	bool "Brief debug info for binder transaction and proc"
+	depends on ANDROID_BINDER_IPC
+	default n
+	help
+
+	  Enable binder optimization
 endif # if ANDROID
 
 endmenu
