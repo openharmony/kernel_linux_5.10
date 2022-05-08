@@ -218,6 +218,9 @@ unsigned long reclaim_all_anon_memcg(struct pglist_data *pgdat, struct mem_cgrou
 		.may_swap = 1,
 	};
 
+#ifdef CONFIG_RECLAIM_ACCT
+	reclaimacct_substage_start(RA_SHRINKANON);
+#endif
 	count_vm_event(FREEZE_RECLAIME_COUNT);
 	move_pages_to_page_list(lruvec, LRU_INACTIVE_ANON, &page_list);
 
@@ -229,6 +232,10 @@ unsigned long reclaim_all_anon_memcg(struct pglist_data *pgdat, struct mem_cgrou
 		list_del(&page->lru);
 		putback_lru_page(page);
 	}
+
+#ifdef CONFIG_RECLAIM_ACCT
+	reclaimacct_substage_end(RA_SHRINKANON, nr_reclaimed, NULL);
+#endif
 
 	return nr_reclaimed;
 }

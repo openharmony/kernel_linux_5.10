@@ -98,6 +98,9 @@
 #include <linux/mem_encrypt.h>
 #include <linux/kcsan.h>
 #include <linux/init_syscalls.h>
+#ifdef CONFIG_RECLAIM_ACCT
+#include <linux/reclaim_acct.h>
+#endif
 
 #include <asm/io.h>
 #include <asm/bugs.h>
@@ -1046,6 +1049,9 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	cgroup_init();
 	taskstats_init_early();
 	delayacct_init();
+#ifdef CONFIG_RECLAIM_ACCT
+	reclaimacct_init();
+#endif
 
 	poking_init();
 	check_bugs();

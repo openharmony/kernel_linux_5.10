@@ -125,3 +125,4 @@ obj-$(CONFIG_PAGE_REPORTING) += page_reporting.o
 obj-$(CONFIG_HYPERHOLD_FILE_LRU) += memcg_reclaim.o
 obj-$(CONFIG_HYPERHOLD_MEMCG) += memcg_control.o
 obj-$(CONFIG_HYPERHOLD_ZSWAPD) += zswapd.o zswapd_control.o
+obj-$(CONFIG_RECLAIM_ACCT) += reclaim_acct.o reclaimacct_show.o
