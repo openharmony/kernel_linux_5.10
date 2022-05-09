@@ -1164,6 +1164,9 @@ const char * const vmstat_text[] = {
 #endif
 	"nr_free_cma",
 
+#ifdef CONFIG_PAGE_TRACING
+	"nr_skb_pages",
+#endif
 	/* enum numa_stat_item counters */
 #ifdef CONFIG_NUMA
 	"numa_hit",

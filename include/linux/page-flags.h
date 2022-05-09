@@ -139,6 +139,10 @@ enum pageflags {
 #ifdef CONFIG_64BIT
 	PG_arch_2,
 #endif
+#ifdef CONFIG_PAGE_TRACING
+	PG_skb,
+	PG_zspage,
+#endif
 	__NR_PAGEFLAGS,
 
 	/* Filesystems */
@@ -442,6 +446,11 @@ TESTPAGEFLAG(Young, young, PF_ANY)
 SETPAGEFLAG(Young, young, PF_ANY)
 TESTCLEARFLAG(Young, young, PF_ANY)
 PAGEFLAG(Idle, idle, PF_ANY)
+#endif
+
+#ifdef CONFIG_PAGE_TRACING
+	PAGEFLAG(SKB, skb, PF_ANY)
+	PAGEFLAG(Zspage, zspage, PF_ANY)
 #endif
 
 /*
