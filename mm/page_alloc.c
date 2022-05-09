@@ -5095,6 +5095,23 @@ static struct page *__page_frag_cache_refill(struct page_frag_cache *nc,
 
 	nc->va = page ? page_address(page) : NULL;
 
+#ifdef CONFIG_PAGE_TRACING
+	if (likely(page)) {
+		int order = get_order(nc->size);
+		int i;
+		struct page *newpage = page;
+		unsigned int deta = 1U << (unsigned int)order;
+
+		for (i = 0; i < (1 << order); i++) {
+			if (!newpage)
+				break;
+			SetPageSKB(newpage);
+			newpage++;
+		}
+		mod_zone_page_state(page_zone(page), NR_SKB_PAGES, (long)deta);
+	}
+#endif
+
 	return page;
 }
 
@@ -5102,8 +5119,16 @@ void __page_frag_cache_drain(struct page *page, unsigned int count)
 {
 	VM_BUG_ON_PAGE(page_ref_count(page) == 0, page);
 
-	if (page_ref_sub_and_test(page, count))
+	if (page_ref_sub_and_test(page, count)) {
+#ifdef CONFIG_PAGE_TRACING
+		if (likely(page)) {
+			unsigned int deta = 1U << compound_order(page);
+
+			mod_zone_page_state(page_zone(page), NR_SKB_PAGES, -(long)deta);
+		}
+#endif
 		free_the_page(page, compound_order(page));
+	}
 }
 EXPORT_SYMBOL(__page_frag_cache_drain);
 
@@ -5173,8 +5198,16 @@ void page_frag_free(void *addr)
 {
 	struct page *page = virt_to_head_page(addr);
 
-	if (unlikely(put_page_testzero(page)))
+	if (unlikely(put_page_testzero(page))) {
+#ifdef CONFIG_PAGE_TRACING
+		if (likely(page)) {
+			unsigned int deta = 1U << compound_order(page);
+
+			mod_zone_page_state(page_zone(page), NR_SKB_PAGES, -(long)deta);
+		}
+#endif
 		free_the_page(page, compound_order(page));
+	}
 }
 EXPORT_SYMBOL(page_frag_free);
 

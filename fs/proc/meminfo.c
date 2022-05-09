@@ -122,6 +122,10 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	show_val_kb(m, "VmallocChunk:   ", 0ul);
 	show_val_kb(m, "Percpu:         ", pcpu_nr_pages());
 
+#ifdef CONFIG_PAGE_TRACING
+	show_val_kb(m, "Skb:            ", global_zone_page_state(NR_SKB_PAGES));
+#endif
+
 #ifdef CONFIG_MEMORY_FAILURE
 	seq_printf(m, "HardwareCorrupted: %5lu kB\n",
 		   atomic_long_read(&num_poisoned_pages) << (PAGE_SHIFT - 10));
@@ -144,6 +148,11 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	show_val_kb(m, "CmaTotal:       ", totalcma_pages);
 	show_val_kb(m, "CmaFree:        ",
 		    global_zone_page_state(NR_FREE_CMA_PAGES));
+#endif
+
+#ifdef CONFIG_PAGE_TRACING
+	seq_puts(m, "GLTrack:               - kB\n");
+	show_val_kb(m, "ZspageUsed:	", global_zone_page_state(NR_ZSPAGES));
 #endif
 
 	hugetlb_report_meminfo(m);

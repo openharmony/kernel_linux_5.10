@@ -29,6 +29,10 @@ const char *migrate_reason_names[MR_TYPES] = {
 
 const struct trace_print_flags pageflag_names[] = {
 	__def_pageflag_names,
+#ifdef CONFIG_PAGE_TRACING
+	{1UL << PG_skb,		"skb"},
+	{1UL << PG_zspage,	"zspage"},
+#endif
 	{0, NULL}
 };
 

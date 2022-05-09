@@ -1085,6 +1085,9 @@ static struct zspage *alloc_zspage(struct zs_pool *pool,
 		}
 
 		inc_zone_page_state(page, NR_ZSPAGES);
+#ifdef CONFIG_PAGE_TRACING
+		SetPageZspage(page);
+#endif
 		pages[i] = page;
 	}
 

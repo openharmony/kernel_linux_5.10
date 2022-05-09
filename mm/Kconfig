@@ -90,6 +90,12 @@ config HYPERHOLD_ZSWAPD
 	  and the refault of anonymous pages is high, the content of
 	  zram will exchanged to eswap by a certain percentage.
 
+config PAGE_TRACING
+	bool "Enable Page Tracing"
+	default n
+	help
+	  This option enables page tracing.
+
 config DISCONTIGMEM
 	def_bool y
 	depends on (!SELECT_MEMORY_MODEL && ARCH_DISCONTIGMEM_ENABLE) || DISCONTIGMEM_MANUAL
