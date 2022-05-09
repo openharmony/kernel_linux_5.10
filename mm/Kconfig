@@ -912,5 +912,19 @@ config ANON_VMA_NAME
 	  Assigning a name to anonymous virtual memory area might prevent that
 	  area from being merged with adjacent virtual memory areas due to the
 	  difference in their name.
+#
+# For lmkd to trigger in-kernel lowmem info
+#
+config LOWMEM
+        bool "Low Memory Killer"
+	default n
+	help
+	  Enables lowmem killer parameter tuning
+
+config LMKD_DBG
+	bool "Low Memory Killer Debug"
+	default n
+	help
+	  print processes info when lmk happen per several seconds
 
 endmenu
