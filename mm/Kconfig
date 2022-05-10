@@ -96,6 +96,12 @@ config PAGE_TRACING
 	help
 	  This option enables page tracing.
 
+config RECLAIM_ACCT
+	bool "Memory reclaim delay accounting"
+	default n
+	help
+	  Memory reclaim delay accounting. Never use it as a kernel module.
+
 config DISCONTIGMEM
 	def_bool y
 	depends on (!SELECT_MEMORY_MODEL && ARCH_DISCONTIGMEM_ENABLE) || DISCONTIGMEM_MANUAL

@@ -13,6 +13,8 @@
 #include <linux/tracepoint-defs.h>
 #include <linux/swap.h>
 #include <linux/rmap.h>
+#include <linux/types.h>
+#include <linux/reclaim_acct.h>
 
 /*
  * The set of flags that only affect watermark checking and reclaim
@@ -770,5 +772,35 @@ struct migration_target_control {
 	nodemask_t *nmask;
 	gfp_t gfp_mask;
 };
+
+#define DELAY_LV0 5000000 /* 5ms */
+#define DELAY_LV1 10000000 /* 10ms */
+#define DELAY_LV2 50000000 /* 50ms */
+#define DELAY_LV3 100000000 /* 100ms */
+#define DELAY_LV4 2000000000 /* 2000ms */
+#define DELAY_LV5 50000000000 /* 50000ms */
+#define NR_DELAY_LV 6
+
+struct reclaim_acct {
+	u64 start[NR_RA_STUBS];
+	u64 delay[NR_RA_STUBS];
+	u64 count[NR_RA_STUBS];
+	u64 freed[NR_RA_STUBS];
+	unsigned int reclaim_type;
+};
+
+static const char *stub_name[NR_RA_STUBS] = {
+	"direct_reclaim",
+	"drain_all_pages",
+	"shrink_file_list",
+	"shrink_anon_list",
+	"shrink_slab",
+};
+
+bool reclaimacct_initialize_show_data(void);
+void reclaimacct_destroy_show_data(void);
+
+void reclaimacct_collect_data(void);
+void reclaimacct_collect_reclaim_efficiency(void);
 
 #endif	/* __MM_INTERNAL_H */

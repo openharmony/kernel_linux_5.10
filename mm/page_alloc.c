@@ -71,6 +71,9 @@
 #include <linux/padata.h>
 #include <linux/khugepaged.h>
 #include <linux/zswapd.h>
+#ifdef CONFIG_RECLAIM_ACCT
+#include <linux/reclaim_acct.h>
+#endif
 
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
@@ -4396,7 +4399,13 @@ retry:
 	 */
 	if (!page && !drained) {
 		unreserve_highatomic_pageblock(ac, false);
+#ifdef CONFIG_RECLAIM_ACCT
+		reclaimacct_substage_start(RA_DRAINALLPAGES);
+#endif
 		drain_all_pages(NULL);
+#ifdef CONFIG_RECLAIM_ACCT
+		reclaimacct_substage_end(RA_DRAINALLPAGES, 0, NULL);
+#endif
 		drained = true;
 		goto retry;
 	}
@@ -4653,6 +4662,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	int no_progress_loops;
 	unsigned int cpuset_mems_cookie;
 	int reserve_flags;
+	struct reclaim_acct ra = {0};
 
 	/*
 	 * We also sanity check to catch abuse of atomic reserves being used by
@@ -4786,8 +4796,14 @@ retry:
 		goto nopage;
 
 	/* Try direct reclaim and then allocating */
+#ifdef CONFIG_RECLAIM_ACCT
+	reclaimacct_start(DIRECT_RECLAIMS, &ra);
+#endif
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
 							&did_some_progress);
+#ifdef CONFIG_RECLAIM_ACCT
+	reclaimacct_end(DIRECT_RECLAIMS);
+#endif
 	if (page)
 		goto got_pg;
 

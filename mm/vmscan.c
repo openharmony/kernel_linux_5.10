@@ -67,6 +67,10 @@
 #include <linux/memcg_policy.h>
 #endif
 
+#ifdef CONFIG_RECLAIM_ACCT
+#include <linux/reclaim_acct.h>
+#endif
+
 #ifdef ARCH_HAS_PREFETCHW
 #define prefetchw_prev_lru_page(_page, _base, _field)			\
 	do {								\
@@ -595,10 +599,16 @@ unsigned long shrink_slab(gfp_t gfp_mask, int nid,
 			.memcg = memcg,
 		};
 
+#ifdef CONFIG_RECLAIM_ACCT
+		reclaimacct_substage_start(RA_SHRINKSLAB);
+#endif
 		ret = do_shrink_slab(&sc, shrinker, priority);
 		if (ret == SHRINK_EMPTY)
 			ret = 0;
 		freed += ret;
+#ifdef CONFIG_RECLAIM_ACCT
+		reclaimacct_substage_end(RA_SHRINKSLAB, ret, shrinker);
+#endif
 		/*
 		 * Bail out if someone want to register a new shrinker to
 		 * prevent the registration from being stalled for long periods
@@ -2112,15 +2122,31 @@ unsigned long reclaim_pages(struct list_head *page_list)
 unsigned long shrink_list(enum lru_list lru, unsigned long nr_to_scan,
 				 struct lruvec *lruvec, struct scan_control *sc)
 {
+#ifdef CONFIG_RECLAIM_ACCT
+	unsigned long nr_reclaimed;
+	unsigned int stub;
+
+	stub = is_file_lru(lru) ? RA_SHRINKFILE : RA_SHRINKANON;
+	reclaimacct_substage_start(stub);
+#endif
 	if (is_active_lru(lru)) {
 		if (sc->may_deactivate & (1 << is_file_lru(lru)))
 			shrink_active_list(nr_to_scan, lruvec, sc, lru);
 		else
 			sc->skipped_deactivate = 1;
+#ifdef CONFIG_RECLAIM_ACCT
+		reclaimacct_substage_end(stub, 0, NULL);
+#endif
 		return 0;
 	}
 
+#ifdef CONFIG_RECLAIM_ACCT
+	nr_reclaimed = shrink_inactive_list(nr_to_scan, lruvec, sc, lru);
+	reclaimacct_substage_end(stub, nr_reclaimed, NULL);
+	return nr_reclaimed;
+#else
 	return shrink_inactive_list(nr_to_scan, lruvec, sc, lru);
+#endif
 }
 
 /*
@@ -3852,6 +3878,7 @@ static int kswapd(void *p)
 	pg_data_t *pgdat = (pg_data_t*)p;
 	struct task_struct *tsk = current;
 	const struct cpumask *cpumask = cpumask_of_node(pgdat->node_id);
+	struct reclaim_acct ra = {0};
 
 	if (!cpumask_empty(cpumask))
 		set_cpus_allowed_ptr(tsk, cpumask);
@@ -3912,8 +3939,14 @@ kswapd_try_sleep:
 		 */
 		trace_mm_vmscan_kswapd_wake(pgdat->node_id, highest_zoneidx,
 						alloc_order);
+#ifdef CONFIG_RECLAIM_ACCT
+		reclaimacct_start(KSWAPD_RECLAIM, &ra);
+#endif
 		reclaim_order = balance_pgdat(pgdat, alloc_order,
 						highest_zoneidx);
+#ifdef CONFIG_RECLAIM_ACCT
+		reclaimacct_end(KSWAPD_RECLAIM);
+#endif
 		if (reclaim_order < alloc_order)
 			goto kswapd_try_sleep;
 	}

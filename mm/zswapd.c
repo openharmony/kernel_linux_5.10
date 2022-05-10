@@ -10,6 +10,9 @@
 #include <trace/events/vmscan.h>
 #include <uapi/linux/sched/types.h>
 #include <linux/zswapd.h>
+#ifdef CONFIG_RECLAIM_ACCT
+#include <linux/reclaim_acct.h>
+#endif
 
 #include "zswapd_internal.h"
 #include "internal.h"
@@ -530,15 +533,29 @@ static unsigned long zswapd_shrink_list(enum lru_list lru,
 		unsigned long nr_to_scan, struct lruvec *lruvec,
 		struct scan_control *sc)
 {
+#ifdef CONFIG_RECLAIM_ACCT
+	unsigned long nr_reclaimed;
+
+	reclaimacct_substage_start(RA_SHRINKANON);
+#endif
 	if (is_active_lru(lru)) {
 		if (sc->may_deactivate & (1 << is_file_lru(lru)))
 			zswapd_shrink_active_list(nr_to_scan, lruvec, sc, lru);
 		else
 			sc->skipped_deactivate = 1;
+#ifdef CONFIG_RECLAIM_ACCT
+		reclaimacct_substage_end(RA_SHRINKANON, 0, NULL);
+#endif
 		return 0;
 	}
 
+#ifdef CONFIG_RECLAIM_ACCT
+	nr_reclaimed = shrink_inactive_list(nr_to_scan, lruvec, sc, lru);
+	reclaimacct_substage_end(RA_SHRINKANON, nr_reclaimed, NULL);
+	return nr_reclaimed;
+#else
 	return shrink_inactive_list(nr_to_scan, lruvec, sc, lru);
+#endif
 }
 
 static void zswapd_shrink_anon_memcg(struct pglist_data *pgdat,
@@ -746,9 +763,11 @@ static int zswapd(void *p)
 	struct task_struct *tsk = current;
 	pg_data_t *pgdat = (pg_data_t *)p;
 	const struct cpumask *cpumask = cpumask_of_node(pgdat->node_id);
+	struct reclaim_acct ra = {0};
 
 	/* save zswapd pid for schedule strategy */
 	zswapd_pid = tsk->pid;
+
 
 	if (!cpumask_empty(cpumask))
 		set_cpus_allowed_ptr(tsk, cpumask);
@@ -771,7 +790,13 @@ static int zswapd(void *p)
 			goto do_eswap;
 		}
 
+#ifdef CONFIG_RECLAIM_ACCT
+		reclaimacct_start(ZSWAPD_RECLAIM, &ra);
+#endif
 		zswapd_shrink_node(pgdat);
+#ifdef CONFIG_RECLAIM_ACCT
+		reclaimacct_end(ZSWAPD_RECLAIM);
+#endif
 		last_zswapd_time = jiffies;
 
 do_eswap:
