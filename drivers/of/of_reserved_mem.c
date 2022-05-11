@@ -22,9 +22,21 @@
 #include <linux/slab.h>
 #include <linux/memblock.h>
 
+#if defined(CONFIG_DEBUG_FS)
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
+#endif
+
 #define MAX_RESERVED_REGIONS	64
 static struct reserved_mem reserved_mem[MAX_RESERVED_REGIONS];
 static int reserved_mem_count;
+#if defined(CONFIG_DEBUG_FS)
+#define DT_RESERVED_MEM "dt_reserved_mem"
+static int dynamic_reserved_mem_count;
+static const char *dynamic_reserved_mem_array[MAX_RESERVED_REGIONS];
+static int cma_reserved_mem_count;
+static const char *cma_reserved_mem_array[MAX_RESERVED_REGIONS];
+#endif
 
 static int __init early_init_dt_alloc_reserved_memory_arch(phys_addr_t size,
 	phys_addr_t align, phys_addr_t start, phys_addr_t end, bool nomap,
@@ -62,6 +74,13 @@ void __init fdt_reserved_mem_save_node(unsigned long node, const char *uname,
 	rmem->name = uname;
 	rmem->base = base;
 	rmem->size = size;
+#if defined(CONFIG_DEBUG_FS)
+	if ((of_get_flat_dt_prop(node, "reusable", NULL))
+		&& (cma_reserved_mem_count < MAX_RESERVED_REGIONS)) {
+		cma_reserved_mem_array[cma_reserved_mem_count] = uname;
+		cma_reserved_mem_count++;
+	}
+#endif
 
 	reserved_mem_count++;
 	return;
@@ -154,6 +173,13 @@ static int __init __reserved_mem_alloc_size(unsigned long node,
 		pr_info("failed to allocate memory for node '%s'\n", uname);
 		return -ENOMEM;
 	}
+
+#if defined(CONFIG_DEBUG_FS)
+	if (dynamic_reserved_mem_count < MAX_RESERVED_REGIONS) {
+		dynamic_reserved_mem_array[dynamic_reserved_mem_count] = uname;
+		dynamic_reserved_mem_count++;
+	}
+#endif
 
 	*res_base = base;
 	*res_size = size;
@@ -438,3 +464,78 @@ struct reserved_mem *of_reserved_mem_lookup(struct device_node *np)
 	return NULL;
 }
 EXPORT_SYMBOL_GPL(of_reserved_mem_lookup);
+
+#if defined(CONFIG_DEBUG_FS)
+static int dt_reserved_memory_debug_show(struct seq_file *m, void *private)
+{
+	struct reserved_mem *dt_reserved_mem = m->private;
+	struct reserved_mem *rmem = NULL;
+	int i = 0;
+	int j = 0;
+	int cma = 0;
+	int dynamic = 0;
+
+	seq_printf(m, "  num [start            ....              end]      [size]"
+		   "       [d/s]     [cma]       [name]\n");
+
+	for (i = 0; i < reserved_mem_count; i++) {
+		cma = 0;
+		dynamic = 0;
+		rmem = &(dt_reserved_mem[i]);
+
+		/* find out dynamic reserved memory node  */
+		for (j = 0; j < dynamic_reserved_mem_count; j++) {
+			if (!strcmp(rmem->name, dynamic_reserved_mem_array[j])) {
+				dynamic = 1;
+				break;
+			}
+		}
+
+		/* find out cma reserved memory node */
+		for (j = 0; j < cma_reserved_mem_count; j++) {
+			if (!strcmp(rmem->name, cma_reserved_mem_array[j])) {
+				cma = 1;
+				break;
+			}
+		}
+
+		seq_printf(m, "%4d: [0x%016llx..0x%016llx]  %8llukB   %8s %8s        %8s\n",
+				i,
+				(unsigned long long)rmem->base,
+				(unsigned long long)(rmem->base + rmem->size - 1),
+				(unsigned long long)rmem->size / SZ_1K,
+				(dynamic == 1) ? "d" : "s",
+				(cma == 1) ? "y" : "n",
+				rmem->name);
+	}
+
+	return 0;
+}
+
+static int dt_reserved_memory_debug_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, dt_reserved_memory_debug_show, inode->i_private);
+}
+
+static const struct file_operations dt_reserved_memory_debug_fops = {
+	.open = dt_reserved_memory_debug_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int __init dt_reserved_memory_init_debugfs(void)
+{
+	struct dentry *root = debugfs_create_dir(DT_RESERVED_MEM, NULL);
+	if (!root)
+		return -ENXIO;
+	debugfs_create_file("dt_reserved_memory",
+			    S_IRUGO,
+			    root,
+			    reserved_mem,
+			    &dt_reserved_memory_debug_fops);
+
+	return 0;
+}
+__initcall(dt_reserved_memory_init_debugfs);
+#endif /* CONFIG_DEBUG_FS */
