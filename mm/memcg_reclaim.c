@@ -217,6 +217,9 @@ void shrink_anon_memcg(struct pglist_data *pgdat,
 
 static inline bool memcg_is_child_of(struct mem_cgroup *mcg, struct mem_cgroup *tmcg)
 {
+	if (tmcg == NULL)
+		return true;
+
 	while (!mem_cgroup_is_root(mcg)) {
 		if (mcg == tmcg)
 			break;
