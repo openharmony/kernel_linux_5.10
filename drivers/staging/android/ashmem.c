@@ -24,6 +24,7 @@
 #include <linux/bitops.h>
 #include <linux/mutex.h>
 #include <linux/shmem_fs.h>
+#include <linux/memcheck.h>
 #include "ashmem.h"
 
 #define ASHMEM_NAME_PREFIX "dev/ashmem/"
@@ -103,6 +104,16 @@ static struct kmem_cache *ashmem_range_cachep __read_mostly;
  * syscalls operating on the backing shmem.
  */
 static struct lock_class_key backing_shmem_inode_class;
+
+void ashmem_mutex_lock(void)
+{
+	mutex_lock(&ashmem_mutex);
+}
+
+void ashmem_mutex_unlock(void)
+{
+	mutex_unlock(&ashmem_mutex);
+}
 
 static inline unsigned long range_size(struct ashmem_range *range)
 {
@@ -913,11 +924,34 @@ static const struct file_operations ashmem_fops = {
 #endif
 };
 
+int is_ashmem_file(struct file *file)
+{
+	return file->f_op == &ashmem_fops;
+}
+
 static struct miscdevice ashmem_misc = {
 	.minor = MISC_DYNAMIC_MINOR,
 	.name = "ashmem",
 	.fops = &ashmem_fops,
 };
+
+size_t get_ashmem_size_by_file(struct file *f)
+{
+	struct ashmem_area *asma = f->private_data;
+
+	if (asma)
+		return asma->size;
+	return 0;
+}
+
+char *get_ashmem_name_by_file(struct file *f)
+{
+	struct ashmem_area *asma = f->private_data;
+
+	if (asma)
+		return asma->name;
+	return NULL;
+}
 
 static int __init ashmem_init(void)
 {
@@ -950,7 +984,7 @@ static int __init ashmem_init(void)
 		pr_err("failed to register shrinker!\n");
 		goto out_demisc;
 	}
-
+	init_ashmem_process_info();
 	pr_info("initialized\n");
 
 	return 0;

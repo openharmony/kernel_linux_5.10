@@ -938,5 +938,14 @@ config LMKD_DBG
 	default n
 	help
 	  print processes info when lmk happen per several seconds
+#
+# Show the process ashmem for debug
+#
+config MEMTRACE_ASHMEM
+	bool "Ashmem Process Info Show"
+	depends on ASHMEM
+	default n
+	help
+	  Enable the Ashmem Process Info Show
 
 endmenu
