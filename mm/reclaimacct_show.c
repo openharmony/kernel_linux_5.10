@@ -95,6 +95,13 @@ static int reclaimacct_proc_show(struct seq_file *m, void *v)
 {
 	int i, j;
 	struct reclaimacct_show show;
+	const char *stub_name[NR_RA_STUBS] = {
+		"direct_reclaim",
+		"drain_all_pages",
+		"shrink_file_list",
+		"shrink_anon_list",
+		"shrink_slab",
+	};
 
 	if (!ra_show)
 		return 0;
