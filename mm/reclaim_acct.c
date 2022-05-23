@@ -10,6 +10,15 @@
 
 #include "internal.h"
 
+
+const char *stub_name[NR_RA_STUBS] = {
+	"direct_reclaim",
+	"drain_all_pages",
+	"shrink_file_list",
+	"shrink_anon_list",
+	"shrink_slab",
+};
+
 /* Once initialized, the variable should never be changed */
 static bool reclaimacct_is_off = true;
 static int reclaimacct_disable = 1;
@@ -124,8 +133,6 @@ void reclaimacct_end(enum reclaim_type type)
 /* Reclaim accounting module initialize */
 static int reclaimacct_init_handle(void *p)
 {
-	int i;
-
 	if (!reclaimacct_initialize_show_data())
 		goto alloc_show_failed;
 

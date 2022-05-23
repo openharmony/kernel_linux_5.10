@@ -789,14 +789,6 @@ struct reclaim_acct {
 	unsigned int reclaim_type;
 };
 
-static const char *stub_name[NR_RA_STUBS] = {
-	"direct_reclaim",
-	"drain_all_pages",
-	"shrink_file_list",
-	"shrink_anon_list",
-	"shrink_slab",
-};
-
 bool reclaimacct_initialize_show_data(void);
 void reclaimacct_destroy_show_data(void);
 
