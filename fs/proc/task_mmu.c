@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 #include <linux/pagewalk.h>
 #include <linux/vmacache.h>
+#include <linux/mm_inline.h>
 #include <linux/hugetlb.h>
 #include <linux/huge_mm.h>
 #include <linux/mount.h>
@@ -308,7 +309,7 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 
 	name = arch_vma_name(vma);
 	if (!name) {
-		const char *anon_name;
+		struct anon_vma_name *anon_name;
 
 		if (!mm) {
 			name = "[vdso]";
@@ -326,10 +327,10 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma)
 			goto done;
 		}
 
-		anon_name = vma_anon_name(vma);
+		anon_name = anon_vma_name(vma);
 		if (anon_name) {
 			seq_pad(m, ' ');
-			seq_printf(m, "[anon:%s]", anon_name);
+			seq_printf(m, "[anon:%s]", anon_name->name);
 		}
 	}
 
