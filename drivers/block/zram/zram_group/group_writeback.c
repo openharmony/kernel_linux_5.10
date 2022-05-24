@@ -471,6 +471,8 @@ u64 write_group_objs(struct zram *zram, u16 gid, u64 req_size)
 		write_size += size;
 	}
 
+	atomic64_add(write_size, &zram->zgrp->stats[0].write_size);
+	atomic64_add(write_size, &zram->zgrp->stats[gid].write_size);
 	return write_size;
 }
 #endif
