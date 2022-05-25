@@ -12,6 +12,7 @@
 #ifndef __ASM_VDSO_H
 #define __ASM_VDSO_H
 
+#include <linux/mm.h>
 #include <linux/mm_types.h>
 #include <vdso/datapage.h>
 
