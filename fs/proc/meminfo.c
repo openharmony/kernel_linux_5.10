@@ -38,6 +38,8 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	unsigned long pages[NR_LRU_LISTS];
 	unsigned long sreclaimable, sunreclaim;
 	int lru;
+	unsigned long nr_purgeable_active = 0;
+	unsigned long nr_purgeable_inactive = 0;
 
 	si_meminfo(&i);
 	si_swapinfo(&i);
@@ -51,6 +53,11 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	for (lru = LRU_BASE; lru < NR_LRU_LISTS; lru++)
 		pages[lru] = global_node_page_state(NR_LRU_BASE + lru);
 
+#ifdef CONFIG_MEM_PURGEABLE
+	nr_purgeable_active = pages[LRU_ACTIVE_PURGEABLE];
+	nr_purgeable_inactive = pages[LRU_INACTIVE_PURGEABLE];
+#endif
+
 	available = si_mem_available();
 	sreclaimable = global_node_page_state_pages(NR_SLAB_RECLAIMABLE_B);
 	sunreclaim = global_node_page_state_pages(NR_SLAB_UNRECLAIMABLE_B);
@@ -62,13 +69,19 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	show_val_kb(m, "Cached:         ", cached);
 	show_val_kb(m, "SwapCached:     ", total_swapcache_pages());
 	show_val_kb(m, "Active:         ", pages[LRU_ACTIVE_ANON] +
-					   pages[LRU_ACTIVE_FILE]);
+					   pages[LRU_ACTIVE_FILE] +
+					   nr_purgeable_active);
 	show_val_kb(m, "Inactive:       ", pages[LRU_INACTIVE_ANON] +
-					   pages[LRU_INACTIVE_FILE]);
+					   pages[LRU_INACTIVE_FILE] +
+					   nr_purgeable_inactive);
 	show_val_kb(m, "Active(anon):   ", pages[LRU_ACTIVE_ANON]);
 	show_val_kb(m, "Inactive(anon): ", pages[LRU_INACTIVE_ANON]);
 	show_val_kb(m, "Active(file):   ", pages[LRU_ACTIVE_FILE]);
 	show_val_kb(m, "Inactive(file): ", pages[LRU_INACTIVE_FILE]);
+#ifdef CONFIG_MEM_PURGEABLE
+	show_val_kb(m, "Active(purgeable):   ", nr_purgeable_active);
+	show_val_kb(m, "Inactive(purgeable): ", nr_purgeable_inactive);
+#endif
 	show_val_kb(m, "Unevictable:    ", pages[LRU_UNEVICTABLE]);
 	show_val_kb(m, "Mlocked:        ", global_zone_page_state(NR_MLOCK));
 

@@ -1154,6 +1154,10 @@ const char * const vmstat_text[] = {
 	"nr_zone_active_anon",
 	"nr_zone_inactive_file",
 	"nr_zone_active_file",
+#ifdef CONFIG_MEM_PURGEABLE
+	"nr_zone_inactive_purgeable",
+	"nr_zone_active_purgeable",
+#endif
 	"nr_zone_unevictable",
 	"nr_zone_write_pending",
 	"nr_mlock",
@@ -1182,6 +1186,10 @@ const char * const vmstat_text[] = {
 	"nr_active_anon",
 	"nr_inactive_file",
 	"nr_active_file",
+#ifdef CONFIG_MEM_PURGEABLE
+	"nr_inactive_purgeable",
+	"nr_active_purgeable",
+#endif
 	"nr_unevictable",
 	"nr_slab_reclaimable",
 	"nr_slab_unreclaimable",

@@ -77,6 +77,11 @@ static __always_inline void del_page_from_lru_list(struct page *page,
  */
 static inline enum lru_list page_lru_base_type(struct page *page)
 {
+#ifdef CONFIG_MEM_PURGEABLE
+	if (PagePurgeable(page))
+		return LRU_INACTIVE_PURGEABLE;
+#endif
+
 	if (page_is_file_lru(page))
 		return LRU_INACTIVE_FILE;
 	return LRU_INACTIVE_ANON;

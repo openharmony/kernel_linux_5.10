@@ -143,6 +143,9 @@ enum pageflags {
 	PG_skb,
 	PG_zspage,
 #endif
+#ifdef CONFIG_MEM_PURGEABLE
+	PG_purgeable,
+#endif
 	__NR_PAGEFLAGS,
 
 	/* Filesystems */
@@ -461,6 +464,11 @@ PAGEFLAG(Idle, idle, PF_ANY)
  */
 __PAGEFLAG(Reported, reported, PF_NO_COMPOUND)
 
+#ifdef CONFIG_MEM_PURGEABLE
+PAGEFLAG(Purgeable, purgeable, PF_ANY)
+#else
+PAGEFLAG_FALSE(Purgeable)
+#endif
 /*
  * On an anonymous page mapped into a user virtual memory area,
  * page->mapping points to its anon_vma, not to a struct address_space;
