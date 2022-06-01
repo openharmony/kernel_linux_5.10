@@ -4662,7 +4662,9 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 	int no_progress_loops;
 	unsigned int cpuset_mems_cookie;
 	int reserve_flags;
+#ifdef CONFIG_RECLAIM_ACCT
 	struct reclaim_acct ra = {0};
+#endif
 
 	/*
 	 * We also sanity check to catch abuse of atomic reserves being used by

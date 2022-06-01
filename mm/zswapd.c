@@ -763,7 +763,9 @@ static int zswapd(void *p)
 	struct task_struct *tsk = current;
 	pg_data_t *pgdat = (pg_data_t *)p;
 	const struct cpumask *cpumask = cpumask_of_node(pgdat->node_id);
+#ifdef CONFIG_RECLAIM_ACCT
 	struct reclaim_acct ra = {0};
+#endif
 
 	/* save zswapd pid for schedule strategy */
 	zswapd_pid = tsk->pid;

@@ -115,7 +115,7 @@ static int reclaimacct_proc_show(struct seq_file *m, void *v)
 	for (i = 0; i < NR_RA_STUBS; i++) {
 		seq_printf(m, "%s_delay\t\t", stub_name[i]);
 		for (j = 0; j < NR_DELAY_LV; j++)
-			seq_printf(m, "%-15llu ", show.delay[j][i] / NSEC_PER_MSEC);
+			seq_printf(m, "%-15llu ", div_u64(show.delay[j][i], NSEC_PER_MSEC));
 		seq_puts(m, "\n");
 
 		seq_printf(m, "%s_count\t\t", stub_name[i]);
@@ -197,7 +197,7 @@ static int reclaim_efficiency_proc_show(struct seq_file *m, void *v)
 		seq_printf(m, "%s time(ms)        freed(page/obj)\n", type[i]);
 		for (j = 0; j < NR_RA_STUBS; j++)
 			seq_printf(m, "%s  %-15llu %-15llu\n", stage[j],
-				eff[i].time[j] / NSEC_PER_MSEC,
+				div_u64(eff[i].time[j], NSEC_PER_MSEC),
 				eff[i].freed[j]);
 	}
 
