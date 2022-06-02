@@ -43,6 +43,12 @@
 #define CMD_ID_GET_ENABLE \
 	_IOWR(RTG_SCHED_IPC_MAGIC, GET_ENABLE, struct rtg_enable_data)
 
+int proc_rtg_open(struct inode *inode, struct file *filp);
+long proc_rtg_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+#ifdef CONFIG_COMPAT
+long proc_rtg_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+#endif
+
 enum ioctl_abi_format {
 	IOCTL_ABI_ARM32,
 	IOCTL_ABI_AARCH64,

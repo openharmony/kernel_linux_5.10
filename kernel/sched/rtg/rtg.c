@@ -853,8 +853,7 @@ void sched_get_max_group_util(const struct cpumask *query_cpus,
 				       &grp->preferred_cluster->cpus) &&
 		    !group_should_invalid_util(grp, now)) {
 
-			if (grp->ravg.normalized_util > max_grp_util &&
-			    valid_normalized_util(grp))
+			if (grp->ravg.normalized_util > max_grp_util)
 				max_grp_util = grp->ravg.normalized_util;
 		}
 		raw_spin_unlock_irqrestore(&grp->lock, flag);

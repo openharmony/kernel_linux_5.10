@@ -25,6 +25,7 @@ struct frame_info {
 	struct related_thread_group *rtg;
 	int prio;
 	struct task_struct *thread[MAX_TID_NUM];
+	atomic_t thread_prio[MAX_TID_NUM];
 	int thread_num;
 	unsigned int frame_rate; // frame rate
 	u64 frame_time;
