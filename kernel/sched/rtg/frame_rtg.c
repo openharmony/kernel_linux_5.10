@@ -197,6 +197,7 @@ int alloc_multi_frame_info(void)
 {
 	struct frame_info *frame_info = NULL;
 	int id;
+	int i;
 
 	id = alloc_rtg_id();
 	if (id < 0)
@@ -211,6 +212,8 @@ int alloc_multi_frame_info(void)
 	set_frame_rate(frame_info, DEFAULT_FRAME_RATE);
 	atomic_set(&frame_info->curr_rt_thread_num, 0);
 	atomic_set(&frame_info->max_rt_thread_num, DEFAULT_MAX_RT_THREAD);
+	for (i = 0; i < MAX_TID_NUM; i++)
+		atomic_set(&frame_info->thread_prio[i], 0);
 
 	return id;
 }
@@ -562,6 +565,7 @@ void update_frame_thread_info(struct frame_info *frame_info,
 	old_prio = frame_info->prio;
 	real_thread = 0;
 	for (i = 0; i < thread_num; i++) {
+		atomic_set(&frame_info->thread_prio[i], 0);
 		frame_info->thread[i] = update_frame_thread(frame_info, old_prio, prio,
 							    frame_thread_info->thread[i],
 							    frame_info->thread[i]);
@@ -630,11 +634,12 @@ void set_frame_sched_state(struct frame_info *frame_info, bool enable)
 	/* reset curr_rt_thread_num */
 	atomic_set(&frame_info->curr_rt_thread_num, 0);
 	mutex_lock(&frame_info->lock);
-	prio = frame_info->prio;
 	for (i = 0; i < MAX_TID_NUM; i++) {
-		if (frame_info->thread[i])
+		if (frame_info->thread[i]) {
+			prio = atomic_read(&frame_info->thread_prio[i]);
 			do_set_frame_sched_state(frame_info, frame_info->thread[i],
 						 enable, prio);
+		}
 	}
 	mutex_unlock(&frame_info->lock);
 
@@ -932,7 +937,7 @@ int set_frame_margin(struct frame_info *frame_info, int margin)
 		div_u64(frame_info->frame_time, NSEC_PER_MSEC) +
 		frame_info->vload_margin;
 	id = frame_info->rtg->id;
-	trace_rtg_frame_sched(id, "FRAME_MARGIN", margin);
+	trace_rtg_frame_sched(id, "FRAME_MARGIN", -margin);
 	trace_rtg_frame_sched(id, "FRAME_MAX_TIME", frame_info->max_vload_time);
 
 	return 0;

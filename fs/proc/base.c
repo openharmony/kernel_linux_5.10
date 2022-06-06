@@ -89,6 +89,9 @@
 #include <linux/fs_struct.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
+#ifdef CONFIG_SCHED_RTG
+#include <linux/sched/rtg_ctrl.h>
+#endif
 #include <linux/sched/autogroup.h>
 #include <linux/sched/mm.h>
 #include <linux/sched/coredump.h>
@@ -1497,6 +1500,16 @@ static const struct file_operations proc_pid_sched_operations = {
 	.release	= single_release,
 };
 
+#endif
+
+#ifdef CONFIG_SCHED_RTG
+static const struct file_operations proc_rtg_operations = {
+	.open		= proc_rtg_open,
+	.unlocked_ioctl	= proc_rtg_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= proc_rtg_compat_ioctl,
+#endif
+};
 #endif
 
 #ifdef CONFIG_SCHED_RTG_DEBUG
@@ -3435,6 +3448,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 #endif
 #ifdef CONFIG_ACCESS_TOKENID
 	ONE("tokenid", S_IRUSR, proc_token_operations),
+#endif
+#ifdef CONFIG_SCHED_RTG
+	REG("sched_rtg_ctrl", S_IRUGO|S_IWUGO, proc_rtg_operations),
 #endif
 #ifdef CONFIG_SCHED_RTG_DEBUG
 	REG("sched_group_id", S_IRUGO|S_IWUGO, proc_pid_sched_group_id_operations),

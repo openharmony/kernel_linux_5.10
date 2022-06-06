@@ -83,4 +83,5 @@ struct rtg_proc_data {
 	int thread[MAX_TID_NUM];
 	int rtcnt;
 };
+
 #endif

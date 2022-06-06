@@ -672,9 +672,9 @@ static int parse_create_rtg_grp(const struct rtg_grp_data *rs_data)
 	init_frame_thread_info(&frame_thread_info, &proc_info);
 	update_frame_thread_info(frame_info, &frame_thread_info);
 	atomic_set(&frame_info->frame_sched_state, 1);
-	pr_info("[SCHED_RTG] %s rtgid=%d, type=%d, prio=%d, threadnum=%d\n",
+	pr_info("[SCHED_RTG] %s rtgid=%d, type=%d, prio=%d, threadnum=%d, rtnum=%d\n",
 		__func__, proc_info.rtgid, rs_data->grp_type,
-		frame_thread_info.prio, frame_thread_info.thread_num);
+		frame_thread_info.prio, frame_thread_info.thread_num, proc_info.rtcnt);
 
 	return proc_info.rtgid;
 }
@@ -715,6 +715,7 @@ static int parse_add_rtg_thread(const struct rtg_grp_data *rs_data)
 								    rs_data->tids[i],
 								    frame_info->thread[add_index]);
 		if (frame_info->thread[add_index]) {
+			atomic_set(&frame_info->thread_prio[add_index], prio);
 			frame_info->thread_num++;
 			add_index = frame_info->thread_num;
 		} else {
@@ -912,10 +913,13 @@ static long do_proc_rtg_ioctl(int abi, struct file *file, unsigned int cmd, unsi
 
 static void reset_frame_info(struct frame_info *frame_info)
 {
+	int i;
 	clear_rtg_frame_thread(frame_info, true);
 	atomic_set(&frame_info->frame_state, -1);
 	atomic_set(&frame_info->curr_rt_thread_num, 0);
 	atomic_set(&frame_info->max_rt_thread_num, DEFAULT_MAX_RT_THREAD);
+	for (i = 0; i < MAX_TID_NUM; i++)
+		atomic_set(&frame_info->thread_prio[i], 0);
 }
 
 static int do_init_proc_state(int rtgid, const int *config, int len)
@@ -997,7 +1001,7 @@ static void deinit_proc_state(void)
 	atomic_set(&g_rt_frame_num, 0);
 }
 
-static int proc_rtg_open(struct inode *inode, struct file *filp)
+int proc_rtg_open(struct inode *inode, struct file *filp)
 {
 	return SUCC;
 }
@@ -1007,13 +1011,13 @@ static int proc_rtg_release(struct inode *inode, struct file *filp)
 	return SUCC;
 }
 
-static long proc_rtg_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+long proc_rtg_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	return do_proc_rtg_ioctl(IOCTL_ABI_AARCH64, file, cmd, arg);
 }
 
 #ifdef CONFIG_COMPAT
-static long proc_rtg_compat_ioctl(struct file *file,
+long proc_rtg_compat_ioctl(struct file *file,
 				  unsigned int cmd, unsigned long arg)
 {
 	return do_proc_rtg_ioctl(IOCTL_ABI_ARM32, file, cmd,
