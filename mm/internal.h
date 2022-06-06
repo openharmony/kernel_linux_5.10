@@ -773,6 +773,7 @@ struct migration_target_control {
 	gfp_t gfp_mask;
 };
 
+#ifdef CONFIG_RECLAIM_ACCT
 #define DELAY_LV0 5000000 /* 5ms */
 #define DELAY_LV1 10000000 /* 10ms */
 #define DELAY_LV2 50000000 /* 50ms */
@@ -794,5 +795,6 @@ void reclaimacct_destroy_show_data(void);
 
 void reclaimacct_collect_data(void);
 void reclaimacct_collect_reclaim_efficiency(void);
+#endif
 
 #endif	/* __MM_INTERNAL_H */

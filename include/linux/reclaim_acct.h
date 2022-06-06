@@ -28,6 +28,7 @@ enum reclaim_type {
 	RECLAIM_TYPES
 };
 
+#ifdef CONFIG_RECLAIM_ACCT
 static inline bool is_system_reclaim(enum reclaim_type type)
 {
 	return (type == KSWAPD_RECLAIM || type == ZSWAPD_RECLAIM);
@@ -42,5 +43,6 @@ void reclaimacct_end(enum reclaim_type type);
 void reclaimacct_substage_start(enum reclaimacct_stubs stub);
 void reclaimacct_substage_end(enum reclaimacct_stubs stub, unsigned long freed,
 				const struct shrinker *shrinker);
+#endif
 
 #endif /* _RECLAIM_ACCT_H */
