@@ -34,7 +34,7 @@ TRACE_EVENT(sched_find_cas_cpu_each,
 		__entry->cpu_cap	= cpu_cap;
 	),
 
-	TP_printk("comm=%s pid=%d prio=%d cpu=%d target_cpu=%d isolated=%d idle=%d task_util=%lu cpu_util=%lu cpu_cap=%lu",
+	TP_printk("comm=%s pid=%d prio=%d cpu=%d target_cpu=%d isolated=%d idle=%lu task_util=%lu cpu_util=%lu cpu_cap=%lu",
 		  __entry->comm, __entry->pid, __entry->prio,
 		  __entry->cpu, __entry->target_cpu, __entry->isolated,
 		  __entry->idle, __entry->task_util,
@@ -68,7 +68,7 @@ TRACE_EVENT(sched_find_cas_cpu,
 		__entry->target_cpu	= target_cpu;
 	),
 
-	TP_printk("comm=%s pid=%d prio=%d lowest_mask=%s tutil=%lu perfer_idle=%u prev=%d target=%d ",
+	TP_printk("comm=%s pid=%d prio=%d lowest_mask=%s tutil=%lu prev=%d target=%d ",
 		  __entry->comm, __entry->pid, __entry->prio,
 		  __get_bitmask(lowest), __entry->tutil,
 		  __entry->prev_cpu, __entry->target_cpu)
