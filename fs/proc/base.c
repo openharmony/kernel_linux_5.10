@@ -3362,6 +3362,10 @@ static const struct pid_entry tgid_base_stuff[] = {
 #ifdef CONFIG_TIME_NS
 	REG("timens_offsets",  S_IRUGO|S_IWUSR, proc_timens_offsets_operations),
 #endif
+#ifdef CONFIG_RSS_THRESHOLD
+	ONE("rss", S_IRUGO, proc_pid_rss),
+	REG("rss_threshold", S_IRUGO|S_IWUSR, proc_pid_rss_threshold_operations),
+#endif
 	REG("comm",      S_IRUGO|S_IWUSR, proc_pid_set_comm_operations),
 #ifdef CONFIG_HAVE_ARCH_TRACEHOOK
 	ONE("syscall",    S_IRUSR, proc_pid_syscall),

@@ -1903,9 +1903,17 @@ static inline unsigned long get_mm_counter(struct mm_struct *mm, int member)
 
 void mm_trace_rss_stat(struct mm_struct *mm, int member, long count);
 
+#ifdef CONFIG_RSS_THRESHOLD
+void listen_rss_threshold(struct mm_struct *mm);
+#endif
+
 static inline void add_mm_counter(struct mm_struct *mm, int member, long value)
 {
 	long count = atomic_long_add_return(value, &mm->rss_stat.count[member]);
+
+#ifdef CONFIG_RSS_THRESHOLD
+	listen_rss_threshold(mm);
+#endif
 
 	mm_trace_rss_stat(mm, member, count);
 }
@@ -1913,6 +1921,10 @@ static inline void add_mm_counter(struct mm_struct *mm, int member, long value)
 static inline void inc_mm_counter(struct mm_struct *mm, int member)
 {
 	long count = atomic_long_inc_return(&mm->rss_stat.count[member]);
+
+#ifdef CONFIG_RSS_THRESHOLD
+	listen_rss_threshold(mm);
+#endif
 
 	mm_trace_rss_stat(mm, member, count);
 }
