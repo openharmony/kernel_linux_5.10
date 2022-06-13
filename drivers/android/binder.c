@@ -6189,21 +6189,24 @@ static void print_binder_transaction_brief_ilocked(
 	int from_pid = 0;
 	int from_tid = 0;
 	int to_pid = 0;
+	u64 sec;
+	u32 nsec;
 
 	spin_lock(&t->lock);
 	to_proc = t->to_proc;
 	from_pid = t->from ? (t->from->proc ? t->from->proc->pid : 0) : t->async_from_pid;
 	from_tid = t->from ? t->from->pid : t->async_from_tid;
 	to_pid = to_proc ? to_proc->pid : 0;
+	sec = div_u64_rem((timestamp - t->timestamp), 1000000000, &nsec);
 
 	seq_printf(m,
-		   "%s%d:%d to %d:%d code %x wait:%lld.%lld s\n",
+		   "%s%d:%d to %d:%d code %x wait:%llu.%u s\n",
 		   prefix,
 		   from_pid, from_tid,
 		   to_pid, t->to_thread ? t->to_thread->pid : 0,
 		   t->code,
-		   timestamp > t->timestamp ? (timestamp - t->timestamp) / 1000000000 : 0,
-		   timestamp > t->timestamp ? (timestamp - t->timestamp) % 1000000000 : 0);
+		   timestamp > t->timestamp ? sec : 0,
+		   timestamp > t->timestamp ? nsec : 0);
 	spin_unlock(&t->lock);
 }
 
