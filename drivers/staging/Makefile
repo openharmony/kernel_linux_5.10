@@ -51,3 +51,4 @@ obj-$(CONFIG_WFX)		+= wfx/
 obj-y				+= hikey9xx/
 obj-$(CONFIG_HILOG) 		+= hilog/
 obj-$(CONFIG_HIEVENT) 		+= hievent/
+obj-$(CONFIG_BLACKBOX)		+= blackbox/
