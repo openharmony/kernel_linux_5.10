@@ -948,4 +948,14 @@ config MEMTRACE_ASHMEM
 	help
 	  Enable the Ashmem Process Info Show
 
+#
+# Use rss_threshold to monitoring RSS
+#
+config RSS_THRESHOLD
+	bool "Enable /proc/<pid>/rss and /proc/<pid>/rss_threshold to monitoring RSS"
+	default n
+	depends on PROC_FS && MEMCG
+	help
+	  Set a threshold to monitoring RSS in per pid
+
 endmenu

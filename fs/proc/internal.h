@@ -171,6 +171,12 @@ extern int pid_delete_dentry(const struct dentry *);
 extern int proc_pid_readdir(struct file *, struct dir_context *);
 struct dentry *proc_pid_lookup(struct dentry *, unsigned int);
 extern loff_t mem_lseek(struct file *, loff_t, int);
+#ifdef CONFIG_RSS_THRESHOLD
+extern int proc_pid_rss(struct seq_file *, struct pid_namespace *,
+			  struct pid *, struct task_struct *);
+extern void listen_rss_threshold(struct mm_struct *mm);
+extern const struct file_operations proc_pid_rss_threshold_operations;
+#endif
 
 /* Lookups */
 typedef struct dentry *instantiate_t(struct dentry *,
