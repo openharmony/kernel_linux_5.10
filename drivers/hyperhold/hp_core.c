@@ -136,12 +136,24 @@ EXPORT_SYMBOL(hyperhold_enable);
 static int enable_sysctl_handler(struct ctl_table *table, int write,
 				 void *buffer, size_t *lenp, loff_t *ppos)
 {
+	struct cred *cred;
+	char *filter_buf;
+	filter_buf = strstrip((char *)buffer);
 	if (write) {
-		if (!strcmp(buffer, "enable\n"))
+		rcu_read_lock();
+		cred = current_cred();
+		if (!uid_eq(cred->euid, GLOBAL_MEMMGR_UID) &&
+			!uid_eq(cred->euid, GLOBAL_ROOT_UID)) {
+			pr_err("chenjie no permission !");
+			rcu_read_unlock();
+			return 0;
+		}
+		rcu_read_unlock();
+		if (!strcmp(filter_buf, "enable"))
 			hyperhold_enable();
-		else if (!strcmp(buffer, "disable\n"))
+		else if (!strcmp(filter_buf, "disable"))
 			hyperhold_disable(false);
-		else if (!strcmp(buffer, "force_disable\n"))
+		else if (!strcmp(filter_buf, "force_disable"))
 			hyperhold_disable(true);
 	} else {
 		if (*lenp < HP_STATE_LEN || *ppos) {
@@ -225,7 +237,7 @@ static struct ctl_table_header *hp_sysctl_header;
 static struct ctl_table hp_table[] = {
 	{
 		.procname = "enable",
-		.mode = 0644,
+		.mode = 0666,
 		.proc_handler = enable_sysctl_handler,
 	},
 	{
