@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: GPL-2.0
+menu "Blackbox Options"
+
+config BLACKBOX
+	bool "Support for blackbox"
+	select STORAGE if BLACKBOX_STORAGE_MATERIAL
+	default y
+	help
+		The blackbox is a fault log collecting framework for registered modules
+		of chips. When a fault occurs, blackbox will invoke the registered
+		function to save the log and reset the module.
+
+config BLACKBOX_LOG_ROOT_PATH
+	string "root path of the blackbox log"
+	depends on BLACKBOX
+	help
+		define the root path of the blackbox log
+
+config BLACKBOX_LOG_PART_REPRESENTATIVE
+	string "representative of the blackbox log part"
+	depends on BLACKBOX
+	help
+		define the representative of the blackbox log part
+
+config BLACKBOX_STORAGE_BY_MEMORY
+	tristate "blackbox fault log storage by memory directly"
+	depends on BLACKBOX
+	select STORAGE_BY_MEMORY
+	help
+		This option enables saving fault logs with memory by blackbox when a
+		panic occurs. It depends on supporting warm reset and disabling erase
+		ddr when warm reset.
+
+config BLACKBOX_USE_PSTORE_BLK_DEBUG
+	bool "blackbox use pstore blk for debug"
+	depends on BLACKBOX
+	default n
+	help
+		If Y, this enables pstore blk for blackbox.
+
+config BLACKBOX_STORAGE_BY_PSTORE_BLK
+	tristate "blackbox fault log storage by pstore blk"
+	depends on BLACKBOX
+	depends on PSTORE_BLK
+	depends on PSTORE_BLACKBOX
+	select STORAGE_BY_PSTORE_BLK
+	help
+		This option enables saving fault logs with pstore blk by blackbox when a
+		panic occurs. It depends on supporting pstore blk. Especially, flash
+		driver's panic_write implementation is needed. Othersize, if a panic
+		happen, then fault log can not be saved.
+
+config BLACKBOX_STORAGE_BY_PSTORE_RAM
+	tristate "blackbox fault log storage by pstore ram"
+	depends on BLACKBOX
+	depends on PSTORE_RAM
+	depends on PSTORE_BLACKBOX
+	select STORAGE_BY_PSTORE_RAM
+	help
+		This option enables saving fault logs with pstore ram by blackbox when a
+		panic occurs. It depends on supporting pstore ram.
+
+config BLACKBOX_STORAGE_BY_RAW_PARTITION
+	tristate "blackbox fault log storage by RAW partition"
+	depends on BLACKBOX
+	select STORAGE_BY_RAW_PARTITION
+	help
+		This option enables saving fault logs with RAW partition by blackbox when a
+		panic occurs. It depends on reserving partition for blackbox.
+
+config BLACKBOX_STORAGE_MATERIAL
+	def_bool y
+	depends on BLACKBOX
+	depends on BLACKBOX_STORAGE_BY_MEMORY || BLACKBOX_STORAGE_BY_PSTORE_BLK || \
+		BLACKBOX_STORAGE_BY_PSTORE_RAM || BLACKBOX_STORAGE_BY_RAW_PARTITION
+
+choice
+	prompt "Default storage material for fault log when a panic occurs."
+	depends on BLACKBOX_STORAGE_MATERIAL
+	help
+		This option choose the default fault log material for blackbox when a
+		panic occurs.
+
+		The default materail is ram directly. It's easy, but not work offen.
+
+	config DEF_BLACKBOX_STORAGE_BY_MEMORY
+		bool "memory" if BLACKBOX_STORAGE_BY_MEMORY
+
+	config DEF_BLACKBOX_STORAGE_BY_PSTORE_BLK
+		bool "pstore_blk" if BLACKBOX_STORAGE_BY_PSTORE_BLK
+
+	config DEF_BLACKBOX_STORAGE_BY_PSTORE_RAM
+		bool "pstore_ram" if BLACKBOX_STORAGE_BY_PSTORE_RAM
+
+	config DEF_BLACKBOX_STORAGE_BY_RAW_PARTITION
+		bool "raw_partition" if BLACKBOX_STORAGE_BY_RAW_PARTITION
+
+endchoice
+
+config DEF_BLACKBOX_STORAGE
+	string
+	depends on BLACKBOX_STORAGE_MATERIAL
+	default "memory" if DEF_BLACKBOX_STORAGE_BY_MEMORY
+	default "pstore_blk" if DEF_BLACKBOX_STORAGE_BY_PSTORE_BLK
+	default "pstore_ram" if DEF_BLACKBOX_STORAGE_BY_PSTORE_RAM
+	default "raw_partition" if DEF_BLACKBOX_STORAGE_BY_RAW_PARTITION
+
+endmenu

@@ -39,6 +39,8 @@ enum pstore_type_id {
 	PSTORE_TYPE_PMSG	= 7,
 	PSTORE_TYPE_PPC_OPAL	= 8,
 
+	PSTORE_TYPE_BLACKBOX    = 9,
+
 	/* End of the list */
 	PSTORE_TYPE_MAX
 };
@@ -202,6 +204,7 @@ struct pstore_info {
 #define PSTORE_FLAGS_CONSOLE	BIT(1)
 #define PSTORE_FLAGS_FTRACE	BIT(2)
 #define PSTORE_FLAGS_PMSG	BIT(3)
+#define PSTORE_FLAGS_BLACKBOX	BIT(4)
 
 extern int pstore_register(struct pstore_info *);
 extern void pstore_unregister(struct pstore_info *);
@@ -280,6 +283,11 @@ pstore_ftrace_write_timestamp(struct pstore_ftrace_record *rec, u64 val)
 {
 	rec->ts = (rec->ts & TS_CPU_MASK) | (val << TS_CPU_SHIFT);
 }
+#endif
+
+#ifdef CONFIG_PSTORE_BLACKBOX
+extern void pstore_blackbox_dump(struct kmsg_dumper *dumper,
+						enum kmsg_dump_reason reason);
 #endif
 
 #endif /*_LINUX_PSTORE_H*/
