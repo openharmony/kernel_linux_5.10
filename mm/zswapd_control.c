@@ -666,6 +666,17 @@ static int zswapd_vmstat_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+static int eswap_info_show(struct seq_file *m, void *v)
+{
+	struct mem_cgroup *memcg = mem_cgroup_from_css(seq_css(m));
+	unsigned long long eswap_size;
+
+	eswap_size = memcg_data_size(memcg, WRITE_SIZE) / SZ_1K;
+	seq_printf(m, "Total Swapout Size: %llu kB\n", eswap_size);
+
+	return 0;
+}
+
 void memcg_eswap_info_show(struct seq_file *m)
 {
 	struct mem_cgroup *memcg = mem_cgroup_from_css(seq_css(m));
@@ -829,6 +840,11 @@ static struct cftype zswapd_policy_files[] = {
 		.seq_show = zswapd_vmstat_show,
 	},
 #endif
+	{
+		.name = "eswap_info",
+		.flags = CFTYPE_ONLY_ON_ROOT,
+		.seq_show = eswap_info_show,
+	},
 
 	{ },	/* terminate */
 };
