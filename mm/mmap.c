@@ -1559,14 +1559,16 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 			/*
 			 * Ignore pgoff.
 			 */
-			pgoff = 0;
+			if (!(flags & MAP_USEREXPTE))
+				pgoff = 0;
 			vm_flags |= VM_SHARED | VM_MAYSHARE;
 			break;
 		case MAP_PRIVATE:
 			/*
 			 * Set pgoff according to addr for anon_vma.
 			 */
-			pgoff = addr >> PAGE_SHIFT;
+			if (!(flags & MAP_USEREXPTE))
+				pgoff = addr >> PAGE_SHIFT;
 			break;
 		default:
 			return -EINVAL;

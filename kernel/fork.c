@@ -100,6 +100,7 @@
 #ifdef CONFIG_RECLAIM_ACCT
 #include <linux/reclaim_acct.h>
 #endif
+#include <linux/mm_purgeable.h>
 
 #include <asm/pgalloc.h>
 #include <linux/uaccess.h>
@@ -626,6 +627,7 @@ fail_nomem:
 
 static inline int mm_alloc_pgd(struct mm_struct *mm)
 {
+	mm_init_uxpgd(mm);
 	mm->pgd = pgd_alloc(mm);
 	if (unlikely(!mm->pgd))
 		return -ENOMEM;
@@ -635,6 +637,7 @@ static inline int mm_alloc_pgd(struct mm_struct *mm)
 static inline void mm_free_pgd(struct mm_struct *mm)
 {
 	pgd_free(mm, mm->pgd);
+	mm_clear_uxpgd(mm);
 }
 #else
 static int dup_mmap(struct mm_struct *mm, struct mm_struct *oldmm)

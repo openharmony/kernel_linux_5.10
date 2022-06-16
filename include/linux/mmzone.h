@@ -158,6 +158,10 @@ enum zone_stat_item {
 	NR_ZONE_ACTIVE_ANON,
 	NR_ZONE_INACTIVE_FILE,
 	NR_ZONE_ACTIVE_FILE,
+#ifdef CONFIG_MEM_PURGEABLE
+	NR_ZONE_INACTIVE_PURGEABLE,
+	NR_ZONE_ACTIVE_PURGEABLE,
+#endif
 	NR_ZONE_UNEVICTABLE,
 	NR_ZONE_WRITE_PENDING,	/* Count of dirty, writeback and unstable pages */
 	NR_MLOCK,		/* mlock()ed pages found and moved off LRU */
@@ -179,6 +183,10 @@ enum node_stat_item {
 	NR_ACTIVE_ANON,		/*  "     "     "   "       "         */
 	NR_INACTIVE_FILE,	/*  "     "     "   "       "         */
 	NR_ACTIVE_FILE,		/*  "     "     "   "       "         */
+#ifdef CONFIG_MEM_PURGEABLE
+	NR_INACTIVE_PURGEABLE,
+	NR_ACTIVE_PURGEABLE,
+#endif
 	NR_UNEVICTABLE,		/*  "     "     "   "       "         */
 	NR_SLAB_RECLAIMABLE_B,
 	NR_SLAB_UNRECLAIMABLE_B,
@@ -254,19 +262,26 @@ static __always_inline bool vmstat_item_in_bytes(int idx)
 #define LRU_BASE 0
 #define LRU_ACTIVE 1
 #define LRU_FILE 2
+#ifdef CONFIG_MEM_PURGEABLE
+#define LRU_PURGEABLE 4
+#endif
 
 enum lru_list {
 	LRU_INACTIVE_ANON = LRU_BASE,
 	LRU_ACTIVE_ANON = LRU_BASE + LRU_ACTIVE,
 	LRU_INACTIVE_FILE = LRU_BASE + LRU_FILE,
 	LRU_ACTIVE_FILE = LRU_BASE + LRU_FILE + LRU_ACTIVE,
+#ifdef CONFIG_MEM_PURGEABLE
+	LRU_INACTIVE_PURGEABLE = LRU_BASE + LRU_PURGEABLE,
+	LRU_ACTIVE_PURGEABLE = LRU_BASE + LRU_PURGEABLE + LRU_ACTIVE,
+#endif
 	LRU_UNEVICTABLE,
 	NR_LRU_LISTS
 };
 
 #define for_each_lru(lru) for (lru = 0; lru < NR_LRU_LISTS; lru++)
 
-#define for_each_evictable_lru(lru) for (lru = 0; lru <= LRU_ACTIVE_FILE; lru++)
+#define for_each_evictable_lru(lru) for (lru = 0; lru < LRU_UNEVICTABLE; lru++)
 
 static inline bool is_file_lru(enum lru_list lru)
 {
@@ -275,6 +290,10 @@ static inline bool is_file_lru(enum lru_list lru)
 
 static inline bool is_active_lru(enum lru_list lru)
 {
+#ifdef CONFIG_MEM_PURGEABLE
+	if (lru == LRU_ACTIVE_PURGEABLE)
+		return true;
+#endif
 	return (lru == LRU_ACTIVE_ANON || lru == LRU_ACTIVE_FILE);
 }
 

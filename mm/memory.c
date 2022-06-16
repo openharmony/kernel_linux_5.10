@@ -73,6 +73,7 @@
 #include <linux/perf_event.h>
 #include <linux/ptrace.h>
 #include <linux/vmalloc.h>
+#include <linux/mm_purgeable.h>
 
 #include <trace/events/kmem.h>
 
@@ -1236,6 +1237,8 @@ again:
 			struct page *page;
 
 			page = vm_normal_page(vma, addr, ptent);
+			if (vma->vm_flags & VM_USEREXPTE)
+				page =  NULL;
 			if (unlikely(details) && page) {
 				/*
 				 * unmap_shared_mapping_pages() wants to
@@ -1251,7 +1254,8 @@ again:
 			tlb_remove_tlb_entry(tlb, pte, addr);
 			if (unlikely(!page))
 				continue;
-
+			if (vma->vm_flags & VM_PURGEABLE)
+				uxpte_clear_present(vma, addr);
 			if (!PageAnon(page)) {
 				if (pte_dirty(ptent)) {
 					force_flush = 1;
@@ -3555,11 +3559,20 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	if (unlikely(pmd_trans_unstable(vmf->pmd)))
 		return 0;
 
+	/* use extra page table for userexpte */
+	if (vma->vm_flags & VM_USEREXPTE) {
+		if (do_uxpte_page_fault(vmf, &entry))
+			goto oom;
+		else
+			goto got_page;
+	}
+
 	/* Use the zero-page for reads */
 	if (!(vmf->flags & FAULT_FLAG_WRITE) &&
 			!mm_forbids_zeropage(vma->vm_mm)) {
 		entry = pte_mkspecial(pfn_pte(my_zero_pfn(vmf->address),
 						vma->vm_page_prot));
+got_page:
 		vmf->pte = pte_offset_map_lock(vma->vm_mm, vmf->pmd,
 				vmf->address, &vmf->ptl);
 		if (!pte_none(*vmf->pte)) {
@@ -3620,6 +3633,10 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 
 	inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
 	page_add_new_anon_rmap(page, vma, vmf->address, false);
+	if (vma->vm_flags & VM_PURGEABLE) {
+		SetPagePurgeable(page);
+		uxpte_set_present(vma, vmf->address);
+	}
 	lru_cache_add_inactive_or_unevictable(page, vma);
 setpte:
 	set_pte_at(vma->vm_mm, vmf->address, vmf->pte, entry);

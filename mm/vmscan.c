@@ -914,6 +914,7 @@ void putback_lru_page(struct page *page)
 enum page_references {
 	PAGEREF_RECLAIM,
 	PAGEREF_RECLAIM_CLEAN,
+	PAGEREF_RECLAIM_PURGEABLE,
 	PAGEREF_KEEP,
 	PAGEREF_ACTIVATE,
 };
@@ -935,6 +936,10 @@ static enum page_references page_check_references(struct page *page,
 	if (vm_flags & VM_LOCKED)
 		return PAGEREF_RECLAIM;
 
+#ifdef CONFIG_MEM_PURGEABLE
+	if (vm_flags & VM_PURGEABLE)
+		return PAGEREF_RECLAIM_PURGEABLE;
+#endif
 	if (referenced_ptes) {
 		/*
 		 * All mapped pages start out with page table
@@ -1163,6 +1168,7 @@ unsigned int shrink_page_list(struct list_head *page_list,
 			goto keep_locked;
 		case PAGEREF_RECLAIM:
 		case PAGEREF_RECLAIM_CLEAN:
+		case PAGEREF_RECLAIM_PURGEABLE:
 			; /* try to reclaim the page below */
 		}
 
@@ -1172,7 +1178,7 @@ unsigned int shrink_page_list(struct list_head *page_list,
 		 * Lazyfree page could be freed directly
 		 */
 		if (PageAnon(page) && PageSwapBacked(page)) {
-			if (!PageSwapCache(page)) {
+			if (!PageSwapCache(page) && references != PAGEREF_RECLAIM_PURGEABLE) {
 				if (!(sc->gfp_mask & __GFP_IO))
 					goto keep_locked;
 				if (page_maybe_dma_pinned(page))
@@ -1247,7 +1253,7 @@ unsigned int shrink_page_list(struct list_head *page_list,
 			}
 		}
 
-		if (PageDirty(page)) {
+		if (PageDirty(page) && references != PAGEREF_RECLAIM_PURGEABLE) {
 			/*
 			 * Only kswapd can writeback filesystem pages
 			 * to avoid risk of stack overflow. But avoid
@@ -1355,11 +1361,13 @@ unsigned int shrink_page_list(struct list_head *page_list,
 			}
 		}
 
-		if (PageAnon(page) && !PageSwapBacked(page)) {
+		if (PageAnon(page) &&
+			(!PageSwapBacked(page) ||
+			 references == PAGEREF_RECLAIM_PURGEABLE)) {
 			/* follow __remove_mapping for reference */
 			if (!page_ref_freeze(page, 1))
 				goto keep_locked;
-			if (PageDirty(page)) {
+			if (PageDirty(page) && references != PAGEREF_RECLAIM_PURGEABLE) {
 				page_ref_unfreeze(page, 1);
 				goto keep_locked;
 			}
@@ -4086,6 +4094,10 @@ void kswapd_stop(int nid)
 	}
 }
 
+#ifdef CONFIG_MEM_PURGEABLE_DEBUG
+static void __init purgeable_debugfs_init(void);
+#endif
+
 static int __init kswapd_init(void)
 {
 	int nid;
@@ -4093,6 +4105,9 @@ static int __init kswapd_init(void)
 	swap_setup();
 	for_each_node_state(nid, N_MEMORY)
  		kswapd_run(nid);
+#ifdef CONFIG_MEM_PURGEABLE_DEBUG
+	purgeable_debugfs_init();
+#endif
 	return 0;
 }
 
@@ -4341,3 +4356,74 @@ void check_move_unevictable_pages(struct pagevec *pvec)
 	}
 }
 EXPORT_SYMBOL_GPL(check_move_unevictable_pages);
+
+#ifdef CONFIG_MEM_PURGEABLE_DEBUG
+static unsigned long purgeable_node(pg_data_t *pgdata, struct scan_control *sc)
+{
+	struct mem_cgroup *memcg = NULL;
+	unsigned long nr = 0;
+
+	while (memcg = mem_cgroup_iter(NULL, memcg, NULL)) {
+		struct lruvec *lruvec = mem_cgroup_lruvec(memcg, pgdata);
+
+		shrink_list(LRU_ACTIVE_PURGEABLE, -1, lruvec, sc);
+		nr += shrink_list(LRU_INACTIVE_PURGEABLE, -1, lruvec, sc);
+	}
+
+	pr_info("reclaim %lu purgeable pages.\n", nr);
+
+	return nr;
+}
+
+static int purgeable(struct ctl_table *table, int write, void *buffer,
+		size_t *lenp, loff_t *ppos)
+{
+	struct scan_control sc = {
+		.gfp_mask = GFP_KERNEL,
+		.order = 0,
+		.priority = DEF_PRIORITY,
+		.may_deactivate = DEACTIVATE_ANON,
+		.may_writepage = 1,
+		.may_unmap = 1,
+		.may_swap = 1,
+		.reclaim_idx = MAX_NR_ZONES - 1,
+	};
+	int nid = 0;
+
+	for_each_node_state(nid, N_MEMORY)
+		purgeable_node(NODE_DATA(nid), &sc);
+	return 0;
+}
+
+static struct ctl_table ker_tab[] = {
+	{
+		.procname = "purgeable",
+		.mode = 0200,
+		.proc_handler = purgeable,
+	},
+	{},
+};
+
+static struct ctl_table sys_tab[] = {
+	{
+		.procname = "kernel",
+		.mode = 0555,
+		.child = ker_tab,
+	},
+	{},
+};
+
+static struct ctl_table_header *purgeable_header;
+
+static void __init purgeable_debugfs_init(void)
+{
+	purgeable_header = register_sysctl_table(sys_tab);
+	if (!purgeable_header)
+		pr_err("register purgeable sysctl table failed.\n");
+}
+
+static void __exit purgeable_debugfs_exit(void)
+{
+	unregister_sysctl_table(purgeable_header);
+}
+#endif /* CONFIG_MEM_PURGEABLE_DEBUG */

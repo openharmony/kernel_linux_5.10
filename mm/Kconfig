@@ -958,4 +958,18 @@ config RSS_THRESHOLD
 	help
 	  Set a threshold to monitoring RSS in per pid
 
+config MEM_PURGEABLE
+	bool "Purgeable memory feature"
+	default n
+	depends on ARCH_USES_HIGH_VMA_FLAGS
+	help
+	  Support purgeable pages for process
+
+config MEM_PURGEABLE_DEBUG
+	bool "Purgeable memory debug"
+	default n
+	depends on MEM_PURGEABLE
+	help
+	  Debug info for purgeable memory
+
 endmenu

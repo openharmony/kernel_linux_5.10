@@ -72,6 +72,7 @@
 #include <linux/page_idle.h>
 #include <linux/memremap.h>
 #include <linux/userfaultfd_k.h>
+#include <linux/mm_purgeable.h>
 
 #include <asm/tlbflush.h>
 
@@ -782,6 +783,10 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 	while (page_vma_mapped_walk(&pvmw)) {
 		address = pvmw.address;
 
+#ifdef CONFIG_MEM_PURGEABLE
+		if (!(vma->vm_flags & VM_PURGEABLE))
+			pra->vm_flags &= ~VM_PURGEABLE;
+#endif
 		if (vma->vm_flags & VM_LOCKED) {
 			page_vma_mapped_walk_done(&pvmw);
 			pra->vm_flags |= VM_LOCKED;
@@ -821,7 +826,7 @@ static bool page_referenced_one(struct page *page, struct vm_area_struct *vma,
 
 	if (referenced) {
 		pra->referenced++;
-		pra->vm_flags |= vma->vm_flags;
+		pra->vm_flags |= vma->vm_flags & ~VM_PURGEABLE;
 	}
 
 	if (!pra->mapcount)
@@ -860,6 +865,7 @@ int page_referenced(struct page *page,
 	struct page_referenced_arg pra = {
 		.mapcount = total_mapcount(page),
 		.memcg = memcg,
+		.vm_flags = VM_PURGEABLE,
 	};
 	struct rmap_walk_control rwc = {
 		.rmap_one = page_referenced_one,
@@ -1443,6 +1449,13 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 			continue;
 		}
 #endif
+#ifdef CONFIG_MEM_PURGEABLE
+		if ((vma->vm_flags & VM_PURGEABLE) && !lock_uxpte(vma, address)) {
+			ret = false;
+			page_vma_mapped_walk_done(&pvmw);
+			break;
+		}
+#endif
 
 		/*
 		 * If the page is mlock()d, we cannot swap it out.
@@ -1584,7 +1597,10 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
 				set_pte_at(mm, address, pvmw.pte, pteval);
 			}
 
-		} else if (pte_unused(pteval) && !userfaultfd_armed(vma)) {
+		} else if ((vma->vm_flags & VM_PURGEABLE) || (pte_unused(pteval) &&
+			   !userfaultfd_armed(vma))) {
+			if (vma->vm_flags & VM_PURGEABLE)
+				unlock_uxpte(vma, address);
 			/*
 			 * The guest indicated that the page content is of no
 			 * interest anymore. Simply discard the pte, vmscan
