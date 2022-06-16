@@ -817,6 +817,11 @@ struct task_struct {
 	struct list_head		grp_list;
 #endif
 
+#ifdef CONFIG_SCHED_RTG_QOS
+	struct list_head		qos_list;
+	int				in_qos;
+#endif
+
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;
 #endif
