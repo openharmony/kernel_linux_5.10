@@ -136,19 +136,15 @@ EXPORT_SYMBOL(hyperhold_enable);
 static int enable_sysctl_handler(struct ctl_table *table, int write,
 				 void *buffer, size_t *lenp, loff_t *ppos)
 {
-	struct cred *cred;
+	struct cred *cred = current_cred();
 	char *filter_buf;
 	filter_buf = strstrip((char *)buffer);
 	if (write) {
-		rcu_read_lock();
-		cred = current_cred();
 		if (!uid_eq(cred->euid, GLOBAL_MEMMGR_UID) &&
 			!uid_eq(cred->euid, GLOBAL_ROOT_UID)) {
-			pr_err("chenjie no permission !");
-			rcu_read_unlock();
+			pr_err("no permission to enable/disable eswap! \n");
 			return 0;
 		}
-		rcu_read_unlock();
 		if (!strcmp(filter_buf, "enable"))
 			hyperhold_enable();
 		else if (!strcmp(filter_buf, "disable"))
