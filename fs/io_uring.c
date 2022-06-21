@@ -2568,45 +2568,6 @@ static void io_complete_rw_common(struct kiocb *kiocb, long res,
 #ifdef CONFIG_BLOCK
 static bool io_resubmit_prep(struct io_kiocb *req, int error)
 {
-	struct iovec inline_vecs[UIO_FASTIOV], *iovec = inline_vecs;
-	ssize_t ret = -ECANCELED;
-	struct iov_iter iter;
-	int rw;
-
-	if (error) {
-		ret = error;
-		goto end_req;
-	}
-
-	switch (req->opcode) {
-	case IORING_OP_READV:
-	case IORING_OP_READ_FIXED:
-	case IORING_OP_READ:
-		rw = READ;
-		break;
-	case IORING_OP_WRITEV:
-	case IORING_OP_WRITE_FIXED:
-	case IORING_OP_WRITE:
-		rw = WRITE;
-		break;
-	default:
-		printk_once(KERN_WARNING "io_uring: bad opcode in resubmit %d\n",
-				req->opcode);
-		goto end_req;
-	}
-
-	if (!req->async_data) {
-		ret = io_import_iovec(rw, req, &iovec, &iter, false);
-		if (ret < 0)
-			goto end_req;
-		ret = io_setup_async_rw(req, iovec, inline_vecs, &iter, false);
-		if (!ret)
-			return true;
-		kfree(iovec);
-	} else {
-		return true;
-	}
-end_req:
 	req_set_fail_links(req);
 	return false;
 }
@@ -3408,6 +3369,7 @@ static int io_read(struct io_kiocb *req, bool force_nonblock,
 	struct iovec inline_vecs[UIO_FASTIOV], *iovec = inline_vecs;
 	struct kiocb *kiocb = &req->rw.kiocb;
 	struct iov_iter __iter, *iter = &__iter;
+	struct iov_iter iter_cp;
 	struct io_async_rw *rw = req->async_data;
 	ssize_t io_size, ret, ret2;
 	bool no_async;
@@ -3418,6 +3380,7 @@ static int io_read(struct io_kiocb *req, bool force_nonblock,
 	ret = io_import_iovec(READ, req, &iovec, iter, !force_nonblock);
 	if (ret < 0)
 		return ret;
+	iter_cp = *iter;
 	io_size = iov_iter_count(iter);
 	req->result = io_size;
 	ret = 0;
@@ -3453,7 +3416,7 @@ static int io_read(struct io_kiocb *req, bool force_nonblock,
 		if (req->file->f_flags & O_NONBLOCK)
 			goto done;
 		/* some cases will consume bytes even on error returns */
-		iov_iter_revert(iter, io_size - iov_iter_count(iter));
+		*iter = iter_cp;
 		ret = 0;
 		goto copy_iov;
 	} else if (ret < 0) {
@@ -3536,6 +3499,7 @@ static int io_write(struct io_kiocb *req, bool force_nonblock,
 	struct iovec inline_vecs[UIO_FASTIOV], *iovec = inline_vecs;
 	struct kiocb *kiocb = &req->rw.kiocb;
 	struct iov_iter __iter, *iter = &__iter;
+	struct iov_iter iter_cp;
 	struct io_async_rw *rw = req->async_data;
 	ssize_t ret, ret2, io_size;
 
@@ -3545,6 +3509,7 @@ static int io_write(struct io_kiocb *req, bool force_nonblock,
 	ret = io_import_iovec(WRITE, req, &iovec, iter, !force_nonblock);
 	if (ret < 0)
 		return ret;
+	iter_cp = *iter;
 	io_size = iov_iter_count(iter);
 	req->result = io_size;
 
@@ -3606,7 +3571,7 @@ done:
 	} else {
 copy_iov:
 		/* some cases will consume bytes even on error returns */
-		iov_iter_revert(iter, io_size - iov_iter_count(iter));
+		*iter = iter_cp;
 		ret = io_setup_async_rw(req, iovec, inline_vecs, iter, false);
 		if (!ret)
 			return -EAGAIN;
