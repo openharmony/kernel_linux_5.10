@@ -68,6 +68,7 @@
 #include <linux/sizes.h>
 #ifdef CONFIG_BINDER_TRANSACTION_PROC_BRIEF
 #include <linux/trace_clock.h>
+#include <linux/proc_fs.h>
 #endif
 
 #include <uapi/linux/android/binder.h>
@@ -98,7 +99,7 @@ DEFINE_SHOW_ATTRIBUTE(proc);
 
 #ifdef CONFIG_BINDER_TRANSACTION_PROC_BRIEF
 static int binder_transaction_proc_show(struct seq_file *m, void *unused);
-DEFINE_SHOW_ATTRIBUTE(binder_transaction_proc);
+DEFINE_PROC_SHOW_ATTRIBUTE(binder_transaction_proc);
 #endif
 
 #define FORBIDDEN_MMAP_FLAGS                (VM_WRITE)
@@ -6401,11 +6402,11 @@ static int __init binder_init(void)
 				    &binder_transaction_log_failed,
 				    &binder_transaction_log_fops);
 #ifdef CONFIG_BINDER_TRANSACTION_PROC_BRIEF
-		debugfs_create_file("transaction_proc",
-				    S_IRUGO,
-				    binder_debugfs_dir_entry_root,
-				    NULL,
-				    &binder_transaction_proc_fops);
+		proc_create_data("transaction_proc",
+				 S_IRUGO,
+				 NULL,
+				 &binder_transaction_proc_proc_ops,
+				 NULL);
 #endif
 	}
 
