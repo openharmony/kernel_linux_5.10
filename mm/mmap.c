@@ -1559,17 +1559,25 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 			/*
 			 * Ignore pgoff.
 			 */
-			if (!(flags & MAP_USEREXPTE))
-				pgoff = 0;
+			pgoff = 0;
 			vm_flags |= VM_SHARED | VM_MAYSHARE;
 			break;
 		case MAP_PRIVATE:
 			/*
 			 * Set pgoff according to addr for anon_vma.
 			 */
-			if (!(flags & MAP_USEREXPTE))
-				pgoff = addr >> PAGE_SHIFT;
+			pgoff = addr >> PAGE_SHIFT;
 			break;
+#ifdef CONFIG_MEM_PURGEABLE
+		case MAP_PURGEABLE:
+			vm_flags |= VM_PURGEABLE;
+			pr_info("vm_flags purgeable = %lx.\m", VM_PURGEABLE);
+			break;
+		case MAP_USEREXPTE:
+			vm_flags |= VM_USEREXPTE;
+			pr_info("vm_flags useredpte = %lx.\m", VM_USEREXPTE);
+			break;
+#endif
 		default:
 			return -EINVAL;
 		}
