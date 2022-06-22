@@ -16,6 +16,9 @@
 #ifdef CONFIG_CMA
 #include <linux/cma.h>
 #endif
+#ifdef CONFIG_MEM_PURGEABLE
+#include <linux/mm_purgeable.h>
+#endif
 #include <asm/page.h>
 #include "internal.h"
 
@@ -40,6 +43,11 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	int lru;
 	unsigned long nr_purgeable_active = 0;
 	unsigned long nr_purgeable_inactive = 0;
+#ifdef CONFIG_MEM_PURGEABLE
+	unsigned long nr_purgeable_pined = 0;
+
+	purg_pages_info(NULL, &nr_purgeable_pined);
+#endif
 
 	si_meminfo(&i);
 	si_swapinfo(&i);
@@ -81,6 +89,7 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 #ifdef CONFIG_MEM_PURGEABLE
 	show_val_kb(m, "Active(purgeable):   ", nr_purgeable_active);
 	show_val_kb(m, "Inactive(purgeable): ", nr_purgeable_inactive);
+	show_val_kb(m, "Pined(purgeable): ", nr_purgeable_pined);
 #endif
 	show_val_kb(m, "Unevictable:    ", pages[LRU_UNEVICTABLE]);
 	show_val_kb(m, "Mlocked:        ", global_zone_page_state(NR_MLOCK));
