@@ -40,31 +40,31 @@ static bool obj_can_wb(struct zram *zram, u32 index, u16 gid)
 {
 	/* overwrited obj, just skip */
 	if (zram_get_memcg_id(zram, index) != gid) {
-		pr_info("obj %u is from group %u instead of group %u.\n",
+		pr_debug("obj %u is from group %u instead of group %u.\n",
 				index, zram_get_memcg_id(zram, index), gid);
 		return false;
 	}
 	if (!zgrp_obj_is_isolated(zram->zgrp, index)) {
-		pr_info("obj %u is not isolated.\n", index);
+		pr_debug("obj %u is not isolated.\n", index);
 		return false;
 	}
 	/* need not to writeback, put back the obj as HOTEST */
 	if (zram_test_flag(zram, index, ZRAM_SAME)) {
-		pr_info("obj %u is filled with same element.\n", index);
+		pr_debug("obj %u is filled with same element.\n", index);
 		goto insert;
 	}
 	if (zram_test_flag(zram, index, ZRAM_WB)) {
-		pr_info("obj %u is writeback.\n", index);
+		pr_debug("obj %u is writeback.\n", index);
 		goto insert;
 	}
 	/* obj is needed by a pagefault req, do not writeback it. */
 	if (zram_test_flag(zram, index, ZRAM_FAULT)) {
-		pr_info("obj %u is needed by a pagefault request.\n", index);
+		pr_debug("obj %u is needed by a pagefault request.\n", index);
 		goto insert;
 	}
 	/* should never happen */
 	if (zram_test_flag(zram, index, ZRAM_GWB)) {
-		pr_info("obj %u is group writeback.\n", index);
+		pr_debug("obj %u is group writeback.\n", index);
 		BUG();
 		return false;
 	}
@@ -122,7 +122,7 @@ static u32 move_obj_to_hpio(struct zram *zram, u32 index, u16 gid,
 	size = zram_get_obj_size(zram, index);
 	/* no space, put back the obj as COLDEST */
 	if (size + offset > ext_size) {
-		pr_info("obj %u size is %u, but ext %u only %u space left.\n",
+		pr_debug("obj %u size is %u, but ext %u only %u space left.\n",
 				index, size, eid, ext_size - offset);
 		zgrp_obj_putback(zram->zgrp, index, gid);
 		size = 0;
@@ -138,7 +138,7 @@ static u32 move_obj_to_hpio(struct zram *zram, u32 index, u16 gid,
 	wbgrp_obj_insert(zram->zgrp, index, eid);
 	wbgrp_obj_stats_inc(zram->zgrp, gid, eid, size);
 	zgrp_obj_stats_dec(zram->zgrp, gid, size);
-	pr_info("move obj %u of group %u to hpio %p of eid %u, size = %u, offset = %u\n",
+	pr_debug("move obj %u of group %u to hpio %p of eid %u, size = %u, offset = %u\n",
 		index, gid, hpio, eid, size, offset);
 unlock:
 	zram_slot_unlock(zram, index);
@@ -187,7 +187,7 @@ move:
 	zgrp_obj_insert(zram->zgrp, index, gid);
 	wbgrp_obj_stats_dec(zram->zgrp, gid, eid, size);
 	zgrp_obj_stats_inc(zram->zgrp, gid, size);
-	pr_info("move obj %u of group %u from hpio %p of eid %u, size = %u, offset = %u\n",
+	pr_debug("move obj %u of group %u from hpio %p of eid %u, size = %u, offset = %u\n",
 		index, gid, hpio, eid, size, offset);
 unlock:
 	zram_slot_unlock(zram, index);
@@ -253,7 +253,7 @@ more:
 	nr = zgrp_isolate_objs(zram->zgrp, gid, idxs, NR_ISOLATE, NULL);
 	for (i = 0; i < nr; i++)
 		offset += move_obj_to_hpio(zram, idxs[i], gid, hpio, offset);
-	pr_info("%u data attached, offset = %u.\n", offset - last_offset, offset);
+	pr_debug("%u data attached, offset = %u.\n", offset - last_offset, offset);
 	if (offset < ext_size && offset != last_offset)
 		goto more;
 
@@ -374,7 +374,7 @@ static int read_one_obj_sync(struct zram *zram, u32 index)
 	if (!zram_test_flag(zram, index, ZRAM_GWB))
 		return 0;
 
-	pr_info("read obj %u.\n", index);
+	pr_debug("read obj %u.\n", index);
 
 	gid = zram_get_memcg_id(zram, index);
 	eid = hyperhold_addr_extent(zram_get_handle(zram, index));
@@ -433,12 +433,14 @@ u64 read_group_objs(struct zram *zram, u16 gid, u64 req_size)
 	u64 read_size = 0;
 	u32 nr;
 
-	if (!CHECK(zram->zgrp, "zram group is not enable!\n"))
+	if (!(zram->zgrp)) {
+		pr_debug("zram group is not enable!\n");
 		return 0;
+	}
 	if (!CHECK_BOUND(gid, 1, zram->zgrp->nr_grp - 1))
 		return 0;
 
-	pr_info("read %llu data of group %u.\n", req_size, gid);
+	pr_debug("read %llu data of group %u.\n", req_size, gid);
 
 	while (!req_size || req_size > read_size) {
 		nr = zgrp_isolate_exts(zram->zgrp, gid, &eid, 1, NULL);
@@ -455,14 +457,16 @@ u64 write_group_objs(struct zram *zram, u16 gid, u64 req_size)
 	u64 write_size = 0;
 	u64 size = 0;
 
-	if (!CHECK(zram->zgrp, "zram group is not enable!\n"))
+	if (!(zram->zgrp)) {
+		pr_debug("zram group is not enable!\n");
 		return 0;
+	}
 	if (!CHECK(zram->zgrp->wbgrp.enable, "zram group writeback is not enable!\n"))
 		return 0;
 	if (!CHECK_BOUND(gid, 1, zram->zgrp->nr_grp - 1))
 		return 0;
 
-	pr_info("write %llu data of group %u.\n", req_size, gid);
+	pr_debug("write %llu data of group %u.\n", req_size, gid);
 
 	while (!req_size || req_size > write_size) {
 		size = write_one_extent(zram, gid);
@@ -487,8 +491,10 @@ int zram_group_fault_obj(struct zram *zram, u32 index)
 	u16 gid;
 	u32 size;
 
-	if (!CHECK(zram->zgrp, "zram group is not enable!\n"))
+	if (!(zram->zgrp)) {
+		pr_debug("zram group is not enable!\n");
 		return 0;
+	}
 	if (!CHECK_BOUND(index, 0, zram->zgrp->nr_obj - 1))
 		return 0;
 
@@ -506,8 +512,10 @@ void zram_group_track_obj(struct zram *zram, u32 index, struct mem_cgroup *memcg
 {
 	u16 gid;
 
-	if (!CHECK(zram->zgrp, "zram group is not enable!\n"))
+	if (!(zram->zgrp)) {
+		pr_debug("zram group is not enable!\n");
 		return;
+	}
 	if (!CHECK_BOUND(index, 0, zram->zgrp->nr_obj - 1))
 		return;
 	if (!CHECK(memcg || !memcg->id.id, "obj %u has no memcg!\n", index))
@@ -527,8 +535,10 @@ void zram_group_untrack_obj(struct zram *zram, u32 index)
 	u16 gid;
 	u32 size;
 
-	if (!CHECK(zram->zgrp, "zram group is not enable!\n"))
+	if (!(zram->zgrp)) {
+		pr_debug("zram group is not enable!\n");
 		return;
+	}
 	if (!CHECK_BOUND(index, 0, zram->zgrp->nr_obj - 1))
 		return;
 
@@ -589,8 +599,10 @@ void group_debug(struct zram *zram, u32 op, u32 index, u32 gid)
 
 static u64 group_obj_stats(struct zram *zram, u16 gid, int type)
 {
-	if (!CHECK(zram->zgrp, "zram group is not enable!\n"))
+	if (!(zram->zgrp)) {
+		pr_debug("zram group is not enable!\n");
 		return 0;
+	}
 	if (!CHECK_BOUND(gid, 0, zram->zgrp->nr_grp - 1))
 		return 0;
 
@@ -663,8 +675,10 @@ static int register_zram_group(struct zram *zram)
 {
 	if (!CHECK(zram, "zram is NULL!\n"))
 		return -EINVAL;
-	if (!CHECK(zram->zgrp, "zram group is not enable!\n"))
+	if (!(zram->zgrp)) {
+		pr_debug("zram group is not enable!\n");
 		return -EINVAL;
+	}
 
 	zram->zgrp->gsdev = register_group_swap(&zram_group_ops, zram);
 	if (!zram->zgrp->gsdev) {
@@ -679,8 +693,10 @@ static void unregister_zram_group(struct zram *zram)
 {
 	if (!CHECK(zram, "zram is NULL!\n"))
 		return;
-	if (!CHECK(zram->zgrp, "zram group is not enable!\n"))
+	if (!(zram->zgrp)) {
+		pr_debug("zram group is not enable!\n");
 		return;
+	}
 
 	unregister_group_swap(zram->zgrp->gsdev);
 	zram->zgrp->gsdev = NULL;
