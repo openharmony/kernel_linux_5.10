@@ -71,10 +71,8 @@ void hyperhold_disable(bool force)
 		goto out;
 	hyperhold.inited = false;
 	wait_for_iotab_empty();
-	if (hyperhold.read_wq)
-		destroy_workqueue(hyperhold.read_wq);
-	if (hyperhold.write_wq)
-		destroy_workqueue(hyperhold.write_wq);
+	destroy_workqueue(hyperhold.read_wq);
+	destroy_workqueue(hyperhold.write_wq);
 	deinit_space(&hyperhold.spc);
 	crypto_deinit(&hyperhold.dev);
 	unbind_bdev(&hyperhold.dev);
@@ -98,27 +96,28 @@ void hyperhold_enable(void)
 	if (hyperhold.inited)
 		goto unlock;
 	if (!bind_bdev(&hyperhold.dev, hyperhold.device_name))
-		goto err;
+		goto err1;
 	if (!crypto_init(&hyperhold.dev, hyperhold.enable_soft_crypt))
-		goto err;
+		goto err2;
 	if (!init_space(&hyperhold.spc, hyperhold.dev.dev_size, hyperhold.extent_size))
-		goto err;
+		goto err3;
 	hyperhold.read_wq = alloc_workqueue("hyperhold_read", WQ_HIGHPRI | WQ_UNBOUND, 0);
 	if (!hyperhold.read_wq)
-		goto err;
+		goto err4;
 	hyperhold.write_wq = alloc_workqueue("hyperhold_write", 0, 0);
 	if (!hyperhold.write_wq)
-		goto err;
+		goto err5;
 	hyperhold.inited = true;
 	goto unlock;
-err:
-	if (hyperhold.read_wq)
-		destroy_workqueue(hyperhold.read_wq);
-	if (hyperhold.write_wq)
-		destroy_workqueue(hyperhold.write_wq);
+err5:
+	destroy_workqueue(hyperhold.read_wq);
+err4:
 	deinit_space(&hyperhold.spc);
+err3:
 	crypto_deinit(&hyperhold.dev);
+err2:
 	unbind_bdev(&hyperhold.dev);
+err1:
 	enable = false;
 unlock:
 	mutex_unlock(&hyperhold.init_lock);
