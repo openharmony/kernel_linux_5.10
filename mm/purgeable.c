@@ -9,6 +9,7 @@
 #include <linux/radix-tree.h>
 #include <linux/rmap.h>
 #include <linux/slab.h>
+#include <linux/oom.h> /* find_lock_task_mm */
 
 #include <linux/mm_purgeable.h>
 
@@ -23,7 +24,7 @@ struct uxpte_t {
 #define UXPTE_PER_PAGE (1 << UXPTE_PER_PAGE_SHIFT)
 
 #define UXPTE_PRESENT_BIT 1
-#define UXPTE_PRESENT_MASK (1 << UXPTE_PRESENT_BIT)
+#define UXPTE_PRESENT_MASK ((1 << UXPTE_PRESENT_BIT) - 1)
 #define UXPTE_REFCNT_ONE (1 << UXPTE_PRESENT_BIT)
 #define UXPTE_UNDER_RECLAIM (-UXPTE_REFCNT_ONE)
 
@@ -31,6 +32,8 @@ struct uxpte_t {
 #define uxpte_pn(vaddr) (vpn(vaddr) >> UXPTE_PER_PAGE_SHIFT)
 #define uxpte_off(vaddr) (vpn(vaddr) & (UXPTE_PER_PAGE - 1))
 #define uxpn2addr(uxpn) ((uxpn) << (UXPTE_PER_PAGE_SHIFT + PAGE_SHIFT))
+#define uxpte_refcnt(uxpte) ((uxpte) >> UXPTE_PRESENT_BIT)
+#define uxpte_present(uxpte) ((uxpte) & UXPTE_PRESENT_MASK)
 
 static inline long uxpte_read(struct uxpte_t *uxpte)
 {
@@ -246,4 +249,99 @@ vm_fault_t do_uxpte_page_fault(struct vm_fault *vmf, pte_t *entry)
 	if (vma->vm_flags & VM_WRITE)
 		*entry = pte_mkwrite(pte_mkdirty(*entry));
 	return 0;
+}
+
+static void __mm_purg_pages_info(struct mm_struct *mm, unsigned long *total_purg_pages,
+	unsigned long *pined_purg_pages)
+{
+	struct page *page = NULL;
+	void **slot = NULL;
+	struct radix_tree_iter iter;
+	struct uxpte_t *uxpte = NULL;
+	long pte_entry = 0;
+	int index = 0;
+	unsigned long nr_total = 0, nr_pined = 0;
+
+	spin_lock(&mm->uxpgd_lock);
+	if (!mm->uxpgd)
+		goto out;
+	radix_tree_for_each_slot(slot, mm->uxpgd, &iter, 0) {
+		page = radix_tree_deref_slot(slot);
+		if (unlikely(!page))
+			continue;
+		uxpte = page_to_virt(page);
+		for (index = 0; index < UXPTE_PER_PAGE; index++) {
+			pte_entry = uxpte_read(&(uxpte[index]));
+			if (uxpte_present(pte_entry) == 0) /* not present */
+				continue;
+			nr_total++;
+			if (uxpte_refcnt(pte_entry) > 0) /* pined by user */
+				nr_pined++;
+		}
+	}
+out:
+	spin_unlock(&mm->uxpgd_lock);
+
+	if (total_purg_pages)
+		*total_purg_pages = nr_total;
+
+	if (pined_purg_pages)
+		*pined_purg_pages = nr_pined;
+}
+
+void mm_purg_pages_info(struct mm_struct *mm, unsigned long *total_purg_pages,
+	unsigned long *pined_purg_pages)
+{
+	if (unlikely(!mm))
+		return;
+
+	if (!total_purg_pages && !pined_purg_pages)
+		return;
+
+	__mm_purg_pages_info(mm, total_purg_pages, pined_purg_pages);
+}
+
+void purg_pages_info(unsigned long *total_purg_pages, unsigned long *pined_purg_pages)
+{
+	struct task_struct *p = NULL;
+	struct task_struct *tsk = NULL;
+	unsigned long mm_nr_purge = 0, mm_nr_pined = 0;
+	unsigned long nr_total = 0, nr_pined = 0;
+
+	if (!total_purg_pages && !pined_purg_pages)
+		return;
+
+	if (total_purg_pages)
+		*total_purg_pages = 0;
+
+	if (pined_purg_pages)
+		*pined_purg_pages = 0;
+
+	rcu_read_lock();
+	for_each_process(p) {
+		tsk = find_lock_task_mm(p);
+		if (!tsk) {
+			/*
+			 * It is a kthread or all of p's threads have already
+			 * detached their mm's.
+			 */
+			continue;
+		}
+		__mm_purg_pages_info(tsk->mm, &mm_nr_purge, &mm_nr_pined);
+		nr_total += mm_nr_purge;
+		nr_pined += mm_nr_pined;
+		task_unlock(tsk);
+
+		if (mm_nr_purge > 0) {
+			pr_info("purgemm: tsk: %s %lu pined in %lu pages\n", tsk->comm ?: "NULL",
+				mm_nr_pined, mm_nr_purge);
+		}
+	}
+	rcu_read_unlock();
+	if (total_purg_pages)
+		*total_purg_pages = nr_total;
+
+	if (pined_purg_pages)
+		*pined_purg_pages = nr_pined;
+	pr_info("purgemm: Sum: %lu pined in %lu pages\n", nr_pined, nr_total);
 }

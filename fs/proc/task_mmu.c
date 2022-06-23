@@ -20,6 +20,9 @@
 #include <linux/shmem_fs.h>
 #include <linux/uaccess.h>
 #include <linux/pkeys.h>
+#ifdef CONFIG_MEM_PURGEABLE
+#include <linux/mm_purgeable.h>
+#endif
 
 #include <asm/elf.h>
 #include <asm/tlb.h>
@@ -32,6 +35,11 @@ void task_mem(struct seq_file *m, struct mm_struct *mm)
 {
 	unsigned long text, lib, swap, anon, file, shmem;
 	unsigned long hiwater_vm, total_vm, hiwater_rss, total_rss;
+#ifdef CONFIG_MEM_PURGEABLE
+	unsigned long nr_purg_sum = 0, nr_purg_pin = 0;
+
+	mm_purg_pages_info(mm, &nr_purg_sum, &nr_purg_pin);
+#endif
 
 	anon = get_mm_counter(mm, MM_ANONPAGES);
 	file = get_mm_counter(mm, MM_FILEPAGES);
@@ -75,6 +83,10 @@ void task_mem(struct seq_file *m, struct mm_struct *mm)
 	seq_put_decimal_ull_width(m,
 		    " kB\nVmPTE:\t", mm_pgtables_bytes(mm) >> 10, 8);
 	SEQ_PUT_DEC(" kB\nVmSwap:\t", swap);
+#ifdef CONFIG_MEM_PURGEABLE
+	SEQ_PUT_DEC(" kB\nPurgSum:\t", nr_purg_sum);
+	SEQ_PUT_DEC(" kB\nPurgPin:\t", nr_purg_pin);
+#endif
 	seq_puts(m, " kB\n");
 	hugetlb_report_usage(m, mm);
 }
