@@ -112,15 +112,17 @@ void zgrp_obj_insert(struct zram_group *zgrp, u32 index, u16 gid)
 {
 	u32 hid;
 
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return;
+	}
 	if (!CHECK_BOUND(index, 0, zgrp->nr_obj - 1))
 		return;
 	if (!CHECK_BOUND(gid, 1, zgrp->nr_grp - 1))
 		return;
 	hid = gid + zgrp->nr_obj;
 	zlist_add(hid, index, zgrp->obj_tab);
-	pr_info("insert obj %u to group %u\n", index, gid);
+	pr_debug("insert obj %u to group %u\n", index, gid);
 }
 
 /*
@@ -130,13 +132,15 @@ bool zgrp_obj_delete(struct zram_group *zgrp, u32 index, u16 gid)
 {
 	u32 hid;
 
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return false;
+	}
 	if (!CHECK_BOUND(index, 0, zgrp->nr_obj - 1))
 		return false;
 	if (!CHECK_BOUND(gid, 1, zgrp->nr_grp - 1))
 		return false;
-	pr_info("delete obj %u from group %u\n", index, gid);
+	pr_debug("delete obj %u from group %u\n", index, gid);
 	hid = gid + zgrp->nr_obj;
 
 	return zlist_del(hid, index, zgrp->obj_tab);
@@ -154,8 +158,10 @@ u32 zgrp_isolate_objs(struct zram_group *zgrp, u16 gid, u32 *idxs, u32 nr, bool 
 
 	if (last)
 		*last = false;
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return 0;
+	}
 	if (!CHECK_BOUND(gid, 1, zgrp->nr_grp - 1))
 		return 0;
 	if (!CHECK(idxs, "return array idxs is null!\n"))
@@ -173,7 +179,7 @@ u32 zgrp_isolate_objs(struct zram_group *zgrp, u16 gid, u32 *idxs, u32 nr, bool 
 		*last = cnt && zlist_is_isolated_nolock(hid, zgrp->obj_tab);
 	zlist_unlock(hid, zgrp->obj_tab);
 
-	pr_info("isolated %u objs from group %u.\n", cnt, gid);
+	pr_debug("isolated %u objs from group %u.\n", cnt, gid);
 
 	return cnt;
 }
@@ -185,8 +191,10 @@ bool zgrp_obj_is_isolated(struct zram_group *zgrp, u32 index)
 {
 	bool ret = false;
 
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return false;
+	}
 	if (!CHECK_BOUND(index, 0, zgrp->nr_obj - 1))
 		return false;
 
@@ -203,21 +211,25 @@ void zgrp_obj_putback(struct zram_group *zgrp, u32 index, u16 gid)
 {
 	u32 hid;
 
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return;
+	}
 	if (!CHECK_BOUND(index, 0, zgrp->nr_obj - 1))
 		return;
 	if (!CHECK_BOUND(gid, 1, zgrp->nr_grp - 1))
 		return;
 	hid = gid + zgrp->nr_obj;
 	zlist_add_tail(hid, index, zgrp->obj_tab);
-	pr_info("putback obj %u to group %u\n", index, gid);
+	pr_debug("putback obj %u to group %u\n", index, gid);
 }
 
 void zgrp_obj_stats_inc(struct zram_group *zgrp, u16 gid, u32 size)
 {
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return;
+	}
 	if (!CHECK_BOUND(gid, 1, zgrp->nr_grp - 1))
 		return;
 
@@ -229,8 +241,10 @@ void zgrp_obj_stats_inc(struct zram_group *zgrp, u16 gid, u32 size)
 
 void zgrp_obj_stats_dec(struct zram_group *zgrp, u16 gid, u32 size)
 {
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return;
+	}
 	if (!CHECK_BOUND(gid, 1, zgrp->nr_grp - 1))
 		return;
 
@@ -242,8 +256,10 @@ void zgrp_obj_stats_dec(struct zram_group *zgrp, u16 gid, u32 size)
 
 void zgrp_fault_stats_inc(struct zram_group *zgrp, u16 gid, u32 size)
 {
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return;
+	}
 	if (!CHECK_BOUND(gid, 1, zgrp->nr_grp - 1))
 		return;
 
@@ -256,8 +272,10 @@ void zram_group_dump(struct zram_group *zgrp, u16 gid, u32 index)
 {
 	u32 hid, idx;
 
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return;
+	}
 	hid = gid + zgrp->nr_obj;
 	if (gid == 0) {
 		struct zlist_node *node = NULL;
@@ -384,8 +402,10 @@ void zgrp_ext_insert(struct zram_group *zgrp, u32 eid, u16 gid)
 {
 	u32 hid;
 
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return;
+	}
 	if (!CHECK(zgrp->wbgrp.enable, "zram group writeback is not enable!\n"))
 		return;
 	if (!CHECK_BOUND(eid, 0, zgrp->wbgrp.nr_ext - 1))
@@ -394,7 +414,7 @@ void zgrp_ext_insert(struct zram_group *zgrp, u32 eid, u16 gid)
 		return;
 	hid = gid + zgrp->wbgrp.nr_ext;
 	zlist_add(hid, eid, zgrp->wbgrp.ext_tab);
-	pr_info("insert extent %u to group %u\n", eid, gid);
+	pr_debug("insert extent %u to group %u\n", eid, gid);
 }
 
 /*
@@ -405,8 +425,10 @@ bool zgrp_ext_delete(struct zram_group *zgrp, u32 eid, u16 gid)
 	u32 hid;
 	bool isolated = false;
 
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return false;
+	}
 	if (!CHECK(zgrp->wbgrp.enable, "zram group writeback is not enable!\n"))
 		return false;
 	if (!CHECK_BOUND(eid, 0, zgrp->wbgrp.nr_ext - 1))
@@ -418,11 +440,11 @@ bool zgrp_ext_delete(struct zram_group *zgrp, u32 eid, u16 gid)
 	isolated = zlist_is_isolated_nolock(eid, zgrp->wbgrp.ext_tab);
 	zlist_unlock(eid, zgrp->wbgrp.ext_tab);
 	if (isolated) {
-		pr_info("extent %u is already isolated, skip delete.\n", eid);
+		pr_debug("extent %u is already isolated, skip delete.\n", eid);
 		return false;
 	}
 
-	pr_info("delete extent %u from group %u\n", eid, gid);
+	pr_debug("delete extent %u from group %u\n", eid, gid);
 	hid = gid + zgrp->wbgrp.nr_ext;
 	return zlist_del(hid, eid, zgrp->wbgrp.ext_tab);
 }
@@ -439,8 +461,10 @@ u32 zgrp_isolate_exts(struct zram_group *zgrp, u16 gid, u32 *eids, u32 nr, bool 
 
 	if (last)
 		*last = false;
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return 0;
+	}
 	if (!CHECK(zgrp->wbgrp.enable, "zram group writeback is not enable!\n"))
 		return 0;
 	if (!CHECK_BOUND(gid, 1, zgrp->nr_grp - 1))
@@ -460,7 +484,7 @@ u32 zgrp_isolate_exts(struct zram_group *zgrp, u16 gid, u32 *eids, u32 nr, bool 
 		*last = cnt && zlist_is_isolated_nolock(hid, zgrp->wbgrp.ext_tab);
 	zlist_unlock(hid, zgrp->wbgrp.ext_tab);
 
-	pr_info("isolated %u exts from group %u.\n", cnt, gid);
+	pr_debug("isolated %u exts from group %u.\n", cnt, gid);
 
 	return cnt;
 }
@@ -472,8 +496,10 @@ void wbgrp_obj_insert(struct zram_group *zgrp, u32 index, u32 eid)
 {
 	u32 hid;
 
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return;
+	}
 	if (!CHECK(zgrp->wbgrp.enable, "zram group writeback is not enable!\n"))
 		return;
 	if (!CHECK_BOUND(index, 0, zgrp->nr_obj - 1))
@@ -482,7 +508,7 @@ void wbgrp_obj_insert(struct zram_group *zgrp, u32 index, u32 eid)
 		return;
 	hid = eid + zgrp->nr_obj + zgrp->nr_grp;
 	zlist_add_tail(hid, index, zgrp->obj_tab);
-	pr_info("insert obj %u to extent %u\n", index, eid);
+	pr_debug("insert obj %u to extent %u\n", index, eid);
 }
 
 /*
@@ -492,15 +518,17 @@ bool wbgrp_obj_delete(struct zram_group *zgrp, u32 index, u32 eid)
 {
 	u32 hid;
 
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return false;
+	}
 	if (!CHECK(zgrp->wbgrp.enable, "zram group writeback is not enable!\n"))
 		return false;
 	if (!CHECK_BOUND(index, 0, zgrp->nr_obj - 1))
 		return false;
 	if (!CHECK_BOUND(eid, 0, zgrp->wbgrp.nr_ext - 1))
 		return false;
-	pr_info("delete obj %u from extent %u\n", index, eid);
+	pr_debug("delete obj %u from extent %u\n", index, eid);
 	hid = eid + zgrp->nr_obj + zgrp->nr_grp;
 
 	return zlist_del(hid, index, zgrp->obj_tab);
@@ -519,8 +547,10 @@ u32 wbgrp_isolate_objs(struct zram_group *zgrp, u32 eid, u32 *idxs, u32 nr, bool
 
 	if (last)
 		*last = false;
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return 0;
+	}
 	if (!CHECK(zgrp->wbgrp.enable, "zram group writeback is not enable!\n"))
 		return 0;
 	if (!CHECK_BOUND(eid, 0, zgrp->wbgrp.nr_ext - 1))
@@ -540,15 +570,17 @@ u32 wbgrp_isolate_objs(struct zram_group *zgrp, u32 eid, u32 *idxs, u32 nr, bool
 		*last = cnt && zlist_is_isolated_nolock(hid, zgrp->obj_tab);
 	zlist_unlock(hid, zgrp->obj_tab);
 
-	pr_info("isolated %u objs from extent %u.\n", cnt, eid);
+	pr_debug("isolated %u objs from extent %u.\n", cnt, eid);
 
 	return cnt;
 }
 
 void wbgrp_obj_stats_inc(struct zram_group *zgrp, u16 gid, u32 eid, u32 size)
 {
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return;
+	}
 	if (!CHECK_BOUND(gid, 1, zgrp->nr_grp - 1))
 		return;
 	if (!CHECK_BOUND(eid, 0, zgrp->wbgrp.nr_ext - 1))
@@ -562,8 +594,10 @@ void wbgrp_obj_stats_inc(struct zram_group *zgrp, u16 gid, u32 eid, u32 size)
 
 void wbgrp_obj_stats_dec(struct zram_group *zgrp, u16 gid, u32 eid, u32 size)
 {
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return;
+	}
 	if (!CHECK_BOUND(gid, 1, zgrp->nr_grp - 1))
 		return;
 	if (!CHECK_BOUND(eid, 0, zgrp->wbgrp.nr_ext - 1))
@@ -577,8 +611,10 @@ void wbgrp_obj_stats_dec(struct zram_group *zgrp, u16 gid, u32 eid, u32 size)
 
 void wbgrp_fault_stats_inc(struct zram_group *zgrp, u16 gid, u32 eid, u32 size)
 {
-	if (!CHECK(zgrp, "zram group is not enable!\n"))
+	if (!zgrp) {
+		pr_debug("zram group is not enable!");
 		return;
+	}
 	if (!CHECK_BOUND(gid, 1, zgrp->nr_grp - 1))
 		return;
 	if (!CHECK_BOUND(eid, 0, zgrp->wbgrp.nr_ext - 1))
