@@ -154,10 +154,6 @@ calc_vm_flag_bits(unsigned long flags)
 	       _calc_vm_trans(flags, MAP_DENYWRITE,  VM_DENYWRITE ) |
 	       _calc_vm_trans(flags, MAP_LOCKED,     VM_LOCKED    ) |
 	       _calc_vm_trans(flags, MAP_SYNC,	     VM_SYNC      ) |
-#ifdef CONFIG_MEM_PURGEABLE
-	       _calc_vm_trans(flags, MAP_PURGEABLE,  VM_PURGEABLE ) |
-	       _calc_vm_trans(flags, MAP_USEREXPTE,  VM_USEREXPTE ) |
-#endif
 	       arch_calc_vm_flag_bits(flags);
 }
 
