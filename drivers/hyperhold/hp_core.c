@@ -138,11 +138,12 @@ static int enable_sysctl_handler(struct ctl_table *table, int write,
 {
 	const struct cred *cred = current_cred();
 	char *filter_buf;
+
 	filter_buf = strstrip((char *)buffer);
 	if (write) {
 		if (!uid_eq(cred->euid, GLOBAL_MEMMGR_UID) &&
 			!uid_eq(cred->euid, GLOBAL_ROOT_UID)) {
-			pr_err("no permission to enable/disable eswap! \n");
+			pr_err("no permission to enable/disable eswap!\n");
 			return 0;
 		}
 		if (!strcmp(filter_buf, "enable"))
