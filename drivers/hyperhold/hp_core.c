@@ -136,7 +136,7 @@ EXPORT_SYMBOL(hyperhold_enable);
 static int enable_sysctl_handler(struct ctl_table *table, int write,
 				 void *buffer, size_t *lenp, loff_t *ppos)
 {
-	struct cred *cred = current_cred();
+	const struct cred *cred = current_cred();
 	char *filter_buf;
 	filter_buf = strstrip((char *)buffer);
 	if (write) {
