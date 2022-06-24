@@ -194,6 +194,7 @@ err:
 void inline_crypt_bio(struct blk_crypto_key *blk_key, struct bio *bio) {}
 static struct blk_crypto_key *inline_crypto_init(const u8 *key)
 {
+	pr_err("CONFIG_BLK_INLINE_ENCRYPTION is not enabled!\n");
 	return NULL;
 }
 #endif
@@ -210,6 +211,8 @@ bool crypto_init(struct hp_device *dev, bool soft)
 	} else {
 		dev->blk_key = inline_crypto_init(key);
 		ret = dev->blk_key;
+		if (ret)
+			pr_warn("soft crypt has been turned off, now apply hard crypt!\n");
 	}
 	memzero_explicit(key, HP_KEY_SIZE);
 
