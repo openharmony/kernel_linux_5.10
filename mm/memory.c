@@ -2916,6 +2916,11 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		 */
 		ptep_clear_flush_notify(vma, vmf->address, vmf->pte);
 		page_add_new_anon_rmap(new_page, vma, vmf->address, false);
+		if (vma->vm_flags & VM_PURGEABLE) {
+			pr_info("set wp new page %lx purgeable\n", page_to_pfn(new_page));
+			SetPagePurgeable(new_page);
+			uxpte_set_present(vma, vmf->address);
+		}
 		lru_cache_add_inactive_or_unevictable(new_page, vma);
 		/*
 		 * We call the notify macro here because, when using secondary
@@ -3633,12 +3638,14 @@ got_page:
 
 	inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
 	page_add_new_anon_rmap(page, vma, vmf->address, false);
-	if (vma->vm_flags & VM_PURGEABLE) {
+	if (vma->vm_flags & VM_PURGEABLE)
 		SetPagePurgeable(page);
-		uxpte_set_present(vma, vmf->address);
-	}
+
 	lru_cache_add_inactive_or_unevictable(page, vma);
 setpte:
+	if (vma->vm_flags & VM_PURGEABLE)
+		uxpte_set_present(vma, vmf->address);
+
 	set_pte_at(vma->vm_mm, vmf->address, vmf->pte, entry);
 
 	/* No need to invalidate - it was non-present before */

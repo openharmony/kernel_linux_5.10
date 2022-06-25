@@ -41,12 +41,10 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	unsigned long pages[NR_LRU_LISTS];
 	unsigned long sreclaimable, sunreclaim;
 	int lru;
-	unsigned long nr_purgeable_active = 0;
-	unsigned long nr_purgeable_inactive = 0;
+	unsigned long nr_purg_active = 0;
+	unsigned long nr_purg_inactive = 0;
 #ifdef CONFIG_MEM_PURGEABLE
-	unsigned long nr_purgeable_pined = 0;
-
-	purg_pages_info(NULL, &nr_purgeable_pined);
+	unsigned long nr_purg_pined = 0;
 #endif
 
 	si_meminfo(&i);
@@ -62,8 +60,10 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 		pages[lru] = global_node_page_state(NR_LRU_BASE + lru);
 
 #ifdef CONFIG_MEM_PURGEABLE
-	nr_purgeable_active = pages[LRU_ACTIVE_PURGEABLE];
-	nr_purgeable_inactive = pages[LRU_INACTIVE_PURGEABLE];
+	nr_purg_active = pages[LRU_ACTIVE_PURGEABLE];
+	nr_purg_inactive = pages[LRU_INACTIVE_PURGEABLE];
+	purg_pages_info(NULL, &nr_purg_pined);
+	nr_purg_pined = min(nr_purg_pined, nr_purg_active + nr_purg_inactive);
 #endif
 
 	available = si_mem_available();
@@ -78,18 +78,18 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	show_val_kb(m, "SwapCached:     ", total_swapcache_pages());
 	show_val_kb(m, "Active:         ", pages[LRU_ACTIVE_ANON] +
 					   pages[LRU_ACTIVE_FILE] +
-					   nr_purgeable_active);
+					   nr_purg_active);
 	show_val_kb(m, "Inactive:       ", pages[LRU_INACTIVE_ANON] +
 					   pages[LRU_INACTIVE_FILE] +
-					   nr_purgeable_inactive);
+					   nr_purg_inactive);
 	show_val_kb(m, "Active(anon):   ", pages[LRU_ACTIVE_ANON]);
 	show_val_kb(m, "Inactive(anon): ", pages[LRU_INACTIVE_ANON]);
 	show_val_kb(m, "Active(file):   ", pages[LRU_ACTIVE_FILE]);
 	show_val_kb(m, "Inactive(file): ", pages[LRU_INACTIVE_FILE]);
 #ifdef CONFIG_MEM_PURGEABLE
-	show_val_kb(m, "Active(purgeable):   ", nr_purgeable_active);
-	show_val_kb(m, "Inactive(purgeable): ", nr_purgeable_inactive);
-	show_val_kb(m, "Pined(purgeable): ", nr_purgeable_pined);
+	show_val_kb(m, "Active(purg):   ", nr_purg_active);
+	show_val_kb(m, "Inactive(purg): ", nr_purg_inactive);
+	show_val_kb(m, "Pined(purg):    ", nr_purg_pined);
 #endif
 	show_val_kb(m, "Unevictable:    ", pages[LRU_UNEVICTABLE]);
 	show_val_kb(m, "Mlocked:        ", global_zone_page_state(NR_MLOCK));
