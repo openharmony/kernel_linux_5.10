@@ -4362,8 +4362,10 @@ static unsigned long purgeable_node(pg_data_t *pgdata, struct scan_control *sc)
 {
 	struct mem_cgroup *memcg = NULL;
 	unsigned long nr = 0;
-
-	while (memcg = mem_cgroup_iter(NULL, memcg, NULL)) {
+#ifdef CONFIG_MEMCG
+	while (memcg = mem_cgroup_iter(NULL, memcg, NULL))
+#endif
+	{
 		struct lruvec *lruvec = mem_cgroup_lruvec(memcg, pgdata);
 
 		shrink_list(LRU_ACTIVE_PURGEABLE, -1, lruvec, sc);
