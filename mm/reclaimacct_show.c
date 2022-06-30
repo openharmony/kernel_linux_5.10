@@ -47,6 +47,15 @@ fail_show:
 	return false;
 }
 
+void reclaimacct_reinitialize_show_data(void)
+{
+	if (ra_show)
+		memset(ra_show, 0, sizeof(struct reclaimacct_show));
+
+	if (ra_eff)
+		memset(ra_eff, 0, sizeof(struct reclaim_efficiency) * RECLAIM_TYPES);
+}
+
 void reclaimacct_destroy_show_data(void)
 {
 	kfree(ra_show);

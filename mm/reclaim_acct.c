@@ -161,4 +161,22 @@ static int __init reclaimacct_module_init(void)
 
 late_initcall(reclaimacct_module_init);
 
-module_param_named(disable, reclaimacct_disable, int, 0644);
+static int reclaimacct_disable_set(const char *val, const struct kernel_param *kp)
+{
+	int ret;
+
+	ret = param_set_int(val, kp);
+	if (ret)
+		return ret;
+
+	if (!reclaimacct_disable)
+		reclaimacct_reinitialize_show_data();
+	return 0;
+}
+
+static const struct kernel_param_ops reclaimacct_disable_ops = {
+	.set = reclaimacct_disable_set,
+	.get = param_get_int,
+};
+
+module_param_cb(disable, &reclaimacct_disable_ops, &reclaimacct_disable, 0644);
