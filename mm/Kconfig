@@ -961,6 +961,7 @@ config RSS_THRESHOLD
 config MEM_PURGEABLE
 	bool "Purgeable memory feature"
 	default n
+	depends on 64BIT
 	select ARCH_USES_HIGH_VMA_FLAGS
 	help
 	  Support purgeable pages for process
