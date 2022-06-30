@@ -791,6 +791,7 @@ struct reclaim_acct {
 };
 
 bool reclaimacct_initialize_show_data(void);
+void reclaimacct_reinitialize_show_data(void);
 void reclaimacct_destroy_show_data(void);
 
 void reclaimacct_collect_data(void);
