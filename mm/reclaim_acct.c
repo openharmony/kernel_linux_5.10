@@ -95,7 +95,6 @@ static void reclaimacct_directreclaim_end(struct reclaim_acct *ra)
 
 	reclaimacct_collect_data();
 	reclaimacct_free(ra, ra->reclaim_type);
-	current->reclaim_acct = NULL;
 }
 
 static void reclaimacct_system_reclaim_end(struct reclaim_acct *ra)
@@ -128,6 +127,8 @@ void reclaimacct_end(enum reclaim_type type)
 		reclaimacct_system_reclaim_end(current->reclaim_acct);
 	else
 		reclaimacct_directreclaim_end(current->reclaim_acct);
+
+	current->reclaim_acct = NULL;
 }
 
 /* Reclaim accounting module initialize */
