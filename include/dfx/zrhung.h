@@ -6,8 +6,6 @@
 #ifndef ZRHUNG_H
 #define ZRHUNG_H
 
-#define ZRHUNG_EVENT_TYPE 1
-
 int zrhung_send_event(const char *domain, const char *event_name, const char *msg_buf);
 
 #endif /* ZRHUNG_H */
