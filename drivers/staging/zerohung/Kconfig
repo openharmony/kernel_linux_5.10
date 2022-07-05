@@ -2,5 +2,6 @@
 config DFX_ZEROHUNG
 	bool "zerohung driver"
 	default n
+	depends on HISYSEVENT
 	help
 	  This feature support to catch hung log
