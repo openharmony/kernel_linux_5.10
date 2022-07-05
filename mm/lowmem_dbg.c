@@ -6,30 +6,20 @@
  */
 #define pr_fmt(fmt) "lowmem:" fmt
 
-#include <linux/module.h>
-#include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/oom.h>
-#include <linux/sched.h>
 #include <linux/rcupdate.h>
-#include <linux/notifier.h>
 #include <linux/mutex.h>
-#include <linux/delay.h>
-#include <linux/swap.h>
-#include <linux/fs.h>
 #include <linux/jiffies.h>
 #include <linux/workqueue.h>
 #include <linux/freezer.h>
-#include <linux/ksm.h>
-#include <linux/io.h>
-#include <linux/version.h>
 #include <linux/lowmem_dbg.h>
 
-#define LMK_PRT_TSK_RSS 10000
+#define LMK_PRT_TSK_RSS 0
 #define LMK_INTERVAL 3
 
 /* SERVICE_ADJ(5) * OOM_SCORE_ADJ_MAX / -OOM_DISABLE */
-#define LMK_SERVICE_ADJ 500
+#define LMK_SERVICE_ADJ 1000
 /* defiine TASK STATE String */
 #define TASK_STATE_TO_CHAR_STR "RSDTtXZxKWPNn"
 
@@ -38,7 +28,6 @@ static const char state_to_char[] = TASK_STATE_TO_CHAR_STR;
 static void lowmem_dump(struct work_struct *work);
 
 static DEFINE_MUTEX(lowmem_dump_mutex);
-static DECLARE_WORK(lowmem_dbg_wk, lowmem_dump);
 static DECLARE_WORK(lowmem_dbg_verbose_wk, lowmem_dump);
 
 static int task_state_char(unsigned long state)
@@ -103,7 +92,7 @@ static void lowmem_dump(struct work_struct *work)
 	mutex_lock(&lowmem_dump_mutex);
 #if defined(SHOW_MEM_FILTER_PAGE_COUNT)
 	show_mem(SHOW_MEM_FILTER_NODES |
-	    (verbose ? 0 : SHOW_MEM_FILTER_PAGE_COUNT));
+	    (verbose ? 0 : SHOW_MEM_FILTER_PAGE_COUNT), NULL);
 #else
 	show_mem(SHOW_MEM_FILTER_NODES, NULL);
 #endif
@@ -119,7 +108,7 @@ void lowmem_dbg(short oom_score_adj)
 		schedule_work(&lowmem_dbg_verbose_wk);
 	} else if (time_after64(jiffs, (last_jiffs + LMK_INTERVAL * HZ))) {
 		last_jiffs = get_jiffies_64();
-		schedule_work(&lowmem_dbg_wk);
+		schedule_work(&lowmem_dbg_verbose_wk);
 	}
 }
 
