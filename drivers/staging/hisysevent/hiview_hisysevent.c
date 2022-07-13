@@ -17,8 +17,8 @@
 #include <linux/vmalloc.h>
 #include <asm/current.h>
 
-#define PARAM_INT_MAX_LEN	20		 // 20 = 19 (max len) + 1 ('\0')
-#define PARAM_STR_MAX_LEN	(8 * 1024)   // 8KB
+#define PARAM_INT_MAX_LEN	21   // 21 = 20 (max len) + 1 ('\0')
+#define PARAM_STR_MAX_LEN	1536 // 1.5KB
 
 #define MAX_DOMAIN_LENGTH 16
 #define MAX_EVENT_NAME_LENGTH 32
@@ -26,7 +26,7 @@
 #define MAX_PARAM_NUMBER 128
 
 #define HISYSEVENT_WRITER_DEV "/dev/bbox"
-#define HISYSEVENT_INFO_BUF_LEN (384 * 1024)  // 384KB, max length of event
+#define HISYSEVENT_INFO_BUF_LEN (2048 - 6)  // 2KB - 6 (read_gap)
 
 #define MINUTE_TO_SECS 60
 #define SEC_TO_MILLISEC 1000
@@ -234,13 +234,13 @@ static int hisysevent_convert_json(const struct hiview_hisysevent *event, char *
 {
 	char *tmp;
 	int tmp_len = 0;
-	int buf_len = HISYSEVENT_INFO_BUF_LEN + 1;
+	int buf_len = HISYSEVENT_INFO_BUF_LEN;
 	int len = buf_len;
-	char *buf = vmalloc(buf_len);
+	char *buf = vmalloc(buf_len + 1);
 
 	if (!buf)
 		return -ENOMEM;
-	memset(buf, 0, buf_len);
+	memset(buf, 0, buf_len + 1);
 
 	tmp = buf;
 	tmp_len = snprintf(tmp, len, "%c", '{');
@@ -252,6 +252,11 @@ static int hisysevent_convert_json(const struct hiview_hisysevent *event, char *
 	len = hisysevent_convert_payload(event->head, &tmp, len);
 
 convert_end:
+	if (len <= 1) { // remaining len must > 1, for '}' and '\0'
+		vfree(buf);
+		return -EINVAL;
+	}
+
 	tmp_len = snprintf(tmp - 1, len, "%c", '}');
 	BUF_POINTER_FORWARD;
 	*buf_ptr = buf;
@@ -304,11 +309,7 @@ static bool is_valid_num_of_param(struct hiview_hisysevent *event)
 	if (!event)
 		return false;
 
-	if (event->payload_cnt > MAX_PARAM_NUMBER)
-		return false;
-
-	event->payload_cnt++;
-	return true;
+	return (event->payload_cnt) < MAX_PARAM_NUMBER;
 }
 
 struct hiview_hisysevent *
@@ -355,6 +356,7 @@ create_err:
 	hisysevent_destroy(&event);
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(hisysevent_create);
 
 void hisysevent_destroy(struct hiview_hisysevent **event)
 {
@@ -376,6 +378,7 @@ void hisysevent_destroy(struct hiview_hisysevent **event)
 	kfree(*event);
 	*event = NULL;
 }
+EXPORT_SYMBOL_GPL(hisysevent_destroy);
 
 int hisysevent_put_integer(struct hiview_hisysevent *event, const char *key, long long value)
 {
@@ -406,13 +409,17 @@ int hisysevent_put_integer(struct hiview_hisysevent *event, const char *key, lon
 
 	memset(payload->value, 0, PARAM_INT_MAX_LEN);
 	snprintf(payload->value, PARAM_INT_MAX_LEN, "%lld", value);
+	event->payload_cnt++;
 	return 0;
 }
+EXPORT_SYMBOL_GPL(hisysevent_put_integer);
 
 int hisysevent_put_string(struct hiview_hisysevent *event, const char *key, const char *value)
 {
 	struct hisysevent_payload *payload = NULL;
 	int len = 0;
+	int tmp_len = 0;
+	char *tmp_value = NULL;
 
 	if (!event) {
 		pr_err("invalid event");
@@ -439,18 +446,24 @@ int hisysevent_put_string(struct hiview_hisysevent *event, const char *key, cons
 
 	len = strlen(value);
 	if (len > PARAM_STR_MAX_LEN) {
-		pr_warn("string cannot exceed 8KB, len=%d", len);
+		pr_warn("string cannot exceed 1536 Byte, len=%d", len);
 		len = PARAM_STR_MAX_LEN;
 	}
 
-	payload->value = kmalloc(len + 3, GFP_KERNEL);
+	tmp_len = len + 3; // 3 for \", \", \0
+	payload->value = kmalloc(tmp_len, GFP_KERNEL);
 	if (!payload->value)
 		return -ENOMEM;
+	memset(payload->value, 0, tmp_len);
 
-	memset(payload->value, 0, len + 3);
-	snprintf(payload->value, len + 3, "\"%s\"", value);
+	tmp_value = payload->value;
+	snprintf(tmp_value++, tmp_len--, "%c", '\"');
+	memcpy(tmp_value, value, len);
+	snprintf(tmp_value + len, tmp_len - len, "%c", '\"');
+	event->payload_cnt++;
 	return 0;
 }
+EXPORT_SYMBOL_GPL(hisysevent_put_string);
 
 int hisysevent_write(struct hiview_hisysevent *event)
 {
@@ -470,7 +483,7 @@ int hisysevent_write(struct hiview_hisysevent *event)
 		pr_err("failed to convert event to string");
 		return -EINVAL;
 	}
-	pr_info("write data=%s", data);
+	pr_info("write hisysevent data=%s", data);
 
 	filp = filp_open(HISYSEVENT_WRITER_DEV, O_WRONLY, 0);
 
@@ -492,12 +505,11 @@ int hisysevent_write(struct hiview_hisysevent *event)
 	ret = vfs_iter_write(filp, &iter, &filp->f_pos, 0);
 	set_fs(oldfs);
 
-	if (ret < 0) {
-		pr_err("failed to write event to '%s' , res=%d", HISYSEVENT_WRITER_DEV, ret);
-		ret = -EIO;
-	}
+	if (ret < 0)
+		pr_err("failed to write hisysevent, ret=%d", ret);
 
 	filp_close(filp, NULL);
 	vfree(data);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(hisysevent_write);
