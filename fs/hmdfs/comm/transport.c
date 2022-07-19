@@ -915,7 +915,6 @@ static int tcp_update_socket(struct tcp_handle *tcp, int fd,
 		goto put_sock;
 	}
 
-	socket->sk->sk_user_data = tcp;
 	err = tcp_set_recvtimeo(socket, TCP_RECV_TIMEOUT);
 	if (err) {
 		hmdfs_err("tcp set timeout error");
