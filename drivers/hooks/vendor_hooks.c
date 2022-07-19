@@ -9,6 +9,7 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/hooks/vendor_hooks.h>
+#include <trace/hooks/mm.h>
 
 /*
  * Export tracepoints that act as a bare tracehook(ie: have no trace event
@@ -17,3 +18,6 @@
  * For example:
  *   EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_foo);
  */
+
+EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_do_mmap);
+EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_do_mprotect_pkey);
