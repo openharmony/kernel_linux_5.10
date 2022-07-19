@@ -239,4 +239,7 @@ source "drivers/counter/Kconfig"
 source "drivers/most/Kconfig"
 
 source "drivers/accesstokenid/Kconfig"
+
+source "drivers/hooks/Kconfig"
+
 endmenu
