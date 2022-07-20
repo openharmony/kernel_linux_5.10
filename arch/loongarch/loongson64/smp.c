@@ -344,62 +344,18 @@ static void loongson3_cpu_die(unsigned int cpu)
 	mb();
 }
 
-/* To shutdown a core in Loongson 3, the target core should go to XKPRANGE
- * and flush all L1 entries at first. Then, another core (usually Core 0)
- * can safely disable the clock of the target core. loongson3_play_dead()
- * is called via XKPRANGE (uncached and unmmaped) */
-static void loongson3_play_dead(int *state_addr)
+void play_dead(void)
 {
-	register int val;
 	register long cpuid, core, node, count;
 	register void *addr, *base;
 	register void (*init_fn)(void);
 
-	__asm__ __volatile__(
-		"   li.d %[addr], 0x8000000000000000\n"
-		"1: cacop 0x8, %[addr], 0           \n" /* flush L1 ICache */
-		"   cacop 0x8, %[addr], 1           \n"
-		"   cacop 0x8, %[addr], 2           \n"
-		"   cacop 0x8, %[addr], 3           \n"
-		"   cacop 0x9, %[addr], 0           \n" /* flush L1 DCache */
-		"   cacop 0x9, %[addr], 1           \n"
-		"   cacop 0x9, %[addr], 2           \n"
-		"   cacop 0x9, %[addr], 3           \n"
-		"   addi.w %[sets], %[sets], -1     \n"
-		"   addi.d %[addr], %[addr], 0x40   \n"
-		"   bnez %[sets], 1b                \n"
-		"   li.d %[addr], 0x8000000000000000\n"
-		"2: cacop 0xa, %[addr], 0           \n" /* flush L1 VCache */
-		"   cacop 0xa, %[addr], 1           \n"
-		"   cacop 0xa, %[addr], 2           \n"
-		"   cacop 0xa, %[addr], 3           \n"
-		"   cacop 0xa, %[addr], 4           \n"
-		"   cacop 0xa, %[addr], 5           \n"
-		"   cacop 0xa, %[addr], 6           \n"
-		"   cacop 0xa, %[addr], 7           \n"
-		"   cacop 0xa, %[addr], 8           \n"
-		"   cacop 0xa, %[addr], 9           \n"
-		"   cacop 0xa, %[addr], 10          \n"
-		"   cacop 0xa, %[addr], 11          \n"
-		"   cacop 0xa, %[addr], 12          \n"
-		"   cacop 0xa, %[addr], 13          \n"
-		"   cacop 0xa, %[addr], 14          \n"
-		"   cacop 0xa, %[addr], 15          \n"
-		"   addi.w %[vsets], %[vsets], -1   \n"
-		"   addi.d %[addr], %[addr], 0x40   \n"
-		"   bnez   %[vsets], 2b             \n"
-		"   li.w   %[val], 0x7              \n" /* *state_addr = CPU_DEAD; */
-		"   st.w   %[val], %[state_addr], 0 \n"
-		"   dbar 0                          \n"
-		"   cacop 0x11, %[state_addr], 0    \n" /* flush entry of *state_addr */
-		: [addr] "=&r" (addr), [val] "=&r" (val)
-		: [state_addr] "r" (state_addr),
-		  [sets] "r" (cpu_data[smp_processor_id()].dcache.sets),
-		  [vsets] "r" (cpu_data[smp_processor_id()].vcache.sets));
-
+	idle_task_exit();
 	local_irq_enable();
 	change_csr_ecfg(ECFG0_IM, ECFGF_IPI);
+	__this_cpu_write(cpu_state, CPU_DEAD);
 
+	__smp_mb();
 	__asm__ __volatile__(
 		"   idle   0			       \n"
 		"   csrrd  %[cpuid], 0x20              \n"
@@ -423,48 +379,6 @@ static void loongson3_play_dead(int *state_addr)
 	init_fn();
 	unreachable();
 }
-
-void play_dead(void)
-{
-	int *state_addr;
-	unsigned int cpu = smp_processor_id();
-	void (*play_dead_uncached)(int *);
-
-	idle_task_exit();
-	play_dead_uncached = (void *)TO_UNCACHE(__pa((unsigned long)loongson3_play_dead));
-	state_addr = &per_cpu(cpu_state, cpu);
-	mb();
-	play_dead_uncached(state_addr);
-}
-
-static int loongson3_disable_clock(unsigned int cpu)
-{
-	uint64_t core_id = cpu_data[cpu].core;
-	uint64_t package_id = cpu_data[cpu].package;
-
-	LOONGSON_FREQCTRL(package_id) &= ~(1 << (core_id * 4 + 3));
-
-	return 0;
-}
-
-static int loongson3_enable_clock(unsigned int cpu)
-{
-	uint64_t core_id = cpu_data[cpu].core;
-	uint64_t package_id = cpu_data[cpu].package;
-
-	LOONGSON_FREQCTRL(package_id) |= 1 << (core_id * 4 + 3);
-
-	return 0;
-}
-
-static int register_loongson3_notifier(void)
-{
-	return cpuhp_setup_state_nocalls(CPUHP_LOONGARCH_SOC_PREPARE,
-					 "loongarch/loongson:prepare",
-					 loongson3_enable_clock,
-					 loongson3_disable_clock);
-}
-early_initcall(register_loongson3_notifier);
 
 #endif
 
