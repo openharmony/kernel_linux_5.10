@@ -45,8 +45,8 @@ unsigned long __xchg_small(volatile void *ptr, unsigned long val, unsigned int s
 	"	or		%1, %1, %5	\n"
 	"	sc.w		%1, %2		\n"
 	"	beqz		%1, 1b		\n"
-	: "=&r" (old32), "=&r" (temp), "=" GCC_OFF_SMALL_ASM() (*ptr32)
-	: GCC_OFF_SMALL_ASM() (*ptr32), "Jr" (mask), "Jr" (val << shift)
+	: "=&r" (old32), "=&r" (temp), "=ZC" (*ptr32)
+	: "ZC" (*ptr32), "Jr" (mask), "Jr" (val << shift)
 	: "memory");
 
 	return (old32 & mask) >> shift;
@@ -96,8 +96,8 @@ unsigned long __cmpxchg_small(volatile void *ptr, unsigned long old,
 	"2:					\n"
 	__WEAK_LLSC_MB
 	"3:					\n"
-	: "=&r" (old32), "=&r" (temp), "=" GCC_OFF_SMALL_ASM() (*ptr32)
-	: GCC_OFF_SMALL_ASM() (*ptr32), "Jr" (mask), "Jr" (old), "Jr" (new)
+	: "=&r" (old32), "=&r" (temp), "=ZC" (*ptr32)
+	: "ZC" (*ptr32), "Jr" (mask), "Jr" (old), "Jr" (new)
 	: "memory");
 
 	return (old32 & mask) >> shift;

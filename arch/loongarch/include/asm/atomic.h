@@ -17,7 +17,6 @@
 
 #include <linux/types.h>
 #include <asm/barrier.h>
-#include <asm/compiler.h>
 #include <asm/cpu-features.h>
 #include <asm/cmpxchg.h>
 
@@ -172,8 +171,7 @@ static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
 		"	beq	$zero, %1, 1b				\n"
 		"2:							\n"
 		__WEAK_LLSC_MB
-		: "=&r" (result), "=&r" (temp),
-		  "+" GCC_OFF_SMALL_ASM() (v->counter)
+		: "=&r" (result), "=&r" (temp), "+ZC" (v->counter)
 		: "I" (-i));
 	} else {
 		__asm__ __volatile__(
@@ -185,8 +183,7 @@ static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
 		"	beq	$zero, %1, 1b				\n"
 		"2:							\n"
 		__WEAK_LLSC_MB
-		: "=&r" (result), "=&r" (temp),
-		  "+" GCC_OFF_SMALL_ASM() (v->counter)
+		: "=&r" (result), "=&r" (temp), "+ZC" (v->counter)
 		: "r" (i));
 	}
 
@@ -336,8 +333,7 @@ static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
 		"	beq	%1, $zero, 1b				\n"
 		"2:							\n"
 		__WEAK_LLSC_MB
-		: "=&r" (result), "=&r" (temp),
-		  "+" GCC_OFF_SMALL_ASM() (v->counter)
+		: "=&r" (result), "=&r" (temp), "+ZC" (v->counter)
 		: "I" (-i));
 	} else {
 		__asm__ __volatile__(
@@ -349,8 +345,7 @@ static __inline__ long atomic64_sub_if_positive(long i, atomic64_t * v)
 		"	beq	%1, $zero, 1b				\n"
 		"2:							\n"
 		__WEAK_LLSC_MB
-		: "=&r" (result), "=&r" (temp),
-		  "+" GCC_OFF_SMALL_ASM() (v->counter)
+		: "=&r" (result), "=&r" (temp), "+ZC" (v->counter)
 		: "r" (i));
 	}
 

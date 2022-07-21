@@ -13,7 +13,6 @@
 #include <linux/bitops.h>
 #include <linux/atomic.h>
 #include <asm/cmpxchg.h>
-#include <asm/compiler.h>
 
 typedef struct
 {

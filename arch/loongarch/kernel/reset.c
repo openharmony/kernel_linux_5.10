@@ -10,7 +10,6 @@
 #include <linux/delay.h>
 #include <linux/console.h>
 
-#include <asm/compiler.h>
 #include <asm/idle.h>
 #include <asm/loongarchregs.h>
 #include <asm/reboot.h>

@@ -9,7 +9,6 @@
 
 #include <asm/asm.h>
 #include <asm/asmmacro.h>
-#include <asm/compiler.h>
 #include <asm/regdef.h>
 #include <asm/loongarchregs.h>
 #include <asm/stackframe.h>
