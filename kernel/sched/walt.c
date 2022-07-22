@@ -25,6 +25,7 @@
 #include "walt.h"
 #include "core_ctl.h"
 #include "rtg/rtg.h"
+#include "rtg/rtg_qos.h"
 #define CREATE_TRACE_POINTS
 #include <trace/events/walt.h>
 #undef CREATE_TRACE_POINTS
@@ -1236,6 +1237,9 @@ void init_new_task_load(struct task_struct *p)
 
 #ifdef CONFIG_SCHED_RTG
 	init_task_rtg(p);
+#endif
+#ifdef CONFIG_SCHED_RTG_QOS
+	init_task_qos(p);
 #endif
 
 	p->last_sleep_ts = 0;
