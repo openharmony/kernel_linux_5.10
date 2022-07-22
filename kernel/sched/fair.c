@@ -5581,6 +5581,7 @@ static int sched_idle_cpu(int cpu)
 
 static void set_next_buddy(struct sched_entity *se);
 
+#ifdef CONFIG_SCHED_LATENCY_NICE
 static void check_preempt_from_idle(struct cfs_rq *cfs, struct sched_entity *se)
 {
 	struct sched_entity *next;
@@ -5607,6 +5608,7 @@ static void check_preempt_from_idle(struct cfs_rq *cfs, struct sched_entity *se)
 	if (next && wakeup_preempt_entity(next, se) == 1)
 		set_next_buddy(se);
 }
+#endif
 
 /*
  * The enqueue_task method is called before nr_running is
@@ -5697,8 +5699,10 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	if (!task_new)
 		update_overutilized_status(rq);
 
+#ifdef CONFIG_SCHED_LATENCY_NICE
 	if (rq->curr == rq->idle)
 		check_preempt_from_idle(cfs_rq_of(&p->se), &p->se);
+#endif
 
 enqueue_throttle:
 	if (cfs_bandwidth_used()) {
@@ -7042,6 +7046,7 @@ balance_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 }
 #endif /* CONFIG_SMP */
 
+#ifdef CONFIG_SCHED_LATENCY_NICE
 static long wakeup_latency_gran(struct sched_entity *curr, struct sched_entity *se)
 {
 	int latency_weight = se->latency_weight;
@@ -7072,6 +7077,7 @@ static long wakeup_latency_gran(struct sched_entity *curr, struct sched_entity *
 
 	return (thresh * latency_weight) >> NICE_LATENCY_SHIFT;
 }
+#endif
 
 static unsigned long wakeup_gran(struct sched_entity *se)
 {
@@ -7112,8 +7118,10 @@ wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se)
 {
 	s64 gran, vdiff = curr->vruntime - se->vruntime;
 
+#ifdef CONFIG_SCHED_LATENCY_NICE
 	/* Take into account latency priority */
 	vdiff += wakeup_latency_gran(curr, se);
+#endif
 
 	if (vdiff <= 0)
 		return -1;

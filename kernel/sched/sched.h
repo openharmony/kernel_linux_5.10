@@ -154,6 +154,7 @@ extern void call_trace_sched_update_nr_running(struct rq *rq, int count);
  */
 #define NS_TO_JIFFIES(TIME)	((unsigned long)(TIME) / (NSEC_PER_SEC / HZ))
 
+#ifdef CONFIG_SCHED_LATENCY_NICE
 /*
  * Latency nice is meant to provide scheduler hints about the relative
  * latency requirements of a task with respect to other tasks.
@@ -182,6 +183,7 @@ extern void call_trace_sched_update_nr_running(struct rq *rq, int count);
 #define LATENCY_TO_NICE(prio)	((prio) - DEFAULT_LATENCY_PRIO)
 #define NICE_LATENCY_SHIFT	(SCHED_FIXEDPOINT_SHIFT)
 #define NICE_LATENCY_WEIGHT_MAX	(1L << NICE_LATENCY_SHIFT)
+#endif /* CONFIG_SCHED_LATENCY_NICE */
 
 /*
  * Increase resolution of nice-level calculations for 64-bit architectures.
@@ -1870,7 +1872,9 @@ static inline int task_on_rq_migrating(struct task_struct *p)
 
 extern const int		sched_prio_to_weight[40];
 extern const u32		sched_prio_to_wmult[40];
+#ifdef CONFIG_SCHED_LATENCY_NICE
 extern const int		sched_latency_to_weight[40];
+#endif
 
 /*
  * {de,en}queue flags:
