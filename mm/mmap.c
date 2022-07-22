@@ -57,6 +57,9 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/mmap.h>
 
+#undef CREATE_TRACE_POINTS
+#include <trace/hooks/mm.h>
+
 #include "internal.h"
 
 #ifndef arch_mmap_check
@@ -1416,6 +1419,7 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	struct mm_struct *mm = current->mm;
 	vm_flags_t vm_flags;
 	int pkey = 0;
+	int err = 0;
 
 	*populate = 0;
 
@@ -1478,6 +1482,10 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 	 */
 	vm_flags = calc_vm_prot_bits(prot, pkey) | calc_vm_flag_bits(flags) |
 			mm->def_flags | VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC;
+
+	trace_vendor_do_mmap(&vm_flags, &err);
+	if (err)
+		return err;
 
 	if (flags & MAP_LOCKED)
 		if (!can_do_mlock())

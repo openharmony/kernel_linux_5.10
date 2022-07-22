@@ -33,6 +33,7 @@
 #include <asm/mmu_context.h>
 #include <asm/tlbflush.h>
 
+#include <trace/hooks/mm.h>
 #include "internal.h"
 
 static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
@@ -518,6 +519,11 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
 	const int grows = prot & (PROT_GROWSDOWN|PROT_GROWSUP);
 	const bool rier = (current->personality & READ_IMPLIES_EXEC) &&
 				(prot & PROT_READ);
+
+	error = 0;
+	trace_vendor_do_mprotect_pkey(prot, &error);
+	if (error)
+		return error;
 
 	start = untagged_addr(start);
 
