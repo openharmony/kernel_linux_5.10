@@ -30,6 +30,7 @@
 #include "smp.h"
 #include "walt.h"
 #include "rtg/rtg.h"
+#include "rtg/rtg_qos.h"
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -9074,6 +9075,10 @@ void sched_exit(struct task_struct *p)
 
 #ifdef CONFIG_SCHED_RTG
 	sched_set_group_id(p, 0);
+#endif
+
+#ifdef CONFIG_SCHED_RTG_QOS
+	sched_exit_qos_list(p);
 #endif
 
 	rq = task_rq_lock(p, &rf);

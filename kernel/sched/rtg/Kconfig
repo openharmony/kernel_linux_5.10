@@ -37,4 +37,22 @@ config SCHED_RTG_RT_THREAD_LIMIT
 	default n
 	help
 	  If set, limit the number of RT threads in frame RTG.
+
+config SCHED_RTG_AUTHORITY
+	bool "Related Thread Group authority control"
+	depends on SCHED_RTG
+	default n
+	help
+	 Support authority for RTG-related operations. If set,
+	 only thread authorized can do RTG-related operations.
+
+config SCHED_RTG_QOS
+	bool "Related Thread Group authority control"
+	depends on SCHED_RTG
+	depends on SCHED_RTG_AUTHORITY
+	default n
+	help
+	 Introduce qos support for thread. If set, thread can
+	 apply kernel qos for better cpu time supply or lower
+	 latency.
 endmenu
