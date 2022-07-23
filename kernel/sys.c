@@ -2588,6 +2588,11 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 
 		error = (current->flags & PR_IO_FLUSHER) == PR_IO_FLUSHER;
 		break;
+	case PR_WGCM_CTL:
+		if (arg4 || arg5)
+			return -EINVAL;
+
+		return wgcm_ctl(arg2, arg3);
 	case PR_SET_VMA:
 		error = prctl_set_vma(arg2, arg3, arg4, arg5);
 		break;
