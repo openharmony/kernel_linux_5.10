@@ -13,7 +13,6 @@
 #include <linux/spinlock.h>
 #include <linux/syscalls.h>
 #include <linux/time.h>
-#include <linux/vmalloc.h>
 #include <linux/version.h>
 #include <linux/sched/debug.h>
 #ifdef CONFIG_DFX_ZEROHUNG
@@ -24,21 +23,13 @@
 
 /* ---- local macroes ---- */
 /* bbox/BBOX - blackbox */
-#define HISTORY_LOG_NAME               "history.log"
-#define LOG_PART_WAIT_TIME             1000 /* unit: ms */
-#define HISTORY_LOG_MAX_LEN            1024
-#define TOP_CATEGORY_SYSTEM_RESET      "System Reset"
-#define TOP_CATEGORY_FREEZE            "System Freeze"
-#define TOP_CATEGORY_SYSTEM_POWEROFF   "POWEROFF"
-#define TOP_CATEGORY_SUBSYSTEM_CRASH   "Subsystem Crash"
-#define CATEGORY_SYSTEM_REBOOT         "SYSREBOOT"
-#define CATEGORY_SYSTEM_POWEROFF       "POWEROFF"
-#define CATEGORY_SYSTEM_PANIC          "PANIC"
-#define CATEGORY_SYSTEM_OOPS           "OOPS"
-#define CATEGORY_SYSTEM_CUSTOM         "CUSTOM"
-#define CATEGORY_SYSTEM_WATCHDOG       "HWWATCHDOG"
-#define CATEGORY_SYSTEM_HUNGTASK       "HUNGTASK"
-#define CATEGORY_SUBSYSTEM_CUSTOM      "CUSTOM"
+#define HISTORY_LOG_NAME		"history.log"
+#define LOG_PART_WAIT_TIME		1000 /* unit: ms */
+#define HISTORY_LOG_MAX_LEN		1024
+#define TOP_CATEGORY_SYSTEM_RESET	"System Reset"
+#define TOP_CATEGORY_FREEZE		"System Freeze"
+#define TOP_CATEGORY_SYSTEM_POWEROFF	"POWEROFF"
+#define TOP_CATEGORY_SUBSYSTEM_CRASH	"Subsystem Crash"
 
 #ifndef CONFIG_BLACKBOX_LOG_ROOT_PATH
 #error no blackbox log root path
@@ -103,6 +94,9 @@ static struct error_info_to_category error_info_categories[] = {
 		MODULE_SYSTEM,
 		{EVENT_HUNGTASK, CATEGORY_SYSTEM_HUNGTASK, TOP_CATEGORY_FREEZE}
 	},
+#ifdef CONFIG_BLACKBOX_EXPAND_EVENT
+	#include <linux/blackbox_expand_event.h>
+#endif
 };
 
 struct error_info *temp_error_info;
@@ -114,7 +108,9 @@ static void format_log_dir(char *buf, size_t buf_size, const char *log_root_dir,
 			   const char *timestamp);
 static void save_history_log(const char *log_root_dir, struct error_info *info,
 			     const char *timestamp, int need_sys_reset);
+#ifdef CONFIG_BLACKBOX_DEBUG
 static void save_invalid_log(const struct bbox_ops *ops, const struct error_info *info);
+#endif
 static void wait_for_log_part(void);
 static void format_error_info(struct error_info *info, const char event[EVENT_MAX_LEN],
 			      const char module[MODULE_MAX_LEN],
@@ -137,9 +133,8 @@ static const char *get_top_category(const char *module, const char *event)
 
 	for (i = 0; i < count; i++) {
 		if (!strcmp(error_info_categories[i].module, module) &&
-		    !strcmp(error_info_categories[i].map.event, event)) {
+		    !strcmp(error_info_categories[i].map.event, event))
 			return error_info_categories[i].map.top_category;
-		}
 	}
 	if (!strcmp(module, MODULE_SYSTEM))
 		return TOP_CATEGORY_SYSTEM_RESET;
@@ -159,9 +154,8 @@ static const char *get_category(const char *module, const char *event)
 
 	for (i = 0; i < count; i++) {
 		if (!strcmp(error_info_categories[i].module, module) &&
-		    !strcmp(error_info_categories[i].map.event, event)) {
+		    !strcmp(error_info_categories[i].map.event, event))
 			return error_info_categories[i].map.category;
-		}
 	}
 	if (!strcmp(module, MODULE_SYSTEM))
 		return CATEGORY_SYSTEM_CUSTOM;
@@ -198,6 +192,8 @@ static void format_error_info(struct error_info *info, const char event[EVENT_MA
 				sizeof(info->event) - 1));
 	strncpy(info->module, module, min(strlen(module),
 				sizeof(info->module) - 1));
+	strncpy(info->category, get_category(module, event),
+				min(strlen(get_category(module, event)), sizeof(info->category) - 1));
 	get_timestamp(info->error_time, TIMESTAMP_MAX_LEN);
 	strncpy(info->error_desc, error_desc, min(strlen(error_desc),
 				sizeof(info->error_desc) - 1));
@@ -215,26 +211,28 @@ static void save_history_log(const char *log_root_dir, struct error_info *info,
 		return;
 	}
 
-	buf = vmalloc(HISTORY_LOG_MAX_LEN + 1);
+	buf = kmalloc(HISTORY_LOG_MAX_LEN + 1, GFP_KERNEL);
 	if (!buf)
 		return;
-
 	memset(buf, 0, HISTORY_LOG_MAX_LEN + 1);
+
 	scnprintf(buf, HISTORY_LOG_MAX_LEN, HISTORY_LOG_FORMAT,
 			get_top_category(info->module, info->event), info->module,
-			get_category(info->module, info->event), info->event, timestamp,
-			need_sys_reset ? "true" : "false", info->error_desc);
+			info->category, info->event, timestamp,
+			need_sys_reset ? "true" : "false", info->error_desc, log_root_dir);
 #ifdef CONFIG_DFX_ZEROHUNG
-	zrhung_send_event("KERNEL_VENDOR", "PANIC", info->error_desc);
+	zrhung_send_event("KERNEL_VENDOR", info->category, info->error_desc);
 #endif
 	memset(history_log_path, 0, sizeof(history_log_path));
 	scnprintf(history_log_path, sizeof(history_log_path) - 1,
 			"%s/%s", log_root_dir, HISTORY_LOG_NAME);
 	full_write_file(history_log_path, buf, strlen(buf), 1);
 	change_own(history_log_path, AID_ROOT, AID_SYSTEM);
-	vfree(buf);
+	ksys_sync();
+	kfree(buf);
 }
 
+#ifdef CONFIG_BLACKBOX_DEBUG
 static void save_invalid_log(const struct bbox_ops *ops, const struct error_info *info)
 {
 	char invalid_log_path[PATH_MAX_LEN];
@@ -252,6 +250,7 @@ static void save_invalid_log(const struct bbox_ops *ops, const struct error_info
 	if (ops->ops.save_last_log(invalid_log_path, (struct error_info *)info) != 0)
 		bbox_print_err("[%s] failed to save invalid log!\n", ops->ops.module);
 }
+#endif
 
 static bool is_log_part_mounted(void)
 {
@@ -295,7 +294,7 @@ static bool find_module_ops(struct error_info *info, struct bbox_ops **ops)
 static void invoke_module_ops(const char *log_dir, struct error_info *info,
 					struct bbox_ops *ops)
 {
-	if (unlikely(!info || !!ops)) {
+	if (unlikely(!info || !ops)) {
 		bbox_print_err("info: %p, ops: %p!\n", info, ops);
 		return;
 	}
@@ -337,17 +336,17 @@ static void save_log_without_reset(struct error_info *info)
 	create_log_dir(CONFIG_BLACKBOX_LOG_ROOT_PATH);
 	if (ops->ops.dump) {
 		/* create log root path */
+		log_dir = kmalloc(PATH_MAX_LEN, GFP_KERNEL);
 		if (log_dir) {
 			format_log_dir(log_dir, PATH_MAX_LEN,
 						CONFIG_BLACKBOX_LOG_ROOT_PATH, timestamp);
 			create_log_dir(log_dir);
 		} else
-			bbox_print_err("vmalloc failed!\n");
+			bbox_print_err("kmalloc failed!\n");
 	}
 	invoke_module_ops(log_dir, info, ops);
 	save_history_log(CONFIG_BLACKBOX_LOG_ROOT_PATH, info, timestamp, 0);
-	if (log_dir)
-		vfree(log_dir);
+	kfree(log_dir);
 }
 
 static void save_log_with_reset(struct error_info *info)
@@ -363,7 +362,8 @@ static void save_log_with_reset(struct error_info *info)
 		return;
 
 	invoke_module_ops("", info, ops);
-	if (strcmp(info->event, EVENT_SYSREBOOT))
+	if (strcmp(info->category, CATEGORY_SYSTEM_REBOOT) &&
+		strcmp(info->category, CATEGORY_SYSTEM_PANIC))
 		sys_reset();
 }
 
@@ -382,7 +382,7 @@ static void save_temp_error_info(const char event[EVENT_MAX_LEN],
 	up(&temp_error_info_sem);
 }
 
-static void do_save_last_log(const struct bbox_ops *ops, const struct error_info *info)
+static void do_save_last_log(const struct bbox_ops *ops, struct error_info *info)
 {
 	char *log_dir = NULL;
 	int ret;
@@ -397,15 +397,21 @@ static void do_save_last_log(const struct bbox_ops *ops, const struct error_info
 	ret = ops->ops.get_last_log_info((struct error_info *)info);
 	if (ret) {
 		bbox_print_err("[%s] failed to get log info!\n", ops->ops.module);
+#ifdef CONFIG_BLACKBOX_DEBUG
 		if (ret == -ENOMSG)
 			save_invalid_log(ops, info);
+#endif
 		return;
 	}
+
+	strncpy(info->category, get_category(info->module, info->event),
+	       min(strlen(get_category(info->module, info->event)), sizeof(info->category) - 1));
+
 	bbox_print_info("[%s] starts saving log!\n", ops->ops.module);
 	bbox_print_info("event: [%s] module: [%s], time is [%s]!\n",
 			info->event, info->module, info->error_time);
 
-	log_dir = vmalloc(PATH_MAX_LEN);
+	log_dir = kmalloc(PATH_MAX_LEN, GFP_KERNEL);
 	if (!log_dir)
 		return;
 
@@ -420,7 +426,7 @@ static void do_save_last_log(const struct bbox_ops *ops, const struct error_info
 					(struct error_info *)info, info->error_time, 1);
 	else
 		bbox_print_err("[%s] failed to save log!\n", ops->ops.module);
-	vfree(log_dir);
+	kfree(log_dir);
 }
 
 static void save_last_log(void)
@@ -429,7 +435,7 @@ static void save_last_log(void)
 	struct error_info *info = NULL;
 	struct bbox_ops *ops = NULL;
 
-	info = vmalloc(sizeof(*info));
+	info = kmalloc(sizeof(*info), GFP_KERNEL);
 	if (!info)
 		return;
 
@@ -447,7 +453,7 @@ static void save_last_log(void)
 		}
 	}
 	spin_unlock_irqrestore(&ops_list_lock, flags);
-	vfree(info);
+	kfree(info);
 }
 
 static void save_temp_error_log(void)
@@ -462,7 +468,7 @@ static void save_temp_error_log(void)
 	if (strlen(temp_error_info->event) != 0)
 		save_log_without_reset(temp_error_info);
 
-	vfree(temp_error_info);
+	kfree(temp_error_info);
 	temp_error_info = NULL;
 	up(&temp_error_info_sem);
 }
@@ -487,7 +493,7 @@ int bbox_register_module_ops(struct module_ops *ops)
 		return -EINVAL;
 	}
 
-	new_ops = vmalloc(sizeof(*new_ops));
+	new_ops = kmalloc(sizeof(*new_ops), GFP_KERNEL);
 	if (!new_ops)
 		return -ENOMEM;
 	memset(new_ops, 0, sizeof(*new_ops));
@@ -499,7 +505,7 @@ int bbox_register_module_ops(struct module_ops *ops)
 	list_for_each_entry(temp, &ops_list, list) {
 		if (!strcmp(temp->ops.module, ops->module)) {
 			spin_unlock_irqrestore(&ops_list_lock, flags);
-			vfree(new_ops);
+			kfree(new_ops);
 			bbox_print_info("[%s] has been registered!\n", temp->ops.module);
 			return -ENODATA;
 		}
@@ -524,7 +530,7 @@ int bbox_notify_error(const char event[EVENT_MAX_LEN], const char module[MODULE_
 		return -EINVAL;
 	}
 
-	info = vmalloc(sizeof(*info));
+	info = kmalloc(sizeof(*info), GFP_ATOMIC);
 	if (!info)
 		return -ENOMEM;
 
@@ -541,7 +547,7 @@ int bbox_notify_error(const char event[EVENT_MAX_LEN], const char module[MODULE_
 		save_log_with_reset(info);
 	}
 
-	vfree(info);
+	kfree(info);
 
 	return 0;
 }
@@ -567,7 +573,7 @@ static int __init blackbox_core_init(void)
 
 	select_storage_material();
 
-	temp_error_info = vmalloc(sizeof(*temp_error_info));
+	temp_error_info = kmalloc(sizeof(*temp_error_info), GFP_KERNEL);
 	if (!temp_error_info)
 		return -ENOMEM;
 
@@ -576,7 +582,7 @@ static int __init blackbox_core_init(void)
 	/* Create a kernel thread to save log */
 	tsk = kthread_run(save_error_log, NULL, "save_error_log");
 	if (IS_ERR(tsk)) {
-		vfree(temp_error_info);
+		kfree(temp_error_info);
 		temp_error_info = NULL;
 		bbox_print_err("kthread_run failed!\n");
 		return -ESRCH;
