@@ -1046,6 +1046,9 @@ void proc_sched_show_task(struct task_struct *p, struct pid_namespace *ns,
 #endif
 	P(policy);
 	P(prio);
+#ifdef CONFIG_SCHED_LATENCY_NICE
+	P(latency_prio);
+#endif
 	if (task_has_dl_policy(p)) {
 		P(dl.runtime);
 		P(dl.deadline);

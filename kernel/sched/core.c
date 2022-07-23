@@ -874,6 +874,49 @@ static void set_load_weight(struct task_struct *p, bool update_load)
 	}
 }
 
+#ifdef CONFIG_SCHED_LATENCY_NICE
+static void set_latency_weight(struct task_struct *p)
+{
+	p->se.latency_weight = sched_latency_to_weight[p->latency_prio];
+}
+
+static void __setscheduler_latency(struct task_struct *p,
+		const struct sched_attr *attr)
+{
+	if (attr->sched_flags & SCHED_FLAG_LATENCY_NICE) {
+		p->latency_prio = NICE_TO_LATENCY(attr->sched_latency_nice);
+		set_latency_weight(p);
+	}
+}
+
+static int latency_nice_validate(struct task_struct *p, bool user,
+				 const struct sched_attr *attr)
+{
+	if (attr->sched_latency_nice > MAX_LATENCY_NICE)
+		return -EINVAL;
+	if (attr->sched_latency_nice < MIN_LATENCY_NICE)
+		return -EINVAL;
+	/* Use the same security checks as NICE */
+	if (user && attr->sched_latency_nice < LATENCY_TO_NICE(p->latency_prio)
+	    && !capable(CAP_SYS_NICE))
+		return -EPERM;
+
+	return 0;
+}
+#else
+static void
+__setscheduler_latency(struct task_struct *p, const struct sched_attr *attr)
+{
+}
+
+static inline
+int latency_nice_validate(struct task_struct *p, bool user,
+			  const struct sched_attr *attr)
+{
+	return -EOPNOTSUPP;
+}
+#endif
+
 #ifdef CONFIG_UCLAMP_TASK
 /*
  * Serializes updates of utilization clamp values
@@ -3347,6 +3390,11 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 */
 	p->prio = current->normal_prio;
 
+#ifdef CONFIG_SCHED_LATENCY_NICE
+	/* Propagate the parent's latency requirements to the child as well */
+	p->latency_prio = current->latency_prio;
+#endif
+
 	uclamp_fork(p);
 
 	/*
@@ -3369,6 +3417,11 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 
 		p->prio = p->normal_prio = p->static_prio;
 		set_load_weight(p, false);
+
+#ifdef CONFIG_SCHED_LATENCY_NICE
+		p->latency_prio = NICE_TO_LATENCY(0);
+		set_latency_weight(p);
+#endif
 
 		/*
 		 * We don't need the reset flag anymore after the fork. It has
@@ -5442,6 +5495,12 @@ recheck:
 			return retval;
 	}
 
+	if (attr->sched_flags & SCHED_FLAG_LATENCY_NICE) {
+		retval = latency_nice_validate(p, user, attr);
+		if (retval)
+			return retval;
+	}
+
 	if (pi)
 		cpuset_read_lock();
 
@@ -5476,6 +5535,11 @@ recheck:
 			goto change;
 		if (attr->sched_flags & SCHED_FLAG_UTIL_CLAMP)
 			goto change;
+#ifdef CONFIG_SCHED_LATENCY_NICE
+		if (attr->sched_flags & SCHED_FLAG_LATENCY_NICE &&
+		    attr->sched_latency_nice != LATENCY_TO_NICE(p->latency_prio))
+			goto change;
+#endif
 
 		p->sched_reset_on_fork = reset_on_fork;
 		retval = 0;
@@ -5564,6 +5628,7 @@ change:
 		__setscheduler_params(p, attr);
 		__setscheduler_prio(p, newprio);
 	}
+	__setscheduler_latency(p, attr);
 	__setscheduler_uclamp(p, attr);
 
 	if (queued) {
@@ -5772,6 +5837,11 @@ static int sched_copy_attr(struct sched_attr __user *uattr, struct sched_attr *a
 	    size < SCHED_ATTR_SIZE_VER1)
 		return -EINVAL;
 
+#ifdef CONFIG_SCHED_LATENCY_NICE
+	if ((attr->sched_flags & SCHED_FLAG_LATENCY_NICE) &&
+	    size < SCHED_ATTR_SIZE_VER2)
+		return -EINVAL;
+#endif
 	/*
 	 * XXX: Do we want to be lenient like existing syscalls; or do we want
 	 * to be strict and return an error on out-of-bounds values?
@@ -6000,6 +6070,10 @@ SYSCALL_DEFINE4(sched_getattr, pid_t, pid, struct sched_attr __user *, uattr,
 		kattr.sched_priority = p->rt_priority;
 	else
 		kattr.sched_nice = task_nice(p);
+
+#ifdef CONFIG_SCHED_LATENCY_NICE
+	kattr.sched_latency_nice = LATENCY_TO_NICE(p->latency_prio);
+#endif
 
 #ifdef CONFIG_UCLAMP_TASK
 	/*
@@ -9048,6 +9122,22 @@ const u32 sched_prio_to_wmult[40] = {
  /*  10 */  39045157,  49367440,  61356676,  76695844,  95443717,
  /*  15 */ 119304647, 148102320, 186737708, 238609294, 286331153,
 };
+
+#ifdef CONFIG_SCHED_LATENCY_NICE
+/*
+ * latency weight for wakeup preemption
+ */
+const int sched_latency_to_weight[40] = {
+ /* -20 */      1024,       973,       922,       870,       819,
+ /* -15 */       768,       717,       666,       614,       563,
+ /* -10 */       512,       461,       410,       358,       307,
+ /*  -5 */       256,       205,       154,       102,       51,
+ /*   0 */	   0,       -51,      -102,      -154,      -205,
+ /*   5 */      -256,      -307,      -358,      -410,      -461,
+ /*  10 */      -512,      -563,      -614,      -666,      -717,
+ /*  15 */      -768,      -819,      -870,      -922,      -973,
+};
+#endif
 
 void call_trace_sched_update_nr_running(struct rq *rq, int count)
 {

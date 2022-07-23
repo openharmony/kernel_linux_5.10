@@ -5579,6 +5579,37 @@ static int sched_idle_cpu(int cpu)
 }
 #endif
 
+static void set_next_buddy(struct sched_entity *se);
+
+#ifdef CONFIG_SCHED_LATENCY_NICE
+static void check_preempt_from_idle(struct cfs_rq *cfs, struct sched_entity *se)
+{
+	struct sched_entity *next;
+
+	if (se->latency_weight <= 0)
+		return;
+
+	if (cfs->nr_running <= 1)
+		return;
+	/*
+	 * When waking from idle, we don't need to check to preempt at wakeup
+	 * the idle thread and don't set next buddy as a candidate for being
+	 * picked in priority.
+	 * In case of simultaneous wakeup from idle, the latency sensitive tasks
+	 * lost opportunity to preempt non sensitive tasks which woke up
+	 * simultaneously.
+	 */
+
+	if (cfs->next)
+		next = cfs->next;
+	else
+		next = __pick_first_entity(cfs);
+
+	if (next && wakeup_preempt_entity(next, se) == 1)
+		set_next_buddy(se);
+}
+#endif
+
 /*
  * The enqueue_task method is called before nr_running is
  * increased. Here we update the fair scheduling stats and
@@ -5668,6 +5699,11 @@ enqueue_task_fair(struct rq *rq, struct task_struct *p, int flags)
 	if (!task_new)
 		update_overutilized_status(rq);
 
+#ifdef CONFIG_SCHED_LATENCY_NICE
+	if (rq->curr == rq->idle)
+		check_preempt_from_idle(cfs_rq_of(&p->se), &p->se);
+#endif
+
 enqueue_throttle:
 	if (cfs_bandwidth_used()) {
 		/*
@@ -5688,8 +5724,6 @@ enqueue_throttle:
 
 	hrtick_update(rq);
 }
-
-static void set_next_buddy(struct sched_entity *se);
 
 /*
  * The dequeue_task method is called before nr_running is
@@ -7012,6 +7046,39 @@ balance_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 }
 #endif /* CONFIG_SMP */
 
+#ifdef CONFIG_SCHED_LATENCY_NICE
+static long wakeup_latency_gran(struct sched_entity *curr, struct sched_entity *se)
+{
+	int latency_weight = se->latency_weight;
+	long thresh = sysctl_sched_latency;
+
+	/*
+	 * A positive latency weigth means that the sched_entity has latency
+	 * requirement that needs to be evaluated versus other entity.
+	 * Otherwise, use the latency weight to evaluate how much scheduling
+	 * delay is acceptable by se.
+	 */
+	if ((se->latency_weight > 0) || (curr->latency_weight > 0))
+		latency_weight -= curr->latency_weight;
+
+	if (!latency_weight)
+		return 0;
+
+	if (sched_feat(GENTLE_FAIR_SLEEPERS))
+		thresh >>= 1;
+
+	/*
+	 * Clamp the delta to stay in the scheduler period range
+	 * [-sysctl_sched_latency:sysctl_sched_latency]
+	 */
+	latency_weight = clamp_t(long, latency_weight,
+				-1 * NICE_LATENCY_WEIGHT_MAX,
+				NICE_LATENCY_WEIGHT_MAX);
+
+	return (thresh * latency_weight) >> NICE_LATENCY_SHIFT;
+}
+#endif
+
 static unsigned long wakeup_gran(struct sched_entity *se)
 {
 	unsigned long gran = sysctl_sched_wakeup_granularity;
@@ -7050,6 +7117,11 @@ static int
 wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se)
 {
 	s64 gran, vdiff = curr->vruntime - se->vruntime;
+
+#ifdef CONFIG_SCHED_LATENCY_NICE
+	/* Take into account latency priority */
+	vdiff += wakeup_latency_gran(curr, se);
+#endif
 
 	if (vdiff <= 0)
 		return -1;
