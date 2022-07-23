@@ -1699,6 +1699,13 @@ config KALLSYMS
 	  symbolic stack backtraces. This increases the size of the kernel
 	  somewhat, as all symbols have to be loaded into the kernel image.
 
+config WGCM
+	bool "Enable Workgroup Control Monitor API"
+	default n
+	help
+	  Enable Workgroup Control Monitor API, userspace can get the number of
+	  blocked threads.
+
 config KALLSYMS_ALL
 	bool "Include all symbols in kallsyms"
 	depends on DEBUG_KERNEL && KALLSYMS
