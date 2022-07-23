@@ -858,6 +858,13 @@ config UCLAMP_BUCKETS_COUNT
 
 	  If in doubt, use the default value.
 
+config SCHED_LATENCY_NICE
+	bool "Enable latency feature for FAIR tasks"
+	default n
+	help
+	  This feature use latency nice priority to decide if a cfs task can
+	  preempt the current running task.
+
 source "kernel/sched/rtg/Kconfig"
 
 config SCHED_EAS

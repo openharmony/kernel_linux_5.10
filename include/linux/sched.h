@@ -538,6 +538,10 @@ struct sched_entity {
 	unsigned long			runnable_weight;
 #endif
 
+#ifdef CONFIG_SCHED_LATENCY_NICE
+	int				latency_weight;
+#endif
+
 #ifdef CONFIG_SMP
 	/*
 	 * Per entity load average tracking.
@@ -797,6 +801,9 @@ struct task_struct {
 	int				static_prio;
 	int				normal_prio;
 	unsigned int			rt_priority;
+#ifdef CONFIG_SCHED_LATENCY_NICE
+	int				latency_prio;
+#endif
 
 	const struct sched_class	*sched_class;
 	struct sched_entity		se;
