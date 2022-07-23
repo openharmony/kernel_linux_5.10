@@ -850,6 +850,8 @@ void __noreturn do_exit(long code)
 	if (tsk->task_frag.page)
 		put_page(tsk->task_frag.page);
 
+	wgcm_do_exit(tsk);
+
 	validate_creds_for_do_exit(tsk);
 
 	check_stack_usage();
