@@ -62,6 +62,7 @@
 #include <linux/rcupdate.h>
 #include <linux/uidgid.h>
 #include <linux/cred.h>
+#include <linux/wgcm.h>
 
 #include <linux/nospec.h>
 

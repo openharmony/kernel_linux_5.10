@@ -64,6 +64,7 @@
 #include <linux/compat.h>
 #include <linux/vmalloc.h>
 #include <linux/io_uring.h>
+#include <linux/wgcm.h>
 
 #include <linux/uaccess.h>
 #include <asm/mmu_context.h>
