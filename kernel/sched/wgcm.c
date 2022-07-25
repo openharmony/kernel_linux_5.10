@@ -1,6 +1,9 @@
-// SPDX-License-Identifier: GPL-2.0-only
-
-/* WGCM: Workergroup Control Monitor */
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * WGCM: Workergroup Control Monitor
+ *
+ * Copyright (c) 2022-2023 Huawei Technologies Co., Ltd.
+ */
 
 #include <linux/wgcm.h>
 #include <linux/types.h>
@@ -38,7 +41,7 @@ void wgcm_upd_blk_workers_sum(struct task_struct *p, bool active)
 	struct wgcm_task *server = p->wgcm_server_task;
 
 	if (!server) {
-		pr_err("[WGCM]The WGCM worker is not bound to it's server");
+		pr_err("[WGCM]The WGCM worker is not bound to it's server.\n");
 		return;
 	}
 
@@ -93,19 +96,15 @@ void wgcm_do_exit(struct task_struct *tsk)
 	kfree(self);
 }
 
-int wgcm_get_taskinfo(struct wgcm_task __user *self)
+int wgcm_get_taskinfo(struct wgcm_task_data __user *self)
 {
 	struct task_struct *tsk = current;
-	int ret;
 
 	if (tsk->flags & PF_WGCM_WORKER || !tsk->wgcm_task)
 		return -EINVAL;
 
-	ret = copy_to_user(self, tsk->wgcm_task, sizeof(*self));
-	if (ret) {
-		pr_err("[WGCM] wgcm_task copy to user fail, ret = %d.", ret);
-		return ret;
-	}
+	self->workers_sum = atomic_read(&tsk->wgcm_task->workers_sum);
+	self->blk_workers_sum = atomic_read(&tsk->wgcm_task->blk_workers_sum);
 
 	return 0;
 }
@@ -122,7 +121,7 @@ static int wgcm_register(unsigned long flags, unsigned int __user *server_tid)
 	}
 
 	if (tsk->wgcm_task || tid == 0) {
-		pr_err("[WGCM][PID:%d]server_tid = %ld", current->pid, tid);
+		pr_err("[WGCM][PID:%d]server_tid = %u.\n", current->pid, tid);
 		return -EINVAL;
 	}
 
@@ -137,7 +136,7 @@ static int wgcm_register(unsigned long flags, unsigned int __user *server_tid)
 	rcu_read_lock();
 	server = find_task_by_vpid(tid);
 	if (!server)
-		pr_err("[WGCM][PID:%d]find server(%d) fail", tsk->pid, tid);
+		pr_err("[WGCM][PID:%d]find server(%d) fail.\n", tsk->pid, tid);
 	if (server && server->mm == current->mm) {
 		if (flags == WGCM_CTL_WORKER) {
 			if (!server->wgcm_task || (server->flags & PF_WGCM_WORKER))
@@ -229,7 +228,7 @@ int wgcm_ctl(unsigned long flags, unsigned long addr)
 		return wgcm_unregister();
 
 	case WGCM_CTL_GET:
-		return wgcm_get_taskinfo((struct wgcm_task __user *)addr);
+		return wgcm_get_taskinfo((struct wgcm_task_data __user *)addr);
 
 	default:
 		break;

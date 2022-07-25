@@ -1,46 +1,37 @@
 /* SPDX-License-Identifier: GPL-2.0+ WITH Linux-syscall-note */
+/*
+ * WGCM: Workergroup Control Monitor
+ *
+ * Copyright (c) 2022-2023 Huawei Technologies Co., Ltd.
+ */
+
 #ifndef _UAPI_LINUX_WGCM_H
 #define _UAPI_LINUX_WGCM_H
 
 #include <linux/types.h>
 
-/*
- * WGCM: Workegroup Control Monitor.
- *
- * use sys_prctl() (see kernel/sys.c) :
- *	wgcm_ctl():	register/unregister WGCM tasks.
- *
- */
-
 #define UMCG_TASK_ALIGN			64
-
-#define UMCG_TID_MASK			0x3fffffffU
-
 /**
  * struct wgcm_task: controls the state of WGCM tasks.
  *
  * The struct is aligned at 64 bytes to ensure that it fits into
  * a single cache line.
  */
-struct wgcm_task {
+struct wgcm_task_data {
 	/**
 	 * @server_tid: server's tid.
 	 */
-	__u32	server_tid;			/* r w */
+	__u32	server_tid;
 
 	/**
 	 * @workers_sum: count the number of workers which is bound with server
-
-	 * Read-only for the userspace
 	 */
-	atomic_t	workers_sum;			/* r   */
+	int	workers_sum;
 
 	/**
 	 * @blk_workers_sum: count the number of block workers
-	 *
-	 * Read-only for the userspace
 	 */
-	atomic_t	blk_workers_sum;		/* r   */
+	int	blk_workers_sum;
 
 	__u32	__zero[1];
 
