@@ -21,10 +21,10 @@
  * format:
  * [topCategoryName],module[moduleName],category[categoryName],\
  * event[eventName],time[seconds from 1970-01-01 00:00:00 UTC-tick],\
- * sysreboot[true|false],errordesc[errorDescription]\n
+ * sysreboot[true|false],errordesc[errorDescription],logpath[logpath]\n
  */
 #define HISTORY_LOG_FORMAT "[%s],module[%s],category[%s],event[%s],"\
-	"time[%s],sysreboot[%s],errdesc[%s]\n"
+	"time[%s],sysreboot[%s],errdesc[%s],logpath[%s]\n"
 #define TIMESTAMP_FORMAT "%04d%02d%02d%02d%02d%02d-%08llu"
 
 void sys_reset(void);

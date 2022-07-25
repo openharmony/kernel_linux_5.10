@@ -11,6 +11,7 @@
 
 #define PATH_MAX_LEN         256
 #define EVENT_MAX_LEN        32
+#define CATEGORY_MAX_LEN     32
 #define MODULE_MAX_LEN       32
 #define TIMESTAMP_MAX_LEN    24
 #define ERROR_DESC_MAX_LEN   512
@@ -18,6 +19,16 @@
 
 /* module type */
 #define MODULE_SYSTEM        "SYSTEM"
+
+/* fault category type */
+#define CATEGORY_SYSTEM_REBOOT         "SYSREBOOT"
+#define CATEGORY_SYSTEM_POWEROFF       "POWEROFF"
+#define CATEGORY_SYSTEM_PANIC          "PANIC"
+#define CATEGORY_SYSTEM_OOPS           "OOPS"
+#define CATEGORY_SYSTEM_CUSTOM         "CUSTOM"
+#define CATEGORY_SYSTEM_WATCHDOG       "HWWATCHDOG"
+#define CATEGORY_SYSTEM_HUNGTASK       "HUNGTASK"
+#define CATEGORY_SUBSYSTEM_CUSTOM      "CUSTOM"
 
 /* fault event type */
 #define EVENT_SYSREBOOT      "SYSREBOOT"
@@ -43,14 +54,15 @@
 
 struct error_info {
 	char event[EVENT_MAX_LEN];
+	char category[CATEGORY_MAX_LEN];
 	char module[MODULE_MAX_LEN];
 	char error_time[TIMESTAMP_MAX_LEN];
 	char error_desc[ERROR_DESC_MAX_LEN];
 };
 
 struct fault_log_info {
-	char flag[8];  /* 8 is the length of the flag */
-	size_t len;  /* length of the kernel fault log */
+	char flag[8]; /* 8 is the length of the flag */
+	size_t len; /* length of the kernel fault log */
 	struct error_info info;
 };
 

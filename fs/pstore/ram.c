@@ -797,6 +797,10 @@ static int ramoops_probe(struct platform_device *pdev)
 			       cxt->blackbox_size, 0);
 	if (err)
 		goto fail_init_bprz;
+#if IS_ENABLED(CONFIG_PSTORE_BLACKBOX)
+	else
+		pstore_ready = true;
+#endif
 
 	err = ramoops_init_przs("dmesg", dev, cxt, &cxt->dprzs, &paddr,
 				dump_mem_sz, cxt->record_size,
@@ -997,10 +1001,6 @@ static int __init ramoops_init(void)
 	ret = platform_driver_register(&ramoops_driver);
 	if (ret != 0)
 		ramoops_unregister_dummy();
-#if IS_ENABLED(CONFIG_PSTORE_BLACKBOX)
-	if (!ret)
-		pstore_ready = true;
-#endif
 
 	return ret;
 }
