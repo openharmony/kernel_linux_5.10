@@ -2217,35 +2217,6 @@ static inline void rseq_syscall(struct pt_regs *regs)
 
 #endif
 
-#ifdef CONFIG_WGCM
-extern int wgcm_ctl(unsigned long flags, unsigned long server_tid);
-extern void wgcm_do_exit(struct task_struct *tsk);
-extern void wgcm_clear_child(struct task_struct *p);
-extern void wgcm_activate_task(struct task_struct *p);
-extern void wgcm_deactivate_task(struct task_struct *p, int flags);
-#else
-static inline int wgcm_ctl(unsigned long flags, unsigned long server_tid)
-{
-	return -EOPNOTSUPP;
-}
-
-static inline void wgcm_do_exit(struct task_struct *tsk)
-{
-}
-
-static inline void wgcm_clear_child(struct task_struct *p)
-{
-}
-
-static inline void wgcm_activate_task(struct task_struct *p)
-{
-}
-
-static inline void wgcm_deactivate_task(struct task_struct *p, int flags)
-{
-}
-#endif
-
 const struct sched_avg *sched_trace_cfs_rq_avg(struct cfs_rq *cfs_rq);
 char *sched_trace_cfs_rq_path(struct cfs_rq *cfs_rq, char *str, int len);
 int sched_trace_cfs_rq_cpu(struct cfs_rq *cfs_rq);
