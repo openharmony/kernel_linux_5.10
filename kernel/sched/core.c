@@ -18,6 +18,7 @@
 #include <linux/scs.h>
 #include <linux/irq.h>
 #include <linux/delay.h>
+#include <linux/wgcm.h>
 
 #include <asm/switch_to.h>
 #include <asm/tlb.h>
