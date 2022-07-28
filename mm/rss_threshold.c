@@ -54,6 +54,7 @@ static ssize_t rss_threshold_write(struct file *file, const char __user *buf,
 {
 	struct inode *inode = file_inode(file);
 	struct task_struct *p;
+	struct mm_struct *mm = NULL;
 	unsigned long mem_total;
 	unsigned long rss_threshold;
 	int err;
@@ -70,9 +71,11 @@ static ssize_t rss_threshold_write(struct file *file, const char __user *buf,
 	if (!p)
 		return -ESRCH;
 
-	if (p->mm) {
-		p->mm->rss_threshold = rss_threshold;
-		listen_rss_threshold(p->mm);
+	mm = get_task_mm(p);
+	if (mm) {
+		mm->rss_threshold = rss_threshold;
+		listen_rss_threshold(mm);
+		mmput(mm);
 	}
 
 	put_task_struct(p);
@@ -84,13 +87,17 @@ static int rss_threshold_show(struct seq_file *m, void *v)
 {
 	struct inode *inode = m->private;
 	struct task_struct *p;
+	struct mm_struct *mm = NULL;
 
 	p = get_proc_task(inode);
 	if (!p)
 		return -ESRCH;
 
-	seq_printf(m, "Threshold:%lu KB\n", p->mm->rss_threshold);
-
+	mm = get_task_mm(p);
+	if (mm) {
+		seq_printf(m, "Threshold:%lu KB\n", mm->rss_threshold);
+		mmput(mm);
+	}
 	put_task_struct(p);
 
 	return 0;
