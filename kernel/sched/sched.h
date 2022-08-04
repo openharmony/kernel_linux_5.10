@@ -88,7 +88,9 @@ struct rq;
 struct cpuidle_state;
 
 #ifdef CONFIG_SCHED_RT_CAS
-extern unsigned long uclamp_task_util(struct task_struct *p);
+extern unsigned long uclamp_task_util(struct task_struct *p,
+					     unsigned long uclamp_min,
+					     unsigned long uclamp_max);
 #endif
 
 #ifdef CONFIG_SCHED_WALT

@@ -1736,7 +1736,7 @@ static int find_cas_cpu(struct sched_domain *sd,
 	int cpu = -1;
 	int target_cpu = -1;
 	unsigned long cpu_capacity;
-	unsigned long boosted_tutil = uclamp_task_util(task);
+	unsigned long boosted_tutil = uclamp_task_util(task, uclamp_eff_value(task, UCLAMP_MIN), uclamp_eff_value(task, UCLAMP_MAX));
 	unsigned long target_capacity = ULONG_MAX;
 	unsigned long util;
 	unsigned long target_cpu_util = ULONG_MAX;
