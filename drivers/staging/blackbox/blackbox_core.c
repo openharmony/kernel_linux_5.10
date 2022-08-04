@@ -227,7 +227,6 @@ static void save_history_log(const char *log_root_dir, struct error_info *info,
 	scnprintf(history_log_path, sizeof(history_log_path) - 1,
 			"%s/%s", log_root_dir, HISTORY_LOG_NAME);
 	full_write_file(history_log_path, buf, strlen(buf), 1);
-	change_own(history_log_path, AID_ROOT, AID_SYSTEM);
 	ksys_sync();
 	kfree(buf);
 }
