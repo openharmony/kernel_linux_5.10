@@ -55,7 +55,7 @@ int full_write_file(const char *pfile_path, char *buf,
 	}
 
 	filp = file_open(pfile_path, O_CREAT | O_RDWR |
-			(is_append ? O_APPEND : O_TRUNC), 0);
+			(is_append ? O_APPEND : O_TRUNC), BBOX_FILE_LIMIT);
 	if (IS_ERR(filp)) {
 		bbox_print_err("open %s failed! [%ld]\n", pfile_path, PTR_ERR(filp));
 		return -EBADF;
@@ -113,8 +113,6 @@ static int create_new_dir(char *name)
 		ret = vfs_mkdir(d_inode(path.dentry), dentry, BBOX_DIR_LIMIT);
 		if (ret && ret != -EEXIST)
 			bbox_print_err("Create dir [%s] failed! ret: %d\n", name, ret);
-		else
-			change_own(name, AID_ROOT, AID_SYSTEM);
 
 		done_path_create(&path, dentry);
 	}
