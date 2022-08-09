@@ -1369,8 +1369,8 @@ struct lruvec *mem_cgroup_page_lruvec(struct page *page, struct pglist_data *pgd
 	}
 
 #ifdef CONFIG_HYPERHOLD_FILE_LRU
-	if (is_file_lru(page_lru(page)) &&
-			!is_prot_page(page)) {
+	if (page_is_file_lru(page) &&
+	    !is_prot_page(page)) {
 		lruvec = node_lruvec(pgdat);
 		goto out;
 	}
