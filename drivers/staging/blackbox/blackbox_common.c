@@ -10,7 +10,6 @@
 #include <linux/syscalls.h>
 #include <linux/rtc.h>
 #include <linux/time.h>
-#include <linux/vmalloc.h>
 #include <linux/fs.h>
 #include <linux/namei.h>
 #include <linux/blackbox_common.h>
@@ -135,9 +134,9 @@ int create_log_dir(const char *path)
 
 	if (*path != '/')
 		return -EINVAL;
-	cur_path = vmalloc(PATH_MAX_LEN + 1);
+	cur_path = kmalloc(PATH_MAX_LEN + 1, GFP_KERNEL);
 	if (!cur_path) {
-		bbox_print_err("vmalloc failed!\n");
+		bbox_print_err("kmalloc failed!\n");
 		return -ENOMEM;
 	}
 	memset(cur_path, 0, PATH_MAX_LEN + 1);
@@ -150,7 +149,7 @@ int create_log_dir(const char *path)
 		index++;
 	}
 	create_new_dir(cur_path);
-	vfree(cur_path);
+	kfree(cur_path);
 
 	return 0;
 }

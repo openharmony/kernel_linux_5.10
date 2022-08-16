@@ -13,7 +13,6 @@
 #include <linux/spinlock.h>
 #include <linux/syscalls.h>
 #include <linux/time.h>
-#include <linux/vmalloc.h>
 #include <linux/version.h>
 #include <linux/sched/debug.h>
 #ifdef CONFIG_DFX_ZEROHUNG
@@ -215,7 +214,7 @@ static void save_history_log(const char *log_root_dir, struct error_info *info,
 		return;
 	}
 
-	buf = vmalloc(HISTORY_LOG_MAX_LEN + 1);
+	buf = kmalloc(HISTORY_LOG_MAX_LEN + 1, GFP_KERNEL);
 	if (!buf)
 		return;
 
@@ -232,7 +231,7 @@ static void save_history_log(const char *log_root_dir, struct error_info *info,
 			"%s/%s", log_root_dir, HISTORY_LOG_NAME);
 	full_write_file(history_log_path, buf, strlen(buf), 1);
 	change_own(history_log_path, AID_ROOT, AID_SYSTEM);
-	vfree(buf);
+	kfree(buf);
 }
 
 static void save_invalid_log(const struct bbox_ops *ops, const struct error_info *info)
@@ -337,17 +336,17 @@ static void save_log_without_reset(struct error_info *info)
 	create_log_dir(CONFIG_BLACKBOX_LOG_ROOT_PATH);
 	if (ops->ops.dump) {
 		/* create log root path */
-		log_dir = vmalloc(PATH_MAX_LEN);
+		log_dir = kmalloc(PATH_MAX_LEN, GFP_KERNEL);
 		if (log_dir) {
 			format_log_dir(log_dir, PATH_MAX_LEN,
 						CONFIG_BLACKBOX_LOG_ROOT_PATH, timestamp);
 			create_log_dir(log_dir);
 		} else
-			bbox_print_err("vmalloc failed!\n");
+			bbox_print_err("kmalloc failed!\n");
 	}
 	invoke_module_ops(log_dir, info, ops);
 	save_history_log(CONFIG_BLACKBOX_LOG_ROOT_PATH, info, timestamp, 0);
-	vfree(log_dir);
+	kfree(log_dir);
 }
 
 static void save_log_with_reset(struct error_info *info)
@@ -405,7 +404,7 @@ static void do_save_last_log(const struct bbox_ops *ops, const struct error_info
 	bbox_print_info("event: [%s] module: [%s], time is [%s]!\n",
 			info->event, info->module, info->error_time);
 
-	log_dir = vmalloc(PATH_MAX_LEN);
+	log_dir = kmalloc(PATH_MAX_LEN, GFP_KERNEL);
 	if (!log_dir)
 		return;
 
@@ -420,7 +419,7 @@ static void do_save_last_log(const struct bbox_ops *ops, const struct error_info
 					(struct error_info *)info, info->error_time, 1);
 	else
 		bbox_print_err("[%s] failed to save log!\n", ops->ops.module);
-	vfree(log_dir);
+	kfree(log_dir);
 }
 
 static void save_last_log(void)
@@ -428,8 +427,7 @@ static void save_last_log(void)
 	unsigned long flags;
 	struct error_info *info = NULL;
 	struct bbox_ops *ops = NULL;
-
-	info = vmalloc(sizeof(*info));
+	info = kmalloc(sizeof(*info), GFP_KERNEL);
 	if (!info)
 		return;
 
@@ -447,7 +445,7 @@ static void save_last_log(void)
 		}
 	}
 	spin_unlock_irqrestore(&ops_list_lock, flags);
-	vfree(info);
+	kfree(info);
 }
 
 static void save_temp_error_log(void)
@@ -462,7 +460,7 @@ static void save_temp_error_log(void)
 	if (strlen(temp_error_info->event) != 0)
 		save_log_without_reset(temp_error_info);
 
-	vfree(temp_error_info);
+	kfree(temp_error_info);
 	temp_error_info = NULL;
 	up(&temp_error_info_sem);
 }
@@ -487,7 +485,7 @@ int bbox_register_module_ops(struct module_ops *ops)
 		return -EINVAL;
 	}
 
-	new_ops = vmalloc(sizeof(*new_ops));
+	new_ops = kmalloc(sizeof(*new_ops), GFP_KERNEL);
 	if (!new_ops)
 		return -ENOMEM;
 	memset(new_ops, 0, sizeof(*new_ops));
@@ -499,7 +497,7 @@ int bbox_register_module_ops(struct module_ops *ops)
 	list_for_each_entry(temp, &ops_list, list) {
 		if (!strcmp(temp->ops.module, ops->module)) {
 			spin_unlock_irqrestore(&ops_list_lock, flags);
-			vfree(new_ops);
+			kfree(new_ops);
 			bbox_print_info("[%s] has been registered!\n", temp->ops.module);
 			return -ENODATA;
 		}
@@ -524,7 +522,7 @@ int bbox_notify_error(const char event[EVENT_MAX_LEN], const char module[MODULE_
 		return -EINVAL;
 	}
 
-	info = vmalloc(sizeof(*info));
+	info = kmalloc(sizeof(*info), GFP_ATOMIC);
 	if (!info)
 		return -ENOMEM;
 
@@ -541,7 +539,7 @@ int bbox_notify_error(const char event[EVENT_MAX_LEN], const char module[MODULE_
 		save_log_with_reset(info);
 	}
 
-	vfree(info);
+	kfree(info);
 
 	return 0;
 }
@@ -567,7 +565,7 @@ static int __init blackbox_core_init(void)
 
 	select_storage_material();
 
-	temp_error_info = vmalloc(sizeof(*temp_error_info));
+	temp_error_info = kmalloc(sizeof(*temp_error_info), GFP_KERNEL);
 	if (!temp_error_info)
 		return -ENOMEM;
 
@@ -576,7 +574,7 @@ static int __init blackbox_core_init(void)
 	/* Create a kernel thread to save log */
 	tsk = kthread_run(save_error_log, NULL, "save_error_log");
 	if (IS_ERR(tsk)) {
-		vfree(temp_error_info);
+		kfree(temp_error_info);
 		temp_error_info = NULL;
 		bbox_print_err("kthread_run failed!\n");
 		return -ESRCH;

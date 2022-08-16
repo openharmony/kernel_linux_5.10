@@ -5,7 +5,6 @@
 
 #include <linux/blackbox.h>
 #include <linux/delay.h>
-#include <linux/vmalloc.h>
 #include <linux/syscalls.h>
 #include <linux/dirent.h>
 #include <linux/pstore.h>
@@ -87,7 +86,7 @@ static bool is_pstore_part_ready(char *pstore_file)
 		return -EBADF;
 	}
 
-	full_path = vmalloc(PATH_MAX_LEN);
+	full_path = kmalloc(PATH_MAX_LEN, GFP_KERNEL);
 	if (!full_path)
 		goto __out;
 
@@ -111,7 +110,7 @@ static bool is_pstore_part_ready(char *pstore_file)
 
 __out:
 	file_close(filp);
-	vfree(full_path);
+	kfree(full_path);
 
 	return is_ready;
 }
