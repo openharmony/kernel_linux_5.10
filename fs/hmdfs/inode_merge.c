@@ -425,12 +425,10 @@ out:
 static int do_lookup_merge_root(struct path path_dev,
 				struct dentry *child_dentry, unsigned int flags)
 {
-	struct hmdfs_sb_info *sbi = hmdfs_sb(child_dentry->d_sb);
 	struct hmdfs_dentry_comrade *comrade;
 	const int buf_len =
 		max((int)HMDFS_CID_SIZE + 1, (int)sizeof(DEVICE_VIEW_LOCAL));
 	char *buf = kzalloc(buf_len, GFP_KERNEL);
-	struct hmdfs_peer *peer;
 	LIST_HEAD(head);
 	int ret;
 
@@ -445,20 +443,6 @@ static int do_lookup_merge_root(struct path path_dev,
 		goto out;
 	}
 	link_comrade(&head, comrade);
-
-	// lookup real_dst/device_view/cidxx
-	mutex_lock(&sbi->connections.node_lock);
-	list_for_each_entry(peer, &sbi->connections.node_list, list) {
-		mutex_unlock(&sbi->connections.node_lock);
-		memcpy(buf, peer->cid, HMDFS_CID_SIZE);
-		comrade = lookup_comrade(path_dev, buf, peer->device_id, flags);
-		if (IS_ERR(comrade))
-			continue;
-
-		link_comrade(&head, comrade);
-		mutex_lock(&sbi->connections.node_lock);
-	}
-	mutex_unlock(&sbi->connections.node_lock);
 
 	assign_comrades_unlocked(child_dentry, &head);
 	ret = 0;
