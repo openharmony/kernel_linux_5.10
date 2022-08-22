@@ -130,7 +130,7 @@ static inline void set_p4d(p4d_t *p4d, p4d_t p4dval)
 	*p4d = p4dval;
 }
 
-#define p4d_phys(p4d)		virt_to_phys((void *)p4d_val(p4d))
+#define p4d_phys(p4d)		PHYSADDR(p4d_val(p4d))
 #define p4d_page(p4d)		(pfn_to_page(p4d_phys(p4d) >> PAGE_SHIFT))
 
 #endif
@@ -173,7 +173,7 @@ static inline pmd_t *pud_pgtable(pud_t pud)
 
 #define set_pud(pudptr, pudval) do { *(pudptr) = (pudval); } while (0)
 
-#define pud_phys(pud)		virt_to_phys((void *)pud_val(pud))
+#define pud_phys(pud)		PHYSADDR(pud_val(pud))
 #define pud_page(pud)		(pfn_to_page(pud_phys(pud) >> PAGE_SHIFT))
 
 #endif
@@ -206,7 +206,7 @@ static inline void pmd_clear(pmd_t *pmdp)
 
 #define set_pmd(pmdptr, pmdval) do { *(pmdptr) = (pmdval); } while (0)
 
-#define pmd_phys(pmd)		virt_to_phys((void *)pmd_val(pmd))
+#define pmd_phys(pmd)		PHYSADDR(pmd_val(pmd))
 
 #ifndef CONFIG_TRANSPARENT_HUGEPAGE
 #define pmd_page(pmd)		(pfn_to_page(pmd_phys(pmd) >> PAGE_SHIFT))

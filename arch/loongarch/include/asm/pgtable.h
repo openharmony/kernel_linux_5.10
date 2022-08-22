@@ -7,7 +7,6 @@
 
 #include <linux/mm_types.h>
 #include <linux/mmzone.h>
-#include <asm/io.h>
 #include <asm/pgtable-bits.h>
 #include <asm/pgtable-64.h>
 
