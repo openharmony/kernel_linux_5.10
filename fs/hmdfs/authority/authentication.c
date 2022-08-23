@@ -80,8 +80,15 @@ const struct cred *hmdfs_override_dir_fsids(struct inode *dir,
 		/*
 		 * data  : system : media_rw
 		 * system: system : media_rw, need authority
+		 * services: dfs_share : dfs_share
 		 * other : media_rw : media_rw
 		 **/
+		if (!strcmp(dentry->d_name.name, DFS_SHARE_NAME)) {
+			perm = HMDFS_DIR_SERVICES | level;
+			cred->fsuid = DFS_SHARE_UID;
+			cred->fsgid = DFS_SHARE_GID;
+			break;
+		}
 		if (!strcmp(dentry->d_name.name, PKG_ROOT_NAME)) {
 			perm = HMDFS_DIR_DATA | level;
 		} else {
@@ -91,6 +98,12 @@ const struct cred *hmdfs_override_dir_fsids(struct inode *dir,
 		cred->fsgid = USER_DATA_RW_GID;
 		break;
 	case HMDFS_PERM_PKG:
+		if (is_service_dir(hii->perm)) {
+			cred->fsuid = hii->lower_inode->i_uid;
+			cred->fsgid = hii->lower_inode->i_gid;
+			perm = AUTH_SERVICES | HMDFS_DIR_PKG | level;
+			break;
+		}
 		if (is_data_dir(hii->perm)) {
 			/*
 			 * Mkdir for app pkg.
@@ -257,9 +270,13 @@ static __u16 __inherit_perm_dir(struct inode *parent, struct inode *inode)
 		/*
 		 * data  : system : media_rw
 		 * system: system : media_rw, need authority
+		 * services: dfs_share : dfs_share
 		 * other : media_rw : media_rw
 		 **/
-		if (!strcmp(dentry->d_name.name, PKG_ROOT_NAME)) {
+		if (!strcmp(dentry->d_name.name, DFS_SHARE_NAME)) {
+			// "services"
+			perm = HMDFS_DIR_SERVICES | level;
+		} else if (!strcmp(dentry->d_name.name, PKG_ROOT_NAME)) {
 			// "data"
 			perm = HMDFS_DIR_DATA | level;
 		} else if (!strcmp(dentry->d_name.name, SYSTEM_NAME)) {
@@ -270,6 +287,10 @@ static __u16 __inherit_perm_dir(struct inode *parent, struct inode *inode)
 		}
 		break;
 	case HMDFS_PERM_PKG:
+		if (is_service_dir(info->perm)) {
+			perm = AUTH_SERVICES | HMDFS_DIR_PKG | level;
+			break;
+		}
 		if (is_data_dir(info->perm)) {
 			/*
 			 * Mkdir for app pkg.
@@ -328,9 +349,12 @@ __u16 hmdfs_perm_inherit(struct inode *parent_inode, struct inode *child)
 void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child)
 {
 	struct hmdfs_inode_info *info = hmdfs_i(child);
+	struct hmdfs_inode_info *dir = hmdfs_i(parent_inode);
 
 	if (info->perm == HMDFS_ALL_MASK)
 		info->perm = hmdfs_perm_inherit(parent_inode, child);
+	if (is_service_dir(dir->perm))
+		child->i_mode = (child->i_mode & S_IFMT) | S_IRWXU;
 }
 
 void check_and_fixup_ownership_remote(struct inode *dir,
@@ -356,6 +380,13 @@ void check_and_fixup_ownership_remote(struct inode *dir,
 		 * system: system : media_rw, need authority
 		 * other : media_rw : media_rw
 		 **/
+		if (!strcmp(dentry->d_name.name, DFS_SHARE_NAME)) {
+			perm = HMDFS_DIR_SERVICES | level;
+			dinode->i_uid = DFS_SHARE_UID;
+			dinode->i_gid = DFS_SHARE_GID;
+			dinode->i_mode = (dinode->i_mode & S_IFMT) | S_IRWXU | S_IRGRP | S_IXGRP;
+			break;
+		}
 		if (!strcmp(dentry->d_name.name, PKG_ROOT_NAME)) {
 			perm = HMDFS_DIR_DATA | level;
 		} else {
@@ -365,6 +396,13 @@ void check_and_fixup_ownership_remote(struct inode *dir,
 		dinode->i_gid = USER_DATA_RW_GID;
 		break;
 	case HMDFS_PERM_PKG:
+		if (is_service_dir(hii->perm)) {
+			dinode->i_uid = dinfo->lower_inode->i_uid;
+			dinode->i_gid = dinfo->lower_inode->i_gid;
+			dinode->i_mode = (dinfo->lower_inode->i_mode & S_IFMT) | S_IRWXU;
+			perm = AUTH_SERVICES | HMDFS_DIR_PKG | level;
+			break;
+		}
 		if (is_data_dir(hii->perm)) {
 			/*
 			 * Mkdir for app pkg.
@@ -392,6 +430,11 @@ void check_and_fixup_ownership_remote(struct inode *dir,
 	case HMDFS_PERM_OTHER:
 		dinode->i_uid = dir->i_uid;
 		dinode->i_gid = dir->i_gid;
+		if (is_service_auth(hii->perm)) {
+			dinode->i_mode = (dir->i_mode & S_IFMT) | S_IRWXU;
+			perm = AUTH_PKG | HMDFS_DIR_PKG_SUB | level;
+			break;
+		}
 		if (is_pkg_auth(hii->perm))
 			perm = AUTH_PKG | HMDFS_DIR_PKG_SUB | level;
 		else

@@ -15,7 +15,7 @@
 #include "hmdfs_device_view.h"
 #include "comm/connection.h"
 
-#define HMDFS_SHARE_ITEM_TIMEOUT_S 60
+#define HMDFS_SHARE_ITEM_TIMEOUT_S 120
 #define HMDFS_SHARE_ITEMS_MAX 4
 
 #define HMDFS_IOC 0xf2
@@ -23,6 +23,7 @@
 						struct hmdfs_share_control)
 
 #define SHARE_RESERVED_DIR ".share"
+#define SHARE_ALL_DEVICE "0"
 
 struct hmdfs_share_control {
 	__u32 src_fd;

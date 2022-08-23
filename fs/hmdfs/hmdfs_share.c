@@ -278,7 +278,7 @@ int hmdfs_check_share_access_permission(struct hmdfs_sb_info *sbi,
 	 * its delayed work to ensure that the open process can get
 	 * the correct path
 	 */
-	if (item && is_dst_device(item->cid, cid)) {
+	if (item && (is_dst_device(item->cid, cid) || !strcmp(item->cid, SHARE_ALL_DEVICE))) {
 		item->opened = true;
 		if (!cancel_delayed_work_sync(&item->d_work)) {
 			item->timeout = false;
