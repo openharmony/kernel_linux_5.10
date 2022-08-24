@@ -76,6 +76,8 @@ SECTIONS
 	PERCPU_SECTION(1 << CONFIG_L1_CACHE_SHIFT)
 #endif
 
+	.rela.dyn : ALIGN(8) { *(.rela.dyn) *(.rela*) }
+
 	/*
 	 * Align to 64K in attempt to eliminate holes before the
 	 * .bss..swapper_pg_dir section at the start of .bss.  This
