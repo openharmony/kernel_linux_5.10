@@ -150,10 +150,7 @@ void arch_remove_memory(int nid, u64 start,
 #ifdef CONFIG_NUMA
 int memory_add_physaddr_to_nid(u64 start)
 {
-	int nid;
-
-	nid = pa_to_nid(start);
-	return nid;
+	return pa_to_nid(start);
 }
 EXPORT_SYMBOL_GPL(memory_add_physaddr_to_nid);
 #endif
