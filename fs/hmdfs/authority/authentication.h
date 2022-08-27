@@ -8,6 +8,7 @@
 #ifndef AUTHENTICATION_H
 #define AUTHENTICATION_H
 
+#include <linux/kernel.h>
 #include <linux/cred.h>
 #include <linux/fs.h>
 #include <linux/fs_struct.h>
@@ -26,6 +27,7 @@ struct cache_fs_override {
 #define OID_ROOT             	0
 #define OID_SYSTEM        	1000
 #define OID_USER_DATA_RW      	1008
+#define OID_DFS_SHARE           3822
 
 /* copied from sdcardfs/multiuser.h */
 #define BASE_USER_RANGE     200000 /* offset for uid ranges for each user */
@@ -35,12 +37,15 @@ struct cache_fs_override {
 #define ROOT_UID 		KUIDT_INIT(OID_ROOT)
 #define SYSTEM_UID 		KUIDT_INIT(OID_SYSTEM)
 #define USER_DATA_RW_UID 	KUIDT_INIT(OID_USER_DATA_RW)
+#define DFS_SHARE_UID           KUIDT_INIT(OID_DFS_SHARE)
 
 #define ROOT_GID 		KGIDT_INIT(OID_ROOT)
 #define SYSTEM_GID 		KGIDT_INIT(OID_SYSTEM)
 #define USER_DATA_RW_GID 	KGIDT_INIT(OID_USER_DATA_RW)
+#define DFS_SHARE_GID           KGIDT_INIT(OID_DFS_SHARE)
 
 #define PKG_ROOT_NAME "data"
+#define DFS_SHARE_NAME "services"
 #define SYSTEM_NAME "system"
 
 /*
@@ -107,25 +112,31 @@ static inline void hmdfs_check_cred(const struct cred *cred)
 #define HMDFS_DIR_PKG 0x0050
 
 /* LEVEL 2~n HMDFS_PERM_OTHER */
-#define PUBLIC_FILE 0x0060
-#define PUBLIC_SUB_DIR 0x0070
-#define SYSTEM_SUB_DIR 0x0080
+#define PUBLIC_FILE     0x0060
+#define PUBLIC_SUB_DIR  0x0070
+#define SYSTEM_SUB_DIR  0x0080
 #define SYSTEM_SUB_FILE 0x0090
 
-#define HMDFS_DIR_PKG_SUB 0x00A0
+#define HMDFS_DIR_PKG_SUB  0x00A0
 #define HMDFS_FILE_PKG_SUB 0x00B0
 
 /* access right is derived
  * PUBLIC_SUB_DIR SYSTEM_SUB_DIR HMDFS_DIR_PKG_SUB
  * PUBLIC_FILE SYSTEM_SUB_FILE HMDFS_FILE_PKG_SUB
  */
-#define HMDFS_DIR_DEFAULT 0x00C0
+#define HMDFS_DIR_DEFAULT  0x00C0
 #define HMDFS_FILE_DEFAULT 0x00D0
+#define HMDFS_DIR_SERVICES 0x00E0
 #define HMDFS_TYPE_DEFAULT 0x0000
 
 static inline bool is_data_dir(__u16 perm)
 {
 	return (perm & HMDFS_DIR_TYPE_MASK) == HMDFS_DIR_DATA;
+}
+
+static inline bool is_service_dir(__u16 perm)
+{
+	return (perm & HMDFS_DIR_TYPE_MASK) == HMDFS_DIR_SERVICES;
 }
 
 static inline bool is_pkg_dir(__u16 perm)
@@ -154,8 +165,9 @@ static inline bool is_default_file(__u16 perm)
 }
 
 #define AUTH_MASK 0x0F00
-#define AUTH_PKG 0x0100
-#define AUTH_SYSTEM 0x0200
+#define AUTH_PKG  0x0100
+#define AUTH_SYSTEM   0x0200
+#define AUTH_SERVICES 0x0400
 
 static inline bool is_pkg_auth(__u16 perm)
 {
@@ -167,6 +179,10 @@ static inline bool is_system_auth(__u16 perm)
 	return (perm & AUTH_MASK) == AUTH_SYSTEM;
 }
 
+static inline bool is_service_auth(__u16 perm)
+{
+	return (perm & AUTH_MASK) == AUTH_SERVICES;
+}
 #define HMDFS_MOUNT_POINT_MASK 0xF000
 #define HMDFS_MNT_COMMON 0x0000  // sdcard
 #define HMDFS_MNT_SDCARD 0x1000  // sdcard
