@@ -317,6 +317,9 @@ struct tcp_sock {
 
 	/* OOO segments go in this rbtree. Socket lock must be held. */
 	struct rb_root	out_of_order_queue;
+#ifdef CONFIG_NEWIP
+	struct sk_buff	*nip_out_of_order_queue; /* NIP */
+#endif
 	struct sk_buff	*ooo_last_skb; /* cache rb_last(out_of_order_queue) */
 
 	/* SACKs data, these 2 need to be together (see tcp_options_write) */
@@ -412,6 +415,22 @@ struct tcp_sock {
 	 */
 	struct request_sock __rcu *fastopen_rsk;
 	struct saved_syn *saved_syn;
+
+#ifdef CONFIG_NEWIP
+/* newip tcp retrans */
+	u32 ack_retrans_num;
+	u32 ack_retrans_seq;
+	u32 nip_ssthresh;
+	u32 nip_ssthresh_reset;
+	bool nip_keepalive_enable;
+	u32 idle_ka_probes_out;
+	u32 nip_keepalive_out;
+	u32 last_rcv_nxt;
+	u32 dup_ack_cnt;
+	u32 keepalive_time_bak;
+	u32 keepalive_probes_bak;
+	u32 keepalive_intvl_bak;
+#endif
 };
 
 enum tsq_enum {
@@ -423,6 +442,10 @@ enum tsq_enum {
 	TCP_MTU_REDUCED_DEFERRED,  /* tcp_v{4|6}_err() could not call
 				    * tcp_v{4|6}_mtu_reduced()
 				    */
+#ifdef CONFIG_NEWIP
+	TCP_NIP_WRITE_TIMER_DEFERRED,  /* NIP */
+	TCP_NIP_DELACK_TIMER_DEFERRED, /* NIP */
+#endif
 };
 
 enum tsq_flags {

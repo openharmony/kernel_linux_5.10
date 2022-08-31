@@ -19,4 +19,11 @@ u64 secure_dccp_sequence_number(__be32 saddr, __be32 daddr,
 u64 secure_dccpv6_sequence_number(__be32 *saddr, __be32 *daddr,
 				  __be16 sport, __be16 dport);
 
+#ifdef CONFIG_NEWIP
+/* NIP */
+u64 secure_newip_port_ephemeral(const __be32 *saddr, const __be32 *daddr,
+				__be16 dport);
+__u32 secure_tcp_nip_sequence_number(const __be32 *saddr, const __be32 *daddr,
+				     __be16 sport, __be16 dport);
+#endif
 #endif /* _NET_SECURE_SEQ */

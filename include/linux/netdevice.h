@@ -2016,6 +2016,9 @@ struct net_device {
 	struct dn_dev __rcu     *dn_ptr;
 #endif
 	struct inet6_dev __rcu	*ip6_ptr;
+#if IS_ENABLED(CONFIG_NEWIP)
+	struct ninet_dev __rcu	*nip_ptr; /* NIP */
+#endif
 #if IS_ENABLED(CONFIG_AX25)
 	void			*ax25_ptr;
 #endif

@@ -40,7 +40,9 @@
 #include <net/inet_ecn.h>
 #include <net/dst.h>
 #include <net/mptcp.h>
-
+#ifdef CONFIG_NEWIP
+#include <linux/nip.h> /* NIP */
+#endif
 #include <linux/seq_file.h>
 #include <linux/memcontrol.h>
 #include <linux/bpf-cgroup.h>
@@ -868,6 +870,9 @@ struct tcp_skb_cb {
 			struct inet_skb_parm	h4;
 #if IS_ENABLED(CONFIG_IPV6)
 			struct inet6_skb_parm	h6;
+#endif
+#if IS_ENABLED(CONFIG_NEWIP)
+			struct ninet_skb_parm	hnip; /* NIP */
 #endif
 		} header;	/* For incoming skbs */
 		struct {

@@ -1778,6 +1778,11 @@ static struct neigh_table *neigh_find_table(int family)
 	case AF_DECnet:
 		tbl = neigh_tables[NEIGH_DN_TABLE];
 		break;
+#ifdef CONFIG_NEWIP
+	case AF_NINET:	/* NIP */
+		tbl = neigh_tables[NEIGH_NND_TABLE];
+		break;
+#endif
 	}
 
 	return tbl;

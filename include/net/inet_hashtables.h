@@ -83,6 +83,9 @@ struct inet_bind_bucket {
 #if IS_ENABLED(CONFIG_IPV6)
 	struct in6_addr		fast_v6_rcv_saddr;
 #endif
+#if IS_ENABLED(CONFIG_NEWIP)
+	struct nip_addr		fast_nip_rcv_saddr;
+#endif
 	__be32			fast_rcv_saddr;
 	unsigned short		fast_sk_family;
 	bool			fast_ipv6_only;
@@ -401,6 +404,13 @@ static inline struct sock *__inet_lookup_skb(struct inet_hashinfo *hashinfo,
 u32 inet6_ehashfn(const struct net *net,
 		  const struct in6_addr *laddr, const u16 lport,
 		  const struct in6_addr *faddr, const __be16 fport);
+
+#ifdef CONFIG_NEWIP
+/* NIP */
+u32 ninet_ehashfn(const struct net *net,
+		  const struct nip_addr *laddr, const u16 lport,
+		  const struct nip_addr *faddr, const __be16 fport);
+#endif
 
 static inline void sk_daddr_set(struct sock *sk, __be32 addr)
 {
