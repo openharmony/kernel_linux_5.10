@@ -378,6 +378,8 @@ int do_dir_open_merge(struct file *file, const struct cred *cred,
 
 	if (IS_ERR_OR_NULL(cred))
 		return ret;
+	
+	wait_event(dim->wait_queue, !has_merge_lookup_work(dim));
 
 	mutex_lock(&dim->comrade_list_lock);
 	list_for_each_entry(comrade, &(dim->comrade_list), list) {
