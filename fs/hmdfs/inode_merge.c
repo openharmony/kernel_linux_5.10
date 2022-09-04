@@ -342,77 +342,202 @@ int check_filename(const char *name, int len)
 	return 0;
 }
 
-static int lookup_merge_normal(struct dentry *child_dentry, unsigned int flags)
+static struct hmdfs_dentry_comrade *merge_lookup_comrade(
+	struct hmdfs_sb_info *sbi, const char *name, int devid,
+	unsigned int flags)
 {
-	struct dentry *parent_dentry = dget_parent(child_dentry);
-	struct hmdfs_dentry_info_merge *pdi = hmdfs_dm(parent_dentry);
-	struct hmdfs_sb_info *sbi = hmdfs_sb(child_dentry->d_sb);
-	struct hmdfs_dentry_comrade *comrade, *cc;
-	struct path lo_p, path;
-	LIST_HEAD(head);
-	int ret = -ENOENT;
-	int dev_id = -1;
-	int ftype;
-	char *lo_name;
-	umode_t mode;
+	int err;
+	struct path root, path;
+	struct hmdfs_dentry_comrade *comrade = NULL;
+	const struct cred *old_cred = hmdfs_override_creds(sbi->cred);
 
-	ftype = check_filename(child_dentry->d_name.name,
-			       child_dentry->d_name.len);
-	if (ftype == DT_REG)
-		lo_name = conf_name_trans_reg(child_dentry, &dev_id);
-	else if (ftype == DT_DIR)
-		lo_name = conf_name_trans_dir(child_dentry);
-	else
-		lo_name = conf_name_trans_nop(child_dentry);
-	if (unlikely(!lo_name)) {
-		ret = -ENOMEM;
+	err = kern_path(sbi->real_dst, LOOKUP_DIRECTORY, &root);
+	if (err) {
+		comrade = ERR_PTR(err);
 		goto out;
 	}
 
-	ret = hmdfs_get_path_in_sb(child_dentry->d_sb, sbi->real_dst,
-				   LOOKUP_DIRECTORY, &path);
-	if (ret) {
-		if (ret == -ENOENT)
-			ret = -EINVAL;
-		goto free;
+	err = vfs_path_lookup(root.dentry, root.mnt, name, flags, &path);
+	if (err) {
+		comrade = ERR_PTR(err);
+		goto root_put;
 	}
-	lo_p.mnt = path.mnt;
+	
+	comrade = alloc_comrade(path.dentry, devid);
 
-	ret = -ENOENT;
-	mutex_lock(&pdi->comrade_list_lock);
-	list_for_each_entry(cc, &pdi->comrade_list, list) {
-		if (ftype == DT_REG && cc->dev_id != dev_id)
-			continue;
-
-		lo_p.dentry = cc->lo_d;
-		comrade = lookup_comrade(lo_p, lo_name, cc->dev_id, flags);
-		if (IS_ERR(comrade)) {
-			ret = ret ? PTR_ERR(comrade) : 0;
-			continue;
-		}
-
-		mode = hmdfs_cm(comrade);
-		if ((ftype == DT_DIR && !S_ISDIR(mode)) ||
-		    (ftype == DT_REG && S_ISDIR(mode))) {
-			destroy_comrade(comrade);
-			ret = ret ? PTR_ERR(comrade) : 0;
-			continue;
-		}
-
-		ret = 0;
-		link_comrade(&head, comrade);
-
-		if (!S_ISDIR(mode))
-			break;
-	}
-	mutex_unlock(&pdi->comrade_list_lock);
-
-	assign_comrades_unlocked(child_dentry, &head);
 	path_put(&path);
-free:
-	kfree(lo_name);
+root_put:
+	path_put(&root);
 out:
-	dput(parent_dentry);
+	hmdfs_revert_creds(old_cred);
+	return comrade;
+}
+
+static bool is_valid_comrade(struct hmdfs_dentry_info_merge *mdi, umode_t mode)
+{
+	if (mdi->type == DT_UNKNOWN) {
+		mdi->type = S_ISDIR(mode) ? DT_DIR : DT_REG;
+		return true;
+	}
+
+	if (mdi->type == DT_DIR && S_ISDIR(mode)) {
+		return true;
+	}
+
+	if (mdi->type == DT_REG && list_empty(&mdi->comrade_list) &&
+		!S_ISDIR(mode)) {
+		return true;
+	}
+
+	return false;
+}
+
+static void merge_lookup_work_func(struct work_struct *work)
+{
+	struct merge_lookup_work *ml_work;
+	struct hmdfs_dentry_comrade *comrade;
+	struct hmdfs_dentry_info_merge *mdi;
+	int found = false;
+	
+	ml_work = container_of(work, struct merge_lookup_work, work);
+	mdi = container_of(ml_work->wait_queue,	struct hmdfs_dentry_info_merge,
+		wait_queue);
+	
+	trace_hmdfs_merge_lookup_work_enter(ml_work);
+
+	comrade = merge_lookup_comrade(ml_work->sbi, ml_work->name,
+		ml_work->devid, ml_work->flags);
+	if (IS_ERR(comrade)) {
+		goto out;
+	}
+
+	mutex_lock(&mdi->work_lock);
+	mutex_lock(&mdi->comrade_list_lock);
+	if (!is_valid_comrade(mdi, hmdfs_cm(comrade))) {
+		destroy_comrade(comrade);
+	} else {
+		found = true;
+		link_comrade(&mdi->comrade_list, comrade);
+	}
+	mutex_unlock(&mdi->comrade_list_lock);
+
+out:
+	if (--mdi->work_count == 0 || found)
+		wake_up_all(ml_work->wait_queue);
+	mutex_unlock(&mdi->work_lock);
+
+	trace_hmdfs_merge_lookup_work_exit(ml_work, found);
+	kfree(ml_work->name);
+	kfree(ml_work);
+}
+
+static int merge_lookup_async(struct hmdfs_dentry_info_merge *mdi,
+	struct hmdfs_sb_info *sbi, int devid, const char *name,
+	unsigned int flags)
+{
+	int err = -ENOMEM;
+	struct merge_lookup_work *ml_work;
+
+	ml_work = kmalloc(sizeof(*ml_work), GFP_KERNEL);
+	if (!ml_work)
+		goto out;
+		
+	ml_work->name = kstrdup(name, GFP_KERNEL);
+	if (!ml_work->name) {
+		kfree(ml_work);
+		goto out;
+	}
+
+	ml_work->devid = devid;
+	ml_work->flags = flags;
+	ml_work->sbi = sbi;
+	ml_work->wait_queue = &mdi->wait_queue;
+	INIT_WORK(&ml_work->work, merge_lookup_work_func);
+
+	schedule_work(&ml_work->work);
+	++mdi->work_count;
+	err = 0;
+out:
+	return err;
+}
+
+static char *hmdfs_get_real_dname(struct dentry *dentry, int *devid, int *type)
+{
+	char *rname;
+
+	*type = check_filename(dentry->d_name.name, dentry->d_name.len);
+	if (*type == DT_REG)
+		rname = conf_name_trans_reg(dentry, devid);
+	else if (*type == DT_DIR)
+		rname = conf_name_trans_dir(dentry);
+	else
+		rname = conf_name_trans_nop(dentry);
+
+	return rname;
+}
+
+static int lookup_merge_normal(struct dentry *dentry, unsigned int flags)
+{
+	int ret = -ENOMEM;
+	int err = 0;
+	int devid = -1;
+	struct dentry *pdentry = dget_parent(dentry);
+	struct hmdfs_dentry_info_merge *mdi = hmdfs_dm(dentry);
+	struct hmdfs_sb_info *sbi = hmdfs_sb(dentry->d_sb);
+	struct hmdfs_peer *peer;
+	char *rname, *ppath, *cpath;
+
+	rname = hmdfs_get_real_dname(dentry, &devid, &mdi->type);
+	if (unlikely(!rname)) {
+		goto out;
+	}
+
+	ppath = hmdfs_merge_get_dentry_relative_path(pdentry);
+	if (unlikely(!ppath)) {
+		hmdfs_err("failed to get parent relative path");
+		goto out_rname;
+	}
+
+	cpath = kzalloc(PATH_MAX, GFP_KERNEL);
+	if (unlikely(!cpath)) {
+		hmdfs_err("failed to get child device_view path");
+		goto out_ppath;
+	}
+
+	mutex_lock(&sbi->connections.node_lock);
+	if (mdi->type != DT_REG || devid == 0) {
+		snprintf(cpath, PATH_MAX, "device_view/local%s/%s", ppath,
+			rname);
+		err = merge_lookup_async(mdi, sbi, 0, cpath, flags);
+		if (err)
+			hmdfs_err("failed to create local lookup work");
+	}
+
+	list_for_each_entry(peer, &sbi->connections.node_list, list) {
+		if (mdi->type == DT_REG && peer->device_id != devid)
+			continue;
+		snprintf(cpath, PATH_MAX, "device_view/%s%s/%s", peer->cid,
+			ppath, rname);
+		err = merge_lookup_async(mdi, sbi, peer->device_id, cpath,
+			flags);
+		if (err)
+			hmdfs_err("failed to create remote lookup work");
+	}
+	mutex_unlock(&sbi->connections.node_lock);
+
+	wait_event(mdi->wait_queue, is_merge_lookup_end(mdi));
+	
+	ret = -ENOENT;
+	if (!is_comrade_list_empty(mdi))
+		ret = 0;
+
+	kfree(cpath);
+out_ppath:
+	kfree(ppath);
+out_rname:
+	kfree(rname);
+out:
+	dput(pdentry);
 	return ret;
 }
 
@@ -425,10 +550,12 @@ out:
 static int do_lookup_merge_root(struct path path_dev,
 				struct dentry *child_dentry, unsigned int flags)
 {
+	struct hmdfs_sb_info *sbi = hmdfs_sb(child_dentry->d_sb);
 	struct hmdfs_dentry_comrade *comrade;
 	const int buf_len =
 		max((int)HMDFS_CID_SIZE + 1, (int)sizeof(DEVICE_VIEW_LOCAL));
 	char *buf = kzalloc(buf_len, GFP_KERNEL);
+	struct hmdfs_peer *peer;
 	LIST_HEAD(head);
 	int ret;
 
@@ -443,6 +570,20 @@ static int do_lookup_merge_root(struct path path_dev,
 		goto out;
 	}
 	link_comrade(&head, comrade);
+
+	// lookup real_dst/device_view/cidxx
+	mutex_lock(&sbi->connections.node_lock);
+	list_for_each_entry(peer, &sbi->connections.node_list, list) {
+		mutex_unlock(&sbi->connections.node_lock);
+		memcpy(buf, peer->cid, HMDFS_CID_SIZE);
+		comrade = lookup_comrade(path_dev, buf, peer->device_id, flags);
+		if (IS_ERR(comrade))
+			continue;
+
+		link_comrade(&head, comrade);
+		mutex_lock(&sbi->connections.node_lock);
+	}
+	mutex_unlock(&sbi->connections.node_lock);
 
 	assign_comrades_unlocked(child_dentry, &head);
 	ret = 0;
@@ -529,19 +670,24 @@ free_buf:
 }
 
 int init_hmdfs_dentry_info_merge(struct hmdfs_sb_info *sbi,
-				 struct dentry *dentry)
+	struct dentry *dentry)
 {
-	struct hmdfs_dentry_info_merge *info = NULL;
+	struct hmdfs_dentry_info_merge *mdi = NULL;
 
-	info = kmem_cache_zalloc(hmdfs_dentry_merge_cachep, GFP_NOFS);
-	if (!info)
+	mdi = kmem_cache_zalloc(hmdfs_dentry_merge_cachep, GFP_NOFS);
+	if (!mdi)
 		return -ENOMEM;
 
-	info->ctime = jiffies;
-	INIT_LIST_HEAD(&info->comrade_list);
-	mutex_init(&info->comrade_list_lock);
+	mdi->ctime = jiffies;
+	mdi->type = DT_UNKNOWN;
+	mdi->work_count = 0;
+	mutex_init(&mdi->work_lock);
+	init_waitqueue_head(&mdi->wait_queue);
+	INIT_LIST_HEAD(&mdi->comrade_list);
+	mutex_init(&mdi->comrade_list_lock);
+	
 	d_set_d_op(dentry, &hmdfs_dops_merge);
-	dentry->d_fsdata = info;
+	dentry->d_fsdata = mdi;
 	return 0;
 }
 
@@ -549,18 +695,17 @@ static void update_dm(struct dentry *dst, struct dentry *src)
 {
 	struct hmdfs_dentry_info_merge *dmi_dst = hmdfs_dm(dst);
 	struct hmdfs_dentry_info_merge *dmi_src = hmdfs_dm(src);
-	LIST_HEAD(tmp_dst);
-	LIST_HEAD(tmp_src);
 
-	/* Mobilize all the comrades */
-	mutex_lock(&dmi_dst->comrade_list_lock);
-	mutex_lock(&dmi_src->comrade_list_lock);
-	list_splice_init(&dmi_dst->comrade_list, &tmp_dst);
-	list_splice_init(&dmi_src->comrade_list, &tmp_src);
-	list_splice(&tmp_dst, &dmi_src->comrade_list);
-	list_splice(&tmp_src, &dmi_dst->comrade_list);
-	mutex_unlock(&dmi_src->comrade_list_lock);
-	mutex_unlock(&dmi_dst->comrade_list_lock);
+	trace_hmdfs_merge_update_dentry_info_enter(src, dst);
+	
+	spin_lock(&dst->d_lock);
+	spin_lock(&src->d_lock);
+	dst->d_fsdata = dmi_src;
+	src->d_fsdata = dmi_dst;
+	spin_unlock(&src->d_lock);
+	spin_unlock(&dst->d_lock);
+
+	trace_hmdfs_merge_update_dentry_info_exit(src, dst);
 }
 
 // do this in a map-reduce manner
@@ -595,10 +740,13 @@ struct dentry *hmdfs_lookup_merge(struct inode *parent_inode,
 	if (unlikely(err))
 		goto out;
 
-	if (pii->inode_type == HMDFS_LAYER_ZERO)
+	if (pii->inode_type == HMDFS_LAYER_ZERO) {
+		hmdfs_dm(child_dentry)->dentry_type = HMDFS_LAYER_FIRST_MERGE;
 		err = lookup_merge_root(parent_inode, child_dentry, flags);
-	else
+	} else {
+		hmdfs_dm(child_dentry)->dentry_type = HMDFS_LAYER_OTHER_MERGE;
 		err = lookup_merge_normal(child_dentry, flags);
+	}
 
 	if (!err) {
 		struct hmdfs_inode_info *info = NULL;
@@ -853,8 +1001,11 @@ static int create_lo_d_parent_recur(struct dentry *d_parent,
 				    struct hmdfs_recursive_para *rec_op_para)
 {
 	struct dentry *lo_d_parent, *d_pparent;
+	struct hmdfs_dentry_info_merge *pmdi = NULL;
 	int ret = 0;
 
+	pmdi = hmdfs_dm(d_parent);
+	wait_event(pmdi->wait_queue, !has_merge_lookup_work(pmdi));
 	lo_d_parent = hmdfs_get_lo_d(d_parent, HMDFS_DEVID_LOCAL);
 	if (!lo_d_parent) {
 		d_pparent = dget_parent(d_parent);
@@ -884,8 +1035,11 @@ int create_lo_d_child(struct inode *i_parent, struct dentry *d_child,
 {
 	struct dentry *d_pparent, *lo_d_parent, *lo_d_child;
 	struct dentry *d_parent = dget_parent(d_child);
+	struct hmdfs_dentry_info_merge *pmdi = hmdfs_dm(d_parent);
 	int ret = 0;
 	mode_t d_child_mode = rec_op_para->mode;
+
+	wait_event(pmdi->wait_queue, !has_merge_lookup_work(pmdi));
 
 	lo_d_parent = hmdfs_get_lo_d(d_parent, HMDFS_DEVID_LOCAL);
 	if (!lo_d_parent) {
@@ -985,6 +1139,8 @@ int do_rmdir_merge(struct inode *dir, struct dentry *dentry)
 	struct dentry *lo_d_dir = NULL;
 	struct inode *lo_i_dir = NULL;
 
+	wait_event(dim->wait_queue, !has_merge_lookup_work(dim));
+
 	mutex_lock(&dim->comrade_list_lock);
 	list_for_each_entry(comrade, &(dim->comrade_list), list) {
 		lo_d = comrade->lo_d;
@@ -1029,6 +1185,8 @@ int do_unlink_merge(struct inode *dir, struct dentry *dentry)
 	struct dentry *lo_d = NULL;
 	struct dentry *lo_d_dir = NULL;
 	struct inode *lo_i_dir = NULL;
+
+	wait_event(dim->wait_queue, !has_merge_lookup_work(dim));
 
 	mutex_lock(&dim->comrade_list_lock);
 	list_for_each_entry(comrade, &(dim->comrade_list), list) {
@@ -1081,6 +1239,7 @@ int do_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 	char *path_buf = kmalloc(PATH_MAX, GFP_KERNEL);
 	char *abs_path_buf = kmalloc(PATH_MAX, GFP_KERNEL);
 	char *path_name = NULL;
+	struct hmdfs_dentry_info_merge *pmdi = NULL;
 
 	if (flags & ~RENAME_NOREPLACE) {
 		ret = -EINVAL;
@@ -1092,9 +1251,13 @@ int do_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 		goto out;
 	}
 
+	wait_event(dim->wait_queue, !has_merge_lookup_work(dim));
+
 	list_for_each_entry(comrade, &dim->comrade_list, list) {
 		lo_d_old = comrade->lo_d;
 		d_new_dir = d_find_alias(new_dir);
+		pmdi = hmdfs_dm(d_new_dir);
+		wait_event(pmdi->wait_queue, !has_merge_lookup_work(pmdi));
 		lo_d_new_dir = hmdfs_get_lo_d(d_new_dir, comrade->dev_id);
 		dput(d_new_dir);
 

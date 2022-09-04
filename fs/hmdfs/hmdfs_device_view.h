@@ -181,6 +181,7 @@ struct hmdfs_lookup_ret *hmdfs_lookup_by_con(struct hmdfs_peer *con,
 char *hmdfs_connect_path(const char *path, const char *name);
 
 char *hmdfs_get_dentry_relative_path(struct dentry *dentry);
+char *hmdfs_merge_get_dentry_relative_path(struct dentry *dentry);
 char *hmdfs_get_dentry_absolute_path(const char *rootdir,
 				     const char *relative_path);
 int hmdfs_convert_lookup_flags(unsigned int hmdfs_flags,

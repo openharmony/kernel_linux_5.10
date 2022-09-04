@@ -17,6 +17,7 @@
 #include "hmdfs_dentryfile.h"
 #include "hmdfs_client.h"
 #include "hmdfs_device_view.h"
+#include "hmdfs_merge_view.h"
 #include "client_writeback.h"
 
 TRACE_EVENT(hmdfs_permission,
@@ -787,6 +788,100 @@ TRACE_EVENT(hmdfs_server_open_exit,
 		  __entry->ctime_nsec, __entry->stable_ctime,
 		  __entry->stable_ctime_nsec)
 );
+
+TRACE_EVENT(hmdfs_merge_lookup_work_enter,
+
+	TP_PROTO(struct merge_lookup_work *ml_work),
+
+	TP_ARGS(ml_work),
+
+	TP_STRUCT__entry(
+		__field(int, 		devid)
+		__string(name, 		ml_work->name)
+		__field(unsigned int, 	flags)
+	),
+
+	TP_fast_assign(
+		__entry->devid 	= ml_work->devid;
+		__assign_str(name, ml_work->name);
+		__entry->flags 	= ml_work->flags;
+	),
+
+	TP_printk("devid = %d, name:%s, flags:%u",
+		__entry->devid,
+		__get_str(name),
+		__entry->flags)
+);
+
+TRACE_EVENT(hmdfs_merge_lookup_work_exit,
+
+	TP_PROTO(struct merge_lookup_work *ml_work, int found),
+
+	TP_ARGS(ml_work, found),
+
+	TP_STRUCT__entry(
+		__field(int, 		devid)
+		__string(name, 		ml_work->name)
+		__field(unsigned int, 	flags)
+		__field(int, 		found)
+	),
+
+	TP_fast_assign(
+		__entry->devid 	= ml_work->devid;
+		__assign_str(name, ml_work->name);
+		__entry->flags 	= ml_work->flags;
+		__entry->found 	= found;
+	),
+
+	TP_printk("devid = %d, name:%s, flags:%u, found:%d",
+		__entry->devid,
+		__get_str(name),
+		__entry->flags,
+		__entry->found)
+);
+
+TRACE_EVENT(hmdfs_merge_update_dentry_info_enter,
+
+	TP_PROTO(struct dentry *src_dentry, struct dentry *dst_dentry),
+
+	TP_ARGS(src_dentry, dst_dentry),
+
+	TP_STRUCT__entry(
+		__string(src_name,	src_dentry->d_name.name)
+		__string(dst_name,	dst_dentry->d_name.name)
+	),
+
+	TP_fast_assign(
+		__assign_str(src_name, src_dentry->d_name.name);
+		__assign_str(dst_name, dst_dentry->d_name.name);
+	),
+
+	TP_printk("src name:%s, dst name:%s",
+		__get_str(src_name),
+		__get_str(dst_name))
+);
+
+TRACE_EVENT(hmdfs_merge_update_dentry_info_exit,
+
+	TP_PROTO(struct dentry *src_dentry, struct dentry *dst_dentry),
+
+	TP_ARGS(src_dentry, dst_dentry),
+
+	TP_STRUCT__entry(
+		__string(src_name,	src_dentry->d_name.name)
+		__string(dst_name,	dst_dentry->d_name.name)
+	),
+
+	TP_fast_assign(
+		__assign_str(src_name, src_dentry->d_name.name);
+		__assign_str(dst_name, dst_dentry->d_name.name);
+	),
+
+	TP_printk("src name:%s, dst name:%s",
+		__get_str(src_name),
+		__get_str(dst_name))
+);
+
 #endif
 
 #undef TRACE_INCLUDE_PATH

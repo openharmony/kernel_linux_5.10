@@ -19,6 +19,7 @@
 #include "comm/transport.h"
 #include "hmdfs_client.h"
 #include "hmdfs_device_view.h"
+#include "hmdfs_merge_view.h"
 
 /* Hashing code copied from f2fs */
 #define HMDFS_HASH_COL_BIT ((0x1ULL) << 63)
@@ -253,6 +254,89 @@ char *hmdfs_get_dentry_relative_path(struct dentry *dentry)
 		return final_buf;
 	}
 	p = hmdfs_dentry_path_raw(dentry, buf, PATH_MAX);
+	if (IS_ERR_OR_NULL(p)) {
+		kfree(buf);
+		kfree(final_buf);
+		return NULL;
+	}
+
+	if (strlen(p) >= PATH_MAX) {
+		kfree(buf);
+		kfree(final_buf);
+		return NULL;
+	}
+	strcpy(final_buf, p);
+	kfree(buf);
+	return final_buf;
+}
+
+static char *hmdfs_merge_dentry_path_raw(struct dentry *d, char *buf, int buflen)
+{
+	struct dentry *dentry = NULL;
+	char *end = NULL;
+	char *retval = NULL;
+	unsigned int len;
+	unsigned int seq = 0;
+	int error = 0;
+	struct hmdfs_dentry_info_merge *mdi = hmdfs_dm(d);
+
+	rcu_read_lock();
+restart:
+	dentry = d;
+	end = buf + buflen;
+	len = buflen;
+	prepend(&end, &len, "\0", 1);
+	retval = end - 1;
+	*retval = '/';
+	read_seqbegin_or_lock(&rename_lock, &seq);
+	while (mdi->dentry_type != HMDFS_LAYER_FIRST_MERGE) {
+		struct dentry *parent = dentry->d_parent;
+
+		prefetch(parent);
+		error = prepend_name(&end, &len, &dentry->d_name);
+		if (error)
+			break;
+		retval = end;
+		dentry = parent;
+		mdi = hmdfs_dm(dentry);
+	}
+	if (!(seq & 1))
+		rcu_read_unlock();
+	if (need_seqretry(&rename_lock, seq)) {
+		seq = 1;
+		goto restart;
+	}
+	done_seqretry(&rename_lock, seq);
+	if (error)
+		goto Elong;
+	return retval;
+Elong:
+	return ERR_PTR(-ENAMETOOLONG);
+}
+
+char *hmdfs_merge_get_dentry_relative_path(struct dentry *dentry)
+{
+	char *final_buf = NULL;
+	char *buf = NULL;
+	char *p = NULL;
+
+	buf = kzalloc(PATH_MAX, GFP_KERNEL);
+	if (!buf)
+		return NULL;
+
+	final_buf = kzalloc(PATH_MAX, GFP_KERNEL);
+	if (!final_buf) {
+		kfree(buf);
+		return NULL;
+	}
+
+	/* NULL dentry return root dir */
+	if (!dentry) {
+		strcpy(final_buf, "/");
+		kfree(buf);
+		return final_buf;
+	}
+	p = hmdfs_merge_dentry_path_raw(dentry, buf, PATH_MAX);
 	if (IS_ERR_OR_NULL(p)) {
 		kfree(buf);
 		kfree(final_buf);
