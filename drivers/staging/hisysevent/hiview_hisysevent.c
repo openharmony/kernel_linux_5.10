@@ -4,6 +4,8 @@
  */
 #include <dfx/hiview_hisysevent.h>
 
+#ifdef CONFIG_HISYSEVENT
+
 #include <linux/cred.h>
 #include <linux/ctype.h>
 #include <linux/fs.h>
@@ -513,3 +515,5 @@ int hisysevent_write(struct hiview_hisysevent *event)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(hisysevent_write);
+
+#endif /* CONFIG_HISYSEVENT */
