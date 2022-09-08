@@ -99,8 +99,8 @@ const struct cred *hmdfs_override_dir_fsids(struct inode *dir,
 		break;
 	case HMDFS_PERM_PKG:
 		if (is_service_dir(hii->perm)) {
-			cred->fsuid = hii->lower_inode->i_uid;
-			cred->fsgid = hii->lower_inode->i_gid;
+			cred->fsuid = DFS_SHARE_UID;
+			cred->fsgid = DFS_SHARE_GID;
 			perm = AUTH_SERVICES | HMDFS_DIR_PKG | level;
 			break;
 		}
@@ -354,7 +354,7 @@ void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child)
 	if (info->perm == HMDFS_ALL_MASK)
 		info->perm = hmdfs_perm_inherit(parent_inode, child);
 	if (is_service_dir(dir->perm))
-		child->i_mode = (child->i_mode & S_IFMT) | S_IRWXU;
+		child->i_mode = child->i_mode | S_IRWXG;
 }
 
 void check_and_fixup_ownership_remote(struct inode *dir,
@@ -384,7 +384,7 @@ void check_and_fixup_ownership_remote(struct inode *dir,
 			perm = HMDFS_DIR_SERVICES | level;
 			dinode->i_uid = DFS_SHARE_UID;
 			dinode->i_gid = DFS_SHARE_GID;
-			dinode->i_mode = (dinode->i_mode & S_IFMT) | S_IRWXU | S_IRGRP | S_IXGRP;
+			dinode->i_mode = dinode->i_mode | S_IRWXG;
 			break;
 		}
 		if (!strcmp(dentry->d_name.name, PKG_ROOT_NAME)) {
@@ -397,9 +397,9 @@ void check_and_fixup_ownership_remote(struct inode *dir,
 		break;
 	case HMDFS_PERM_PKG:
 		if (is_service_dir(hii->perm)) {
-			dinode->i_uid = dinfo->lower_inode->i_uid;
-			dinode->i_gid = dinfo->lower_inode->i_gid;
-			dinode->i_mode = (dinfo->lower_inode->i_mode & S_IFMT) | S_IRWXU;
+			dinode->i_uid = DFS_SHARE_UID;
+			dinode->i_gid = DFS_SHARE_GID;
+			dinode->i_mode = dinode->i_mode | S_IRWXG;
 			perm = AUTH_SERVICES | HMDFS_DIR_PKG | level;
 			break;
 		}
@@ -431,7 +431,7 @@ void check_and_fixup_ownership_remote(struct inode *dir,
 		dinode->i_uid = dir->i_uid;
 		dinode->i_gid = dir->i_gid;
 		if (is_service_auth(hii->perm)) {
-			dinode->i_mode = (dir->i_mode & S_IFMT) | S_IRWXU;
+			dinode->i_mode = dir->i_mode | S_IRWXG;
 			perm = AUTH_PKG | HMDFS_DIR_PKG_SUB | level;
 			break;
 		}
