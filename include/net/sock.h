@@ -387,8 +387,6 @@ struct sock {
 #define sk_net			__sk_common.skc_net
 #define sk_v6_daddr		__sk_common.skc_v6_daddr
 #define sk_v6_rcv_saddr	__sk_common.skc_v6_rcv_saddr
-#define sk_nip_daddr		__sk_common.nip_daddr		/* NIP */
-#define sk_nip_rcv_saddr	__sk_common.nip_rcv_saddr	/* NIP */
 #define sk_cookie		__sk_common.skc_cookie
 #define sk_incoming_cpu		__sk_common.skc_incoming_cpu
 #define sk_flags		__sk_common.skc_flags

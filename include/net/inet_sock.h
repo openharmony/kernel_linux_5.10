@@ -73,10 +73,6 @@ struct inet_request_sock {
 #define ir_rmt_port		req.__req_common.skc_dport
 #define ir_v6_rmt_addr		req.__req_common.skc_v6_daddr
 #define ir_v6_loc_addr		req.__req_common.skc_v6_rcv_saddr
-
-#define ir_nip_rmt_addr		req.__req_common.nip_daddr /* NIP */
-#define ir_nip_loc_addr		req.__req_common.nip_rcv_saddr /* NIP */
-
 #define ir_iif			req.__req_common.skc_bound_dev_if
 #define ir_cookie		req.__req_common.skc_cookie
 #define ireq_net		req.__req_common.skc_net
@@ -99,12 +95,6 @@ struct inet_request_sock {
 		struct {
 			struct ipv6_txoptions	*ipv6_opt;
 			struct sk_buff		*pktopts;
-		};
-#endif
-#if IS_ENABLED(CONFIG_NEWIP)
-		/* NIP */
-		struct {
-			struct sk_buff		*nip_pktopts;
 		};
 #endif
 	};

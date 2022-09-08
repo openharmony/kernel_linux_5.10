@@ -23,6 +23,9 @@
 #if IS_ENABLED(CONFIG_IPV6)
 #include <net/inet6_hashtables.h>
 #endif
+#if IS_ENABLED(CONFIG_NEWIP)
+#include <net/ninet_hashtables.h>
+#endif
 #include <net/secure_seq.h>
 #include <net/ip.h>
 #include <net/tcp.h>

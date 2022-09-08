@@ -442,10 +442,6 @@ enum tsq_enum {
 	TCP_MTU_REDUCED_DEFERRED,  /* tcp_v{4|6}_err() could not call
 				    * tcp_v{4|6}_mtu_reduced()
 				    */
-#ifdef CONFIG_NEWIP
-	TCP_NIP_WRITE_TIMER_DEFERRED,  /* NIP */
-	TCP_NIP_DELACK_TIMER_DEFERRED, /* NIP */
-#endif
 };
 
 enum tsq_flags {

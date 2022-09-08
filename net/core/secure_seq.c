@@ -151,51 +151,6 @@ u64 secure_ipv4_port_ephemeral(__be32 saddr, __be32 daddr, __be16 dport)
 EXPORT_SYMBOL_GPL(secure_ipv4_port_ephemeral);
 #endif
 
-#ifdef CONFIG_NEWIP
-/* NIP */
-__u32 secure_tcp_nip_sequence_number(const __be32 *saddr, const __be32 *daddr,
-				     __be16 sport, __be16 dport)
-{
-	const struct {
-		struct nip_addr saddr;
-		struct nip_addr daddr;
-		__be16 sport;
-		__be16 dport;
-	} __aligned(SIPHASH_ALIGNMENT) combined = {
-		.saddr = *(struct nip_addr *)saddr,
-		.daddr = *(struct nip_addr *)daddr,
-		.sport = sport,
-		.dport = dport,
-	};
-	u32 hash;
-
-	net_secret_init();
-	hash = siphash(&combined, offsetofend(typeof(combined), dport),
-		       &net_secret);
-	return seq_scale(hash);
-}
-EXPORT_SYMBOL_GPL(secure_tcp_nip_sequence_number);
-
-/* NIP */
-u64 secure_newip_port_ephemeral(const __be32 *saddr, const __be32 *daddr,
-				__be16 dport)
-{
-	const struct {
-		struct nip_addr saddr;
-		struct nip_addr daddr;
-		__be16 dport;
-	} __aligned(SIPHASH_ALIGNMENT) combined = {
-		.saddr = *(struct nip_addr *)saddr,
-		.daddr = *(struct nip_addr *)daddr,
-		.dport = dport,
-	};
-	net_secret_init();
-	return siphash(&combined, offsetofend(typeof(combined), dport),
-		       &net_secret);
-}
-EXPORT_SYMBOL_GPL(secure_newip_port_ephemeral);
-#endif
-
 #if IS_ENABLED(CONFIG_IP_DCCP)
 u64 secure_dccp_sequence_number(__be32 saddr, __be32 daddr,
 				__be16 sport, __be16 dport)

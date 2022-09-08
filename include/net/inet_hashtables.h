@@ -405,13 +405,6 @@ u32 inet6_ehashfn(const struct net *net,
 		  const struct in6_addr *laddr, const u16 lport,
 		  const struct in6_addr *faddr, const __be16 fport);
 
-#ifdef CONFIG_NEWIP
-/* NIP */
-u32 ninet_ehashfn(const struct net *net,
-		  const struct nip_addr *laddr, const u16 lport,
-		  const struct nip_addr *faddr, const __be16 fport);
-#endif
-
 static inline void sk_daddr_set(struct sock *sk, __be32 addr)
 {
 	sk->sk_daddr = addr; /* alias of inet_daddr */

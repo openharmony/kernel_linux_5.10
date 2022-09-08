@@ -36,7 +36,6 @@ struct dst_entry {
 
 	unsigned short		flags;
 
-#define DST_HOST		0x0001	/* NIP */
 #define DST_NOXFRM		0x0002
 #define DST_NOPOLICY		0x0004
 #define DST_NOCOUNT		0x0008
