@@ -232,6 +232,9 @@ enum {
 	NEIGH_ARP_TABLE = 0,
 	NEIGH_ND_TABLE = 1,
 	NEIGH_DN_TABLE = 2,
+#ifdef CONFIG_NEWIP
+	NEIGH_NND_TABLE = 3,	/* NIP */
+#endif
 	NEIGH_NR_TABLES,
 	NEIGH_LINK_TABLE = NEIGH_NR_TABLES /* Pseudo table for neigh_xmit */
 };

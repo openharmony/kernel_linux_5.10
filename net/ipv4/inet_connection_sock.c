@@ -22,6 +22,9 @@
 #include <net/tcp.h>
 #include <net/sock_reuseport.h>
 #include <net/addrconf.h>
+#if IS_ENABLED(CONFIG_NEWIP)
+#include <net/nip.h>
+#endif
 
 #if IS_ENABLED(CONFIG_IPV6)
 /* match_sk*_wildcard == true:  IPV6_ADDR_ANY equals to any IPv6 addresses
@@ -102,6 +105,16 @@ bool inet_rcv_saddr_equal(const struct sock *sk, const struct sock *sk2,
 					    match_wildcard,
 					    match_wildcard);
 #endif
+
+#if IS_ENABLED(CONFIG_NEWIP)
+	if (sk->sk_family == AF_NINET)
+		return nip_rcv_saddr_equal(&sk->sk_nip_rcv_saddr,
+					   &sk2->sk_nip_rcv_saddr,
+					   sk2->sk_family == AF_NINET,
+					   match_wildcard,
+					   match_wildcard);
+#endif
+
 	return ipv4_rcv_saddr_equal(sk->sk_rcv_saddr, sk2->sk_rcv_saddr,
 				    ipv6_only_sock(sk2), match_wildcard,
 				    match_wildcard);
@@ -292,6 +305,13 @@ static inline int sk_reuseport_match(struct inet_bind_bucket *tb,
 					    tb->fast_ipv6_only,
 					    ipv6_only_sock(sk), true, false);
 #endif
+#if IS_ENABLED(CONFIG_NEWIP)
+	if (tb->fast_sk_family == AF_NINET)
+		return nip_rcv_saddr_equal(&tb->fast_nip_rcv_saddr,
+					   &sk->sk_nip_rcv_saddr,
+					   sk->sk_family == AF_NINET,
+					   true, false);
+#endif
 	return ipv4_rcv_saddr_equal(tb->fast_rcv_saddr, sk->sk_rcv_saddr,
 				    ipv6_only_sock(sk), true, false);
 }
@@ -312,6 +332,9 @@ void inet_csk_update_fastreuse(struct inet_bind_bucket *tb,
 			tb->fast_sk_family = sk->sk_family;
 #if IS_ENABLED(CONFIG_IPV6)
 			tb->fast_v6_rcv_saddr = sk->sk_v6_rcv_saddr;
+#endif
+#if IS_ENABLED(CONFIG_NEWIP)
+			tb->fast_nip_rcv_saddr = sk->sk_nip_rcv_saddr;
 #endif
 		} else {
 			tb->fastreuseport = 0;
@@ -339,6 +362,9 @@ void inet_csk_update_fastreuse(struct inet_bind_bucket *tb,
 				tb->fast_sk_family = sk->sk_family;
 #if IS_ENABLED(CONFIG_IPV6)
 				tb->fast_v6_rcv_saddr = sk->sk_v6_rcv_saddr;
+#endif
+#if IS_ENABLED(CONFIG_NEWIP)
+				tb->fast_nip_rcv_saddr = sk->sk_nip_rcv_saddr;
 #endif
 			}
 		} else {

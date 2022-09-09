@@ -68,6 +68,9 @@
 #include <net/tcp_states.h>
 #include <linux/net_tstamp.h>
 #include <net/l3mdev.h>
+#ifdef CONFIG_NEWIP
+#include <uapi/linux/nip_addr.h>
+#endif
 
 /*
  * This structure really needs to be cleaned up.
@@ -200,6 +203,11 @@ struct sock_common {
 #if IS_ENABLED(CONFIG_IPV6)
 	struct in6_addr		skc_v6_daddr;
 	struct in6_addr		skc_v6_rcv_saddr;
+#endif
+
+#if IS_ENABLED(CONFIG_NEWIP)
+	struct nip_addr		nip_daddr;	/* NIP */
+	struct nip_addr		nip_rcv_saddr;	/* NIP */
 #endif
 
 	atomic64_t		skc_cookie;
