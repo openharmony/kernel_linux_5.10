@@ -154,16 +154,15 @@ out:
 
 loff_t hmdfs_file_llseek_local(struct file *file, loff_t offset, int whence)
 {
-	int err = 0;
-	struct file *lower_file = NULL;
+	loff_t ret;
+	struct file *lower_file;
 
-	err = generic_file_llseek(file, offset, whence);
-	if (err < 0)
-		goto out;
 	lower_file = hmdfs_f(file)->lower_file;
-	err = generic_file_llseek(lower_file, offset, whence);
-out:
-	return err;
+	lower_file->f_pos = file->f_pos;
+	ret = vfs_llseek(lower_file, offset, whence);
+	file->f_pos = lower_file->f_pos;
+
+	return ret;
 }
 
 int hmdfs_file_mmap_local(struct file *file, struct vm_area_struct *vma)
