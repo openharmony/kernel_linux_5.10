@@ -259,6 +259,7 @@ void clear_comrades(struct dentry *dentry)
 {
 	struct hmdfs_dentry_info_merge *cdi = hmdfs_dm(dentry);
 
+	wait_event(cdi->wait_queue, !has_merge_lookup_work(cdi));
 	mutex_lock(&cdi->comrade_list_lock);
 	clear_comrades_locked(&cdi->comrade_list);
 	mutex_unlock(&cdi->comrade_list_lock);
