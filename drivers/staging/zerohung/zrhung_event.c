@@ -13,7 +13,6 @@
 
 int zrhung_send_event(const char *domain, const char *event_name, const char *msg_buf)
 {
-#ifdef CONFIG_HISYSEVENT
 	struct hiview_hisysevent *event = NULL;
 	int ret = 0;
 
@@ -32,8 +31,4 @@ int zrhung_send_event(const char *domain, const char *event_name, const char *ms
 hisysevent_end:
 	hisysevent_destroy(&event);
 	return ret;
-#else
-	pr_err("HISYSEVENT is not configured");
-	return 0;
-#endif
 }
