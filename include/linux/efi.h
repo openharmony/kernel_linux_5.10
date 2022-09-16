@@ -1287,4 +1287,9 @@ static inline struct efi_mokvar_table_entry *efi_mokvar_entry_find(
 }
 #endif
 
+struct linux_efi_initrd {
+	unsigned long	base;
+	unsigned long	size;
+};
+
 #endif /* _LINUX_EFI_H */

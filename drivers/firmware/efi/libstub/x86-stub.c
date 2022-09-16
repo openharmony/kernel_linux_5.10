@@ -670,6 +670,7 @@ unsigned long efi_main(efi_handle_t handle,
 	unsigned long bzimage_addr = (unsigned long)startup_32;
 	unsigned long buffer_start, buffer_end;
 	struct setup_header *hdr = &boot_params->hdr;
+	const struct linux_efi_initrd *initrd = NULL;
 	efi_status_t status;
 
 	efi_system_table = sys_table_arg;
@@ -758,17 +759,17 @@ unsigned long efi_main(efi_handle_t handle,
 	if (!efi_noinitrd) {
 		unsigned long addr, size;
 
-		status = efi_load_initrd(image, &addr, &size,
-					 hdr->initrd_addr_max, ULONG_MAX);
+		status = efi_load_initrd(image, hdr->initrd_addr_max, ULONG_MAX,
+					 &initrd);
 
 		if (status != EFI_SUCCESS) {
 			efi_err("Failed to load initrd!\n");
 			goto fail;
 		}
-		if (size > 0) {
-			efi_set_u64_split(addr, &hdr->ramdisk_image,
+		if (initrd && initrd->size > 0) {
+			efi_set_u64_split(initrd->base, &hdr->ramdisk_image,
 					  &boot_params->ext_ramdisk_image);
-			efi_set_u64_split(size, &hdr->ramdisk_size,
+			efi_set_u64_split(initrd->size, &hdr->ramdisk_size,
 					  &boot_params->ext_ramdisk_size);
 		}
 	}
