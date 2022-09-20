@@ -12,15 +12,31 @@
 
 #include "comm/connection.h"
 #include <linux/slab.h>
+#include <linux/types.h>
+#include <linux/wait.h>
+#include <linux/workqueue.h>
 
 /*****************************************************************************
  * Dentires for merge view and their comrades.
  * A dentry's lower dentry is named COMRADE.
  *****************************************************************************/
 
+struct merge_lookup_work {
+	char *name;
+	int devid;
+	unsigned int flags;
+	struct hmdfs_sb_info *sbi;
+	wait_queue_head_t *wait_queue;
+	struct work_struct work;
+};
+
 struct hmdfs_dentry_info_merge {
 	unsigned long ctime;
-	// For the merge view to link dentries with same names
+	int type;
+	int work_count;
+	struct mutex work_lock;
+	wait_queue_head_t wait_queue;
+	__u8 dentry_type;
 	struct mutex comrade_list_lock;
 	struct list_head comrade_list;
 };
@@ -84,6 +100,39 @@ static inline void link_comrade_unlocked(struct dentry *dentry,
 }
 
 void clear_comrades_locked(struct list_head *comrade_list);
+
+static inline bool is_comrade_list_empty(struct hmdfs_dentry_info_merge *mdi)
+{
+	bool ret;
+
+	mutex_lock(&mdi->comrade_list_lock);
+	ret = list_empty(&mdi->comrade_list);
+	mutex_unlock(&mdi->comrade_list_lock);
+
+	return ret;
+}
+
+static inline bool has_merge_lookup_work(struct hmdfs_dentry_info_merge *mdi)
+{
+	bool ret;
+
+	mutex_lock(&mdi->work_lock);
+	ret = (mdi->work_count != 0);
+	mutex_unlock(&mdi->work_lock);
+
+	return ret;
+}
+
+static inline bool is_merge_lookup_end(struct hmdfs_dentry_info_merge *mdi)
+{
+	bool ret;
+
+	mutex_lock(&mdi->work_lock);
+	ret = mdi->work_count == 0 || !is_comrade_list_empty(mdi);
+	mutex_unlock(&mdi->work_lock);
+
+	return ret;
+}
 
 #define for_each_comrade_locked(_dentry, _comrade)                             \
 	list_for_each_entry(_comrade, &(hmdfs_dm(_dentry)->comrade_list), list)
