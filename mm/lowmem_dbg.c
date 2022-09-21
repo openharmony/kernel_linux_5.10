@@ -16,7 +16,7 @@
 #include <linux/lowmem_dbg.h>
 
 #define LMK_PRT_TSK_RSS 0
-#define LMK_INTERVAL 3
+#define LMK_INTERVAL 15
 
 /* SERVICE_ADJ(5) * OOM_SCORE_ADJ_MAX / -OOM_DISABLE */
 #define LMK_SERVICE_ADJ 1000
