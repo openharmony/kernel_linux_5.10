@@ -27,6 +27,8 @@
 
 struct loongson_board_info b_info;
 static const char dmi_empty_string[] = "        ";
+extern void __init arch_reserve_vmcore(void);
+extern void __init arch_parse_crashkernel(void);
 
 static const char *dmi_string_parse(const struct dmi_header *dm, u8 s)
 {
@@ -114,6 +116,9 @@ void __init early_init(void)
 void __init platform_init(void)
 {
 	efi_init();
+	arch_reserve_vmcore();
+	arch_parse_crashkernel();
+
 #ifdef CONFIG_ACPI_TABLE_UPGRADE
 	acpi_table_upgrade();
 #endif
