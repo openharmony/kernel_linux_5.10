@@ -19,16 +19,6 @@
 static int lmkd_oom_score_adj;
 static atomic64_t lmkd_no_cma_cnt = ATOMIC64_INIT(0);
 
-void lmkd_inc_no_cma_cnt(void)
-{
-	atomic64_inc(&lmkd_no_cma_cnt);
-}
-
-void lmkd_dec_no_cma_cnt(void)
-{
-	atomic64_dec(&lmkd_no_cma_cnt);
-}
-
 static int lmkd_dbg_trigger_proc_show(struct seq_file *m, void *v)
 {
 	seq_printf(m, "lmkd_oom_score_adj: %d\n", lmkd_oom_score_adj);

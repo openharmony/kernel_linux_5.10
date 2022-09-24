@@ -184,7 +184,6 @@ static unsigned int calc_sys_cur_avail_buffers(void)
 	freemem = global_zone_page_state(NR_FREE_PAGES) * PAGE_SIZE / SZ_1K;
 	active_file = global_node_page_state(NR_ACTIVE_FILE) * PAGE_SIZE / SZ_1K;
 	inactive_file = global_node_page_state(NR_INACTIVE_FILE) * PAGE_SIZE / SZ_1K;
-	inactive_anon = global_node_page_state(NR_INACTIVE_ANON) * PAGE_SIZE / SZ_1K;
 
 	buffers = freemem + inactive_file * get_inactive_file_ratio() / percent_constant +
 		active_file * get_active_file_ratio() / percent_constant;
