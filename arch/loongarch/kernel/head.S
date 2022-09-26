@@ -16,6 +16,8 @@ SYM_ENTRY(_stext, SYM_L_GLOBAL, SYM_A_NONE)
 
 	__REF
 
+	.align 12
+
 SYM_CODE_START(kernel_entry)			# kernel entry point
 
 	/* Config direct window and set PG */
