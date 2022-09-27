@@ -510,87 +510,25 @@ retry:
 					alloc_time_ns);
 }
 
-static struct request *blk_mq_rq_cache_fill(struct request_queue *q,
-					    struct blk_plug *plug,
-					    blk_opf_t opf,
-					    blk_mq_req_flags_t flags)
+struct request *blk_mq_alloc_request(struct request_queue *q, blk_opf_t opf,
+		blk_mq_req_flags_t flags)
 {
 	struct blk_mq_alloc_data data = {
 		.q		= q,
 		.flags		= flags,
 		.cmd_flags	= opf,
-		.nr_tags	= plug->nr_ios,
-		.cached_rq	= &plug->cached_rq,
+		.nr_tags	= 1,
 	};
 	struct request *rq;
+	int ret;
 
-	if (blk_queue_enter(q, flags))
-		return NULL;
-
-	plug->nr_ios = 1;
+	ret = blk_queue_enter(q, flags);
+	if (ret)
+		return ERR_PTR(ret);
 
 	rq = __blk_mq_alloc_requests(&data);
-	if (unlikely(!rq))
-		blk_queue_exit(q);
-	return rq;
-}
-
-static struct request *blk_mq_alloc_cached_request(struct request_queue *q,
-						   blk_opf_t opf,
-						   blk_mq_req_flags_t flags)
-{
-	struct blk_plug *plug = current->plug;
-	struct request *rq;
-
-	if (!plug)
-		return NULL;
-	if (rq_list_empty(plug->cached_rq)) {
-		if (plug->nr_ios == 1)
-			return NULL;
-		rq = blk_mq_rq_cache_fill(q, plug, opf, flags);
-		if (rq)
-			goto got_it;
-		return NULL;
-	}
-	rq = rq_list_peek(&plug->cached_rq);
-	if (!rq || rq->q != q)
-		return NULL;
-
-	if (blk_mq_get_hctx_type(opf) != rq->mq_hctx->type)
-		return NULL;
-	if (op_is_flush(rq->cmd_flags) != op_is_flush(opf))
-		return NULL;
-
-	plug->cached_rq = rq_list_next(rq);
-got_it:
-	rq->cmd_flags = opf;
-	INIT_LIST_HEAD(&rq->queuelist);
-	return rq;
-}
-
-struct request *blk_mq_alloc_request(struct request_queue *q, blk_opf_t opf,
-		blk_mq_req_flags_t flags)
-{
-	struct request *rq;
-
-	rq = blk_mq_alloc_cached_request(q, opf, flags);
-	if (!rq) {
-		struct blk_mq_alloc_data data = {
-			.q		= q,
-			.flags		= flags,
-			.cmd_flags	= opf,
-			.nr_tags	= 1,
-		};
-		int ret;
-
-		ret = blk_queue_enter(q, flags);
-		if (ret)
-			return ERR_PTR(ret);
-
-		rq = __blk_mq_alloc_requests(&data);
-		if (!rq)
-			goto out_queue_exit;
-	}
+	if (!rq)
+		goto out_queue_exit;
 	rq->__data_len = 0;
 	rq->__sector = (sector_t) -1;
 	rq->bio = rq->biotail = NULL;
@@ -823,10 +761,8 @@ static void blk_complete_request(struct request *req)
 	 * can find how many bytes remain in the request
 	 * later.
 	 */
-	if (!req->end_io) {
-		req->bio = NULL;
-		req->__data_len = 0;
-	}
+	req->bio = NULL;
+	req->__data_len = 0;
 }
 
 /**
@@ -1003,8 +939,7 @@ inline void __blk_mq_end_request(struct request *rq, blk_status_t error)
 
 	if (rq->end_io) {
 		rq_qos_done(rq->q, rq);
-		if (rq->end_io(rq, error) == RQ_END_IO_FREE)
-			blk_mq_free_request(rq);
+		rq->end_io(rq, error);
 	} else {
 		blk_mq_free_request(rq);
 	}
@@ -1056,13 +991,6 @@ void blk_mq_end_request_batch(struct io_comp_batch *iob)
 			__blk_mq_end_request_acct(rq, now);
 
 		rq_qos_done(rq->q, rq);
-
-		/*
-		 * If end_io handler returns NONE, then it still has
-		 * ownership of the request.
-		 */
-		if (rq->end_io && rq->end_io(rq, 0) == RQ_END_IO_NONE)
-			continue;
 
 		WRITE_ONCE(rq->state, MQ_RQ_IDLE);
 		if (!req_ref_put_and_test(rq))
@@ -1287,12 +1215,6 @@ void blk_execute_rq_nowait(struct request *rq, bool at_head)
 	WARN_ON(!blk_rq_is_passthrough(rq));
 
 	blk_account_io_start(rq);
-
-	/*
-	 * As plugging can be enabled for passthrough requests on a zoned
-	 * device, directly accessing the plug instead of using blk_mq_plug()
-	 * should not have any consequences.
-	 */
 	if (current->plug)
 		blk_add_rq_to_plug(current->plug, rq);
 	else
@@ -1305,16 +1227,15 @@ struct blk_rq_wait {
 	blk_status_t ret;
 };
 
-static enum rq_end_io_ret blk_end_sync_rq(struct request *rq, blk_status_t ret)
+static void blk_end_sync_rq(struct request *rq, blk_status_t ret)
 {
 	struct blk_rq_wait *wait = rq->end_io_data;
 
 	wait->ret = ret;
 	complete(&wait->done);
-	return RQ_END_IO_NONE;
 }
 
-bool blk_rq_is_poll(struct request *rq)
+static bool blk_rq_is_poll(struct request *rq)
 {
 	if (!rq->mq_hctx)
 		return false;
@@ -1324,7 +1245,6 @@ bool blk_rq_is_poll(struct request *rq)
 		return false;
 	return true;
 }
-EXPORT_SYMBOL_GPL(blk_rq_is_poll);
 
 static void blk_rq_poll_completion(struct request *rq, struct completion *wait)
 {
@@ -1523,13 +1443,7 @@ static void blk_mq_rq_timed_out(struct request *req)
 	blk_add_timer(req);
 }
 
-struct blk_expired_data {
-	bool has_timedout_rq;
-	unsigned long next;
-	unsigned long timeout_start;
-};
-
-static bool blk_mq_req_expired(struct request *rq, struct blk_expired_data *expired)
+static bool blk_mq_req_expired(struct request *rq, unsigned long *next)
 {
 	unsigned long deadline;
 
@@ -1539,29 +1453,27 @@ static bool blk_mq_req_expired(struct request *rq, struct blk_expired_data *expi
 		return false;
 
 	deadline = READ_ONCE(rq->deadline);
-	if (time_after_eq(expired->timeout_start, deadline))
+	if (time_after_eq(jiffies, deadline))
 		return true;
 
-	if (expired->next == 0)
-		expired->next = deadline;
-	else if (time_after(expired->next, deadline))
-		expired->next = deadline;
+	if (*next == 0)
+		*next = deadline;
+	else if (time_after(*next, deadline))
+		*next = deadline;
 	return false;
 }
 
 void blk_mq_put_rq_ref(struct request *rq)
 {
-	if (is_flush_rq(rq)) {
-		if (rq->end_io(rq, 0) == RQ_END_IO_FREE)
-			blk_mq_free_request(rq);
-	} else if (req_ref_put_and_test(rq)) {
+	if (is_flush_rq(rq))
+		rq->end_io(rq, 0);
+	else if (req_ref_put_and_test(rq))
 		__blk_mq_free_request(rq);
-	}
 }
 
 static bool blk_mq_check_expired(struct request *rq, void *priv)
 {
-	struct blk_expired_data *expired = priv;
+	unsigned long *next = priv;
 
 	/*
 	 * blk_mq_queue_tag_busy_iter() has locked the request, so it cannot
@@ -1570,18 +1482,7 @@ static bool blk_mq_check_expired(struct request *rq, void *priv)
 	 * it was completed and reallocated as a new request after returning
 	 * from blk_mq_check_expired().
 	 */
-	if (blk_mq_req_expired(rq, expired)) {
-		expired->has_timedout_rq = true;
-		return false;
-	}
-	return true;
-}
-
-static bool blk_mq_handle_expired(struct request *rq, void *priv)
-{
-	struct blk_expired_data *expired = priv;
-
-	if (blk_mq_req_expired(rq, expired))
+	if (blk_mq_req_expired(rq, next))
 		blk_mq_rq_timed_out(rq);
 	return true;
 }
@@ -1590,9 +1491,7 @@ static void blk_mq_timeout_work(struct work_struct *work)
 {
 	struct request_queue *q =
 		container_of(work, struct request_queue, timeout_work);
-	struct blk_expired_data expired = {
-		.timeout_start = jiffies,
-	};
+	unsigned long next = 0;
 	struct blk_mq_hw_ctx *hctx;
 	unsigned long i;
 
@@ -1612,23 +1511,10 @@ static void blk_mq_timeout_work(struct work_struct *work)
 	if (!percpu_ref_tryget(&q->q_usage_counter))
 		return;
 
-	/* check if there is any timed-out request */
-	blk_mq_queue_tag_busy_iter(q, blk_mq_check_expired, &expired);
-	if (expired.has_timedout_rq) {
-		/*
-		 * Before walking tags, we must ensure any submit started
-		 * before the current time has finished. Since the submit
-		 * uses srcu or rcu, wait for a synchronization point to
-		 * ensure all running submits have finished
-		 */
-		blk_mq_wait_quiesce_done(q);
+	blk_mq_queue_tag_busy_iter(q, blk_mq_check_expired, &next);
 
-		expired.next = 0;
-		blk_mq_queue_tag_busy_iter(q, blk_mq_handle_expired, &expired);
-	}
-
-	if (expired.next != 0) {
-		mod_timer(&q->timeout, expired.next);
+	if (next != 0) {
+		mod_timer(&q->timeout, next);
 	} else {
 		/*
 		 * Request timeouts are handled as a forward rolling timer. If
@@ -2047,8 +1933,7 @@ out:
 	/* If we didn't flush the entire list, we could have told the driver
 	 * there was more coming, but that turned out to be a lie.
 	 */
-	if ((!list_empty(list) || errors || needs_resource ||
-	     ret == BLK_STS_DEV_RESOURCE) && q->mq_ops->commit_rqs && queued)
+	if ((!list_empty(list) || errors) && q->mq_ops->commit_rqs && queued)
 		q->mq_ops->commit_rqs(hctx);
 	/*
 	 * Any items that need requeuing? Stuff them into hctx->dispatch,
@@ -2777,7 +2662,6 @@ void blk_mq_try_issue_list_directly(struct blk_mq_hw_ctx *hctx,
 		list_del_init(&rq->queuelist);
 		ret = blk_mq_request_issue_directly(rq, list_empty(list));
 		if (ret != BLK_STS_OK) {
-			errors++;
 			if (ret == BLK_STS_RESOURCE ||
 					ret == BLK_STS_DEV_RESOURCE) {
 				blk_mq_request_bypass_insert(rq, false,
@@ -2785,6 +2669,7 @@ void blk_mq_try_issue_list_directly(struct blk_mq_hw_ctx *hctx,
 				break;
 			}
 			blk_mq_end_request(rq, ret);
+			errors++;
 		} else
 			queued++;
 	}
@@ -3144,11 +3029,8 @@ static void blk_mq_clear_rq_mapping(struct blk_mq_tags *drv_tags,
 	struct page *page;
 	unsigned long flags;
 
-	/*
-	 * There is no need to clear mapping if driver tags is not initialized
-	 * or the mapping belongs to the driver tags.
-	 */
-	if (!drv_tags || drv_tags == tags)
+	/* There is no need to clear a driver tags own mapping */
+	if (drv_tags == tags)
 		return;
 
 	list_for_each_entry(page, &tags->page_list, lru) {
@@ -4042,6 +3924,9 @@ void blk_mq_destroy_queue(struct request_queue *q)
 	blk_sync_queue(q);
 	blk_mq_cancel_work_sync(q);
 	blk_mq_exit_queue(q);
+
+	/* @q is and will stay empty, shutdown and put */
+	blk_put_queue(q);
 }
 EXPORT_SYMBOL(blk_mq_destroy_queue);
 
@@ -4058,7 +3943,6 @@ struct gendisk *__blk_mq_alloc_disk(struct blk_mq_tag_set *set, void *queuedata,
 	disk = __alloc_disk_node(q, set->numa_node, lkclass);
 	if (!disk) {
 		blk_mq_destroy_queue(q);
-		blk_put_queue(q);
 		return ERR_PTR(-ENOMEM);
 	}
 	set_bit(GD_OWNS_QUEUE, &disk->state);
@@ -4584,10 +4468,17 @@ static bool blk_mq_elv_switch_none(struct list_head *head,
 
 	INIT_LIST_HEAD(&qe->node);
 	qe->q = q;
-	/* keep a reference to the elevator module as we'll switch back */
-	__elevator_get(qe->type);
 	qe->type = q->elevator->type;
 	list_add(&qe->node, head);
+
+	/*
+	 * After elevator_switch, the previous elevator_queue will be
+	 * released by elevator_release. The reference of the io scheduler
+	 * module get by elevator_get will also be put. So we need to get
+	 * a reference of the io scheduler module here to prevent it to be
+	 * removed.
+	 */
+	__module_get(qe->type->elevator_owner);
 	elevator_switch(q, NULL);
 	mutex_unlock(&q->sysfs_lock);
 
@@ -4621,8 +4512,6 @@ static void blk_mq_elv_switch_back(struct list_head *head,
 
 	mutex_lock(&q->sysfs_lock);
 	elevator_switch(q, t);
-	/* drop the reference acquired in blk_mq_elv_switch_none */
-	elevator_put(t);
 	mutex_unlock(&q->sysfs_lock);
 }
 
