@@ -64,7 +64,6 @@
 #include <linux/compat.h>
 #include <linux/vmalloc.h>
 #include <linux/io_uring.h>
-#include <linux/wgcm.h>
 
 #include <linux/uaccess.h>
 #include <asm/mmu_context.h>
@@ -1835,7 +1834,6 @@ static int bprm_execve(struct linux_binprm *bprm,
 	current->fs->in_exec = 0;
 	current->in_execve = 0;
 	rseq_execve(current);
-	wgcm_clear_child(current);
 	acct_update_integrals(current);
 	task_numa_free(current, false);
 	return retval;
