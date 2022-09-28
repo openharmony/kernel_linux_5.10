@@ -42,14 +42,6 @@
 	_IOWR(RTG_SCHED_IPC_MAGIC, SEARCH_RTG, struct proc_state_data)
 #define CMD_ID_GET_ENABLE \
 	_IOWR(RTG_SCHED_IPC_MAGIC, GET_ENABLE, struct rtg_enable_data)
-#ifdef CONFIG_SCHED_RTG_AUTHORITY
-#define CMD_ID_AUTH_MANIPULATE \
-	_IOWR(RTG_SCHED_IPC_MAGIC, AUTH_MANIPULATE, struct rtg_auth_data)
-#endif
-#ifdef CONFIG_SCHED_RTG_QOS
-#define CMD_ID_QOS_MANIPULATE \
-	_IOWR(RTG_SCHED_IPC_MAGIC, QOS_MANIPULATE, struct rtg_qos_data)
-#endif
 
 int proc_rtg_open(struct inode *inode, struct file *filp);
 long proc_rtg_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
@@ -76,12 +68,6 @@ enum rtg_sched_cmdid {
 	LIST_RTG_THREAD,
 	SEARCH_RTG,
 	GET_ENABLE,
-#ifdef CONFIG_SCHED_RTG_AUTHORITY
-	AUTH_MANIPULATE, /* SYSTEM OR ROOT */
-#endif
-#ifdef CONFIG_SCHED_RTG_QOS
-	QOS_MANIPULATE,
-#endif
 	RTG_CTRL_MAX_NR,
 };
 
@@ -110,20 +96,4 @@ struct proc_state_data {
 	int grp_id;
 	int state_param;
 };
-
-#ifdef CONFIG_SCHED_RTG_AUTHORITY
-struct rtg_auth_data {
-	unsigned int uid;
-	unsigned int type;
-	unsigned int ua_flag;
-	unsigned int status;
-};
-#endif
-
-#ifdef CONFIG_SCHED_RTG_QOS
-struct rtg_qos_data {
-	unsigned int type;
-	unsigned int level;
-};
-#endif
 #endif

@@ -113,10 +113,6 @@
 
 #include <kunit/test.h>
 
-#ifdef CONFIG_SCHED_RTG_AUTHORITY
-extern int init_rtg_authority_control(void);
-#endif
-
 static int kernel_init(void *);
 
 extern void init_IRQ(void);
@@ -929,10 +925,6 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 		 "Interrupts were enabled *very* early, fixing it\n"))
 		local_irq_disable();
 	radix_tree_init();
-
-#ifdef CONFIG_SCHED_RTG_AUTHORITY
-	BUG_ON(init_rtg_authority_control());
-#endif
 
 	/*
 	 * Set up housekeeping before setting up workqueues to allow the unbound
