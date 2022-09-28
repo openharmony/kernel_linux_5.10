@@ -18,7 +18,6 @@
 #include <linux/scs.h>
 #include <linux/irq.h>
 #include <linux/delay.h>
-#include <linux/wgcm.h>
 
 #include <asm/switch_to.h>
 #include <asm/tlb.h>
@@ -1650,15 +1649,11 @@ void activate_task(struct rq *rq, struct task_struct *p, int flags)
 {
 	enqueue_task(rq, p, flags);
 
-	wgcm_activate_task(p);
-
 	p->on_rq = TASK_ON_RQ_QUEUED;
 }
 
 void deactivate_task(struct rq *rq, struct task_struct *p, int flags)
 {
-	wgcm_deactivate_task(p, flags);
-
 	p->on_rq = (flags & DEQUEUE_SLEEP) ? 0 : TASK_ON_RQ_MIGRATING;
 
 	dequeue_task(rq, p, flags);
@@ -3265,8 +3260,6 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 #ifdef CONFIG_SCHED_RTG
 	p->rtg_depth = 0;
 #endif
-
-	wgcm_clear_child(p);
 }
 
 DEFINE_STATIC_KEY_FALSE(sched_numa_balancing);

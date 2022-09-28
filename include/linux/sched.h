@@ -1317,11 +1317,6 @@ struct task_struct {
 	unsigned long rseq_event_mask;
 #endif
 
-#ifdef CONFIG_WGCM
-	struct wgcm_task *wgcm_task;
-	struct wgcm_task *wgcm_server_task;
-#endif
-
 	struct tlbflush_unmap_batch	tlb_ubc;
 
 	union {
@@ -1702,11 +1697,6 @@ extern struct pid *cad_pid;
 #define PF_KTHREAD		0x00200000	/* I am a kernel thread */
 #define PF_RANDOMIZE		0x00400000	/* Randomize virtual address space */
 #define PF_SWAPWRITE		0x00800000	/* Allowed to write to swap */
-
-#ifdef CONFIG_WGCM
-#define PF_WGCM_WORKER		0x01000000	/* WGCM worker*/
-#endif
-
 #define PF_NO_SETAFFINITY	0x04000000	/* Userland is not allowed to meddle with cpus_mask */
 #define PF_MCE_EARLY		0x08000000      /* Early kill for mce process policy */
 #define PF_MEMALLOC_NOCMA	0x10000000	/* All allocation request will have _GFP_MOVABLE cleared */

@@ -64,7 +64,6 @@
 #include <linux/rcuwait.h>
 #include <linux/compat.h>
 #include <linux/io_uring.h>
-#include <linux/wgcm.h>
 
 #include <linux/uaccess.h>
 #include <asm/unistd.h>
@@ -850,8 +849,6 @@ void __noreturn do_exit(long code)
 
 	if (tsk->task_frag.page)
 		put_page(tsk->task_frag.page);
-
-	wgcm_do_exit(tsk);
 
 	validate_creds_for_do_exit(tsk);
 
