@@ -221,7 +221,6 @@ retry:
 		goto unlock;
 	if (!uxpte_cas(uxpte, val, val - 1))
 		goto retry;
-	val--;
 unlock:
 	spin_unlock(&vma->vm_mm->uxpgd_lock);
 }

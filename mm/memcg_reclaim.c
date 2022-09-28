@@ -340,7 +340,7 @@ static void shrink_file(struct pglist_data *pgdat,
 
 bool shrink_node_hyperhold(struct pglist_data *pgdat, struct scan_control *sc)
 {
-	unsigned long nr_reclaimed, nr_scanned;
+	unsigned long nr_reclaimed;
 	struct lruvec *target_lruvec;
 	bool reclaimable = false;
 	unsigned long file;
@@ -353,7 +353,6 @@ bool shrink_node_hyperhold(struct pglist_data *pgdat, struct scan_control *sc)
 
 		memset(&sc->nr, 0, sizeof(sc->nr));
 		nr_reclaimed = sc->nr_reclaimed;
-		nr_scanned = sc->nr_scanned;
 
 		/*
 		 * Determine the scan balance between anon and file LRUs.

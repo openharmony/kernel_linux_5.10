@@ -323,9 +323,7 @@ void workingset_refault(struct page *page, void *shadow)
 	 * configurations instead.
 	 */
 #ifdef CONFIG_HYPERHOLD_FILE_LRU
-	if (memcgid == -1)
-		eviction_lruvec = node_lruvec(pgdat);
-	else {
+	if (memcgid != -1) {
 		eviction_memcg = mem_cgroup_from_id(memcgid);
 		if (!mem_cgroup_disabled() && !eviction_memcg)
 			goto out;
@@ -551,11 +549,7 @@ static unsigned long count_shadow_nodes(struct shrinker *shrinker,
 	 * PAGE_SIZE / xa_nodes / node_entries * 8 / PAGE_SIZE
 	 */
 #ifdef CONFIG_MEMCG
-#ifdef CONFIG_HYPERHOLD_FILE_LRU
-	pages = node_page_state(NODE_DATA(sc->nid), NR_ACTIVE_FILE) +
-		node_page_state(NODE_DATA(sc->nid), NR_INACTIVE_FILE);
-#else
-
+#ifndef CONFIG_HYPERHOLD_FILE_LRU
 	if (sc->memcg) {
 		struct lruvec *lruvec;
 		int i;
