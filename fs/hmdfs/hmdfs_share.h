@@ -16,7 +16,7 @@
 #include "comm/connection.h"
 
 #define HMDFS_SHARE_ITEM_TIMEOUT_S 120
-#define HMDFS_SHARE_ITEMS_MAX 4
+#define HMDFS_SHARE_ITEMS_MAX 128
 
 #define HMDFS_IOC 0xf2
 #define HMDFS_IOC_SET_SHARE_PATH	_IOW(HMDFS_IOC, 1, \
@@ -62,5 +62,6 @@ int hmdfs_check_share_access_permission(struct hmdfs_sb_info *sbi,
 
 void hmdfs_init_share_table(struct hmdfs_sb_info *sbi);
 void hmdfs_clear_share_table(struct hmdfs_sb_info *sbi);
+int hmdfs_clear_first_item(struct hmdfs_share_table *st);
 
 #endif // HMDFS_SHARE_H
