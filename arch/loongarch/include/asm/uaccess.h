@@ -213,14 +213,9 @@ do {									\
 	__asm__ __volatile__(						\
 	"1:	" insn "	%1, %2				\n"	\
 	"2:							\n"	\
-	"	.section .fixup,\"ax\"				\n"	\
-	"3:	li.w	%0, %3					\n"	\
-	"	or	%1, $r0, $r0				\n"	\
-	"	b	2b					\n"	\
-	"	.previous					\n"	\
-	_ASM_EXTABLE(1b, 3b)						\
+	_ASM_EXTABLE_UACCESS_ERR_ZERO(1b, 2b, %0, %1)			\
 	: "+r" (__gu_err), "=r" (__gu_tmp)				\
-	: "m" (__m(ptr)), "i" (-EFAULT));				\
+	: "m" (__m(ptr)));						\
 									\
 	(val) = (__typeof__(*(ptr))) __gu_tmp;				\
 }
@@ -280,13 +275,9 @@ do {									\
 	__asm__ __volatile__(						\
 	"1:	" insn "	%z2, %1		# __put_user_asm\n"	\
 	"2:							\n"	\
-	"	.section	.fixup,\"ax\"			\n"	\
-	"3:	li.w	%0, %3					\n"	\
-	"	b	2b					\n"	\
-	"	.previous					\n"	\
-	_ASM_EXTABLE(1b, 3b)						\
+	_ASM_EXTABLE_UACCESS_ERR(1b, 2b, %0)				\
 	: "+r" (__pu_err), "=m" (__m(ptr))				\
-	: "Jr" (__pu_val), "i" (-EFAULT));				\
+	: "Jr" (__pu_val));						\
 }
 
 #define __put_data_asm_ll32(insn, ptr)					\
