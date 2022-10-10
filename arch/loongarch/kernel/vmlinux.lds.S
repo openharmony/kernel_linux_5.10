@@ -4,6 +4,7 @@
 #include <asm/thread_info.h>
 
 #define PAGE_SIZE _PAGE_SIZE
+#define RO_EXCEPTION_TABLE_ALIGN	4
 #define RUNTIME_DISCARD_EXIT
 
 /*
@@ -40,8 +41,6 @@ SECTIONS
 		*(.gnu.warning)
 	} :text = 0
 	_etext = .;	/* End of text section */
-
-	EXCEPTION_TABLE(16)
 
 	.got : ALIGN(16) { *(.got) }
 	.plt : ALIGN(16) { *(.plt) }
