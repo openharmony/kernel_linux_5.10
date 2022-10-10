@@ -347,6 +347,7 @@ static int do_file(char const *const fname, void *addr)
 	case EM_PPC:
 	case EM_ARM:
 	case EM_PPC64:
+	case EM_LOONGARCH:
 		custom_sort = sort_relative_table;
 		break;
 	case EM_ARCOMPACT:

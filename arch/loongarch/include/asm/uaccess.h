@@ -12,8 +12,8 @@
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/extable.h>
+#include <asm/extable.h>
 #include <asm/asm-extable.h>
-#include <asm-generic/extable.h>
 
 #ifdef CONFIG_64BIT
 
