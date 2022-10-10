@@ -12,15 +12,9 @@
 #include <asm/export.h>
 #include <asm/regdef.h>
 
-.macro fixup_ex from, to, fix
-.if \fix
-	.section .fixup, "ax"
-\to:	li.w	a0, -EFAULT
+.L_fixup_handle_unaligned:
+	li.w	a0, -EFAULT
 	jr	ra
-	.previous
-.endif
-	_asm_extable \from\()b, \to\()b
-.endm
 
 /*
  * unsigned long unaligned_read(void *addr, void *value, unsigned long n, bool sign)
@@ -57,9 +51,9 @@ SYM_FUNC_START(unaligned_read)
 5:	li.w    a0, -EFAULT
 	jr	ra
 
-	fixup_ex 1, 6, 1
-	fixup_ex 2, 6, 0
-	fixup_ex 4, 6, 0
+	_asm_extable 1b, .L_fixup_handle_unaligned
+	_asm_extable 2b, .L_fixup_handle_unaligned
+	_asm_extable 4b, .L_fixup_handle_unaligned
 SYM_FUNC_END(unaligned_read)
 
 /*
@@ -86,5 +80,5 @@ SYM_FUNC_START(unaligned_write)
 3:	li.w    a0, -EFAULT
 	jr	ra
 
-	fixup_ex 2, 4, 1
+	_asm_extable 2b, .L_fixup_handle_unaligned
 SYM_FUNC_END(unaligned_write)
