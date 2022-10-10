@@ -15,6 +15,7 @@
 #include <asm/export.h>
 #include <asm/fpregdef.h>
 #include <asm/loongarchregs.h>
+#include <asm/asm-extable.h>
 #include <asm/asm-offsets.h>
 #include <asm/regdef.h>
 
@@ -24,9 +25,7 @@
 
 	.macro	EX insn, reg, src, offs
 .ex\@:	\insn	\reg, \src, \offs
-	.section __ex_table,"a"
-	PTR	.ex\@, fault
-	.previous
+	_asm_extable .ex\@, fault
 	.endm
 
 	.macro sc_save_fp base

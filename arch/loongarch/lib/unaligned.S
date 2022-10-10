@@ -7,6 +7,7 @@
 
 #include <asm/asm.h>
 #include <asm/asmmacro.h>
+#include <asm/asm-extable.h>
 #include <asm/errno.h>
 #include <asm/export.h>
 #include <asm/regdef.h>
@@ -18,9 +19,7 @@
 	jr	ra
 	.previous
 .endif
-	.section __ex_table, "a"
-	PTR	\from\()b, \to\()b
-	.previous
+	_asm_extable \from\()b, \to\()b
 .endm
 
 /*
