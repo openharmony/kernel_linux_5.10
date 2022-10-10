@@ -83,8 +83,11 @@ int insert_share_item(struct hmdfs_share_table *st, struct qstr *relative_path,
 	int err = 0;
 
 	if (st->item_cnt >= st->max_cnt) {
-		err = -EMFILE;
-		goto err_out;
+		int ret = hmdfs_clear_first_item(st);
+		if (unlikely(ret)) {
+			err = -EMFILE;
+			goto err_out;
+		}
 	}
 
 	path_name = kzalloc(PATH_MAX, GFP_KERNEL);
@@ -245,15 +248,23 @@ void hmdfs_close_share_item(struct hmdfs_sb_info *sbi, struct file *file,
 		goto unlock;
 	}
 
+	/*
+	 * If the item is shared to all device, we should close the item directly.
+	 */
+	if (!strcmp(item->cid, SHARE_ALL_DEVICE)) {
+		goto close;
+	}
+
 	if (unlikely(!is_dst_device(item->cid, cid))) {
 		hmdfs_err("item not right, dst cid is: %s", item->cid);
 		goto unlock;
 	}
 
 	/*
-	 * After remote close, we shoule reset the opened status and restart
+	 * After remote close, we should reset the opened status and restart
 	 * delayed timeout work.
 	 */
+close:
 	item->opened = false;
 	queue_delayed_work(item->hst->share_item_timeout_wq, &item->d_work,
 				HZ * HMDFS_SHARE_ITEM_TIMEOUT_S);
@@ -315,4 +326,19 @@ void hmdfs_clear_share_table(struct hmdfs_sb_info *sbi)
 	spin_unlock(&sbi->share_table.item_list_lock);
 
 	destroy_workqueue(st->share_item_timeout_wq);
+}
+
+int hmdfs_clear_first_item(struct hmdfs_share_table *st)
+{
+	int ret = -EMFILE;
+	struct hmdfs_share_item *item, *tmp;
+	list_for_each_entry_safe(item, tmp, &st->item_list_head, list) {
+		if (!item->timeout) {
+			cancel_delayed_work_sync(&item->d_work);
+		}
+		remove_and_release_share_item(item);
+		ret = 0;
+		break;
+	}
+	return ret;
 }
