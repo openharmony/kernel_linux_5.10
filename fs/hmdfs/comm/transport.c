@@ -1055,8 +1055,7 @@ void hmdfs_reget_connection(struct connection *conn)
 		 * To avoid the receive thread to stop itself. Ensure receive
 		 * thread stop before process offline event
 		 */
-		if (!recv_task ||
-		    (recv_task && (recv_task->pid == current->pid)))
+		if (!recv_task || recv_task->pid == current->pid)
 			stop_thread = false;
 	}
 	mutex_unlock(&conn->node->conn_impl_list_lock);

@@ -65,9 +65,10 @@ static void ctrl_cmd_update_socket_handler(const char *buf, size_t len,
 		else
 			hmdfs_check_cred(system_cred);
 	}
-out:
+
 	if (conn)
 		connection_put(conn);
+out:
 	if (node)
 		peer_put(node);
 }
@@ -1339,7 +1340,7 @@ static ssize_t cmd_timeout_show(struct kobject *kobj, struct attribute *attr,
 	int cmd = to_sbi_cmd_attr(attr)->command;
 	struct hmdfs_sb_info *sbi = cmd_kobj_to_sbi(kobj);
 
-	if (cmd < 0 && cmd >= F_SIZE)
+	if (cmd < 0 || cmd >= F_SIZE)
 		return 0;
 
 	return snprintf(buf, PAGE_SIZE, "%u\n", get_cmd_timeout(sbi, cmd));
@@ -1353,7 +1354,7 @@ static ssize_t cmd_timeout_store(struct kobject *kobj, struct attribute *attr,
 	int ret = kstrtouint(skip_spaces(buf), 0, &value);
 	struct hmdfs_sb_info *sbi = cmd_kobj_to_sbi(kobj);
 
-	if (cmd < 0 && cmd >= F_SIZE)
+	if (cmd < 0 || cmd >= F_SIZE)
 		return -EINVAL;
 
 	if (!ret)

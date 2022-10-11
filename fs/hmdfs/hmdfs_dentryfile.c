@@ -2457,6 +2457,8 @@ int hmdfs_root_unlink(uint64_t device_id, struct path *root_path,
 		goto unlock_out;
 	}
 	child_inode = d_inode(child_dentry);
+	if (!child_inode)
+		goto unlock_out;
 
 	tmp_uid = hmdfs_override_inode_uid(dir);
 

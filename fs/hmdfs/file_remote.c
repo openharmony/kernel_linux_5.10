@@ -356,7 +356,7 @@ int hmdfs_file_open_remote(struct inode *inode, struct file *file)
 static void hmdfs_set_writecache_expire(struct hmdfs_inode_info *info,
 					unsigned int seconds)
 {
-	unsigned long new_expire = jiffies + seconds * HZ;
+	unsigned long new_expire = jiffies + (unsigned long)seconds * HZ;
 
 	/*
 	 * When file has been written before closing, set pagecache expire
