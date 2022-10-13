@@ -1034,6 +1034,11 @@ out_free_interp:
 		unsigned long total_size = 0;
 		unsigned long alignment;
 
+		if (elf_ppnt->p_type == PT_OHOS_RANDOMDATA) {
+			get_random_bytes((void *)(elf_ppnt->p_vaddr + load_bias), (int)elf_ppnt->p_memsz);
+			continue;
+		}
+
 		if (elf_ppnt->p_type != PT_LOAD)
 			continue;
 
