@@ -20,9 +20,6 @@ obj-$(CONFIG_TLS)		+= tls/
 obj-$(CONFIG_XFRM)		+= xfrm/
 obj-$(CONFIG_UNIX_SCM)		+= unix/
 obj-$(CONFIG_NET)		+= ipv6/
-ifeq ($(CONFIG_NEWIP),y)
-obj-$(CONFIG_NET)		+= newip/
-endif
 obj-$(CONFIG_BPFILTER)		+= bpfilter/
 obj-$(CONFIG_PACKET)		+= packet/
 obj-$(CONFIG_NET_KEY)		+= key/
@@ -91,3 +88,11 @@ obj-$(CONFIG_QRTR)		+= qrtr/
 obj-$(CONFIG_NET_NCSI)		+= ncsi/
 obj-$(CONFIG_XDP_SOCKETS)	+= xdp/
 obj-$(CONFIG_MPTCP)		+= mptcp/
+
+# The Makefile file is inserted when the "linux-5.10\net\" directory
+# adds a separate warehouse module. The content of the Makefile file
+# of the new module is added to this file to avoid downloading the
+# kernel repository separately. When the kernel repository is not downloaded,
+# an error message is displayed indicating that the Makefile file of the new
+# module cannot be found.
+obj-$(CONFIG_NET) += net_hooks/

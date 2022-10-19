@@ -83,9 +83,6 @@ struct inet_bind_bucket {
 #if IS_ENABLED(CONFIG_IPV6)
 	struct in6_addr		fast_v6_rcv_saddr;
 #endif
-#if IS_ENABLED(CONFIG_NEWIP)
-	struct nip_addr		fast_nip_rcv_saddr;
-#endif
 	__be32			fast_rcv_saddr;
 	unsigned short		fast_sk_family;
 	bool			fast_ipv6_only;
