@@ -1646,7 +1646,7 @@ retry:
 
 		select_sub_discard_policy(&spolicy, i, dpolicy);
 
-		if (i < DEFAULT_DISCARD_GRANULARITY && dpolicy->ordered) {
+		if (i + 1 < DEFAULT_DISCARD_GRANULARITY && dpolicy->ordered) {
 			issued = __issue_discard_cmd_orderly(sbi, dpolicy, i);
 			blk_finish_plug(&plug);
 			return issued;
