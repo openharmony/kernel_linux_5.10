@@ -420,8 +420,6 @@ cfg80211_add_nontrans_list(struct cfg80211_bss *trans_bss,
 			return 0;
 	}
 
-	rcu_read_unlock();
-
 	/*
 	 * This is a bit weird - it's not on the list, but already on another
 	 * one! The only way that could happen is if there's some BSSID/SSID
