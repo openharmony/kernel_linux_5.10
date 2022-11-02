@@ -82,7 +82,7 @@ static inline bool zlist_del(u32 hid, u32 idx, struct zlist_table *tab)
 	return ret;
 }
 
-bool zlist_get_priv(u32 idx, struct zlist_table *tab);
+bool zlist_set_priv(u32 idx, struct zlist_table *tab);
 bool zlist_clr_priv(u32 idx, struct zlist_table *tab);
 
 void zlist_node_init(u32 idx, struct zlist_table *tab);
