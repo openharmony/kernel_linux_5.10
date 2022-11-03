@@ -10,4 +10,7 @@ config VENDOR_HOOKS
 	  Allow vendor modules to attach to tracepoint "hooks" defined via
 	  DECLARE_TRACE or DECLARE_HOOK
 
+config OHOS_VENDOR
+	def_bool $(success,$(srctree)/scripts/ohos-check-dir.sh $(srctree)/vendor)
+
 endmenu
