@@ -5421,7 +5421,7 @@ static int check_func_call(struct bpf_verifier_env *env, struct bpf_insn *insn,
 	/* Transfer references to the callee */
 	err = transfer_reference_state(callee, caller);
 	if (err)
-		return err;
+		goto err_out;
 
 	/* copy r1 - r5 args that callee can access.  The copy includes parent
 	 * pointers, which connects us up to the liveness chain
@@ -5444,6 +5444,11 @@ static int check_func_call(struct bpf_verifier_env *env, struct bpf_insn *insn,
 		print_verifier_state(env, callee);
 	}
 	return 0;
+
+err_out:
+	free_func_state(callee);
+	state->frame[state->curframe + 1] = NULL;
+	return err;
 }
 
 static int prepare_func_exit(struct bpf_verifier_env *env, int *insn_idx)
@@ -5466,8 +5471,7 @@ static int prepare_func_exit(struct bpf_verifier_env *env, int *insn_idx)
 		return -EINVAL;
 	}
 
-	state->curframe--;
-	caller = state->frame[state->curframe];
+	caller = state->frame[state->curframe - 1];
 	/* return to the caller whatever r0 had in the callee */
 	caller->regs[BPF_REG_0] = *r0;
 
@@ -5485,7 +5489,7 @@ static int prepare_func_exit(struct bpf_verifier_env *env, int *insn_idx)
 	}
 	/* clear everything in the callee */
 	free_func_state(callee);
-	state->frame[state->curframe + 1] = NULL;
+	state->frame[state->curframe--] = NULL;
 	return 0;
 }
 
