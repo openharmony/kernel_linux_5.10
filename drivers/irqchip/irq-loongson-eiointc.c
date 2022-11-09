@@ -56,6 +56,17 @@ static int cpu_to_eio_node(int cpu)
 	return cpu_logical_map(cpu) / CORES_PER_EIO_NODE;
 }
 
+static unsigned int cpumask_nth(unsigned int idx, const struct cpumask *srcp)
+{
+	int cpu;
+
+	for_each_cpu(cpu, srcp)
+		if (idx-- == 0)
+			return cpu;
+
+	BUG();
+}
+
 static void eiointc_set_irq_route(int pos, unsigned int cpu, unsigned int mnode, nodemask_t *node_map)
 {
 	int i, node, cpu_node, route_node;
@@ -91,6 +102,7 @@ static int eiointc_set_irq_affinity(struct irq_data *d, const struct cpumask *af
 	unsigned int cpu;
 	unsigned long flags;
 	uint32_t vector, regaddr;
+	struct cpumask online_affinity;
 	struct cpumask intersect_affinity;
 	struct eiointc_priv *priv = d->domain->host_data;
 
@@ -99,14 +111,31 @@ static int eiointc_set_irq_affinity(struct irq_data *d, const struct cpumask *af
 
 	raw_spin_lock_irqsave(&affinity_lock, flags);
 
-	cpumask_and(&intersect_affinity, affinity, cpu_online_mask);
-	cpumask_and(&intersect_affinity, &intersect_affinity, &priv->cpuspan_map);
-
-	if (cpumask_empty(&intersect_affinity)) {
+	cpumask_and(&online_affinity, affinity, cpu_online_mask);
+	if (cpumask_empty(&online_affinity)) {
 		raw_spin_unlock_irqrestore(&affinity_lock, flags);
 		return -EINVAL;
 	}
-	cpu = cpumask_first(&intersect_affinity);
+	cpumask_and(&intersect_affinity, &online_affinity, &priv->cpuspan_map);
+
+	if (!cpumask_empty(&intersect_affinity))
+		cpu = cpumask_first(&intersect_affinity);
+	else {
+		int c, idx = 0;
+		struct cpumask complement_map;
+		struct cpumask cpuspan_online_map;
+
+		cpu = cpumask_first(&online_affinity);
+		cpumask_complement(&complement_map, &priv->cpuspan_map);
+		cpumask_and(&cpuspan_online_map, &priv->cpuspan_map, cpu_online_mask);
+
+		for_each_cpu(c, &complement_map) {
+			if (c == cpu) break; idx++;
+		}
+
+		idx = idx % cpumask_weight(&cpuspan_online_map);
+		cpu = cpumask_nth(idx, &cpuspan_online_map);
+	}
 
 	if (!d->parent_data)
 		vector = d->hwirq;
