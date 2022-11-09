@@ -178,7 +178,6 @@ static unsigned int calc_sys_cur_avail_buffers(void)
 	unsigned long freemem;
 	unsigned long active_file;
 	unsigned long inactive_file;
-	unsigned long inactive_anon;
 	unsigned long buffers;
 
 	freemem = global_zone_page_state(NR_FREE_PAGES) * PAGE_SIZE / SZ_1K;
