@@ -653,6 +653,7 @@ drivers-y	:= drivers/ sound/
 drivers-$(CONFIG_SAMPLES) += samples/
 drivers-y	+= net/ virt/
 libs-y		:= lib/
+vendor-$(CONFIG_OHOS_VENDOR) := vendor/
 endif # KBUILD_EXTMOD
 
 # The all: target is the default when no target is given on the
@@ -1155,16 +1156,16 @@ ifeq ($(KBUILD_EXTMOD),)
 core-y		+= kernel/ certs/ mm/ fs/ ipc/ security/ crypto/ block/
 
 vmlinux-dirs	:= $(patsubst %/,%,$(filter %/, \
-		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) \
+		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) $(vendor-y) \
 		     $(libs-y) $(libs-m)))
 
 vmlinux-alldirs	:= $(sort $(vmlinux-dirs) Documentation \
 		     $(patsubst %/,%,$(filter %/, $(core-) \
-			$(drivers-) $(libs-))))
+			$(drivers-) $(vendor-) $(libs-))))
 
 subdir-modorder := $(addsuffix modules.order,$(filter %/, \
 			$(core-y) $(core-m) $(libs-y) $(libs-m) \
-			$(drivers-y) $(drivers-m)))
+			$(drivers-y) $(drivers-m) $(vendor-y)))
 
 build-dirs	:= $(vmlinux-dirs)
 clean-dirs	:= $(vmlinux-alldirs)
@@ -1179,6 +1180,7 @@ else
 KBUILD_VMLINUX_LIBS := $(patsubst %/,%/lib.a, $(libs-y))
 endif
 KBUILD_VMLINUX_OBJS += $(patsubst %/,%/built-in.a, $(drivers-y))
+KBUILD_VMLINUX_OBJS += $(patsubst %/,%/built-in.a, $(vendor-y))
 
 export KBUILD_VMLINUX_OBJS KBUILD_VMLINUX_LIBS
 export KBUILD_LDS          := arch/$(SRCARCH)/kernel/vmlinux.lds

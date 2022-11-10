@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <unistd.h>
 
 #include "lkc.h"
 
@@ -20,11 +21,18 @@
 
 int cdebug = PRINTD;
 
+static const char *kconfig_white_list[] = {
+	"vendor/Kconfig",
+	"net/newip/Kconfig",
+	"net/newip/hooks/Kconfig",
+};
+
 static void yyerror(const char *err);
 static void zconfprint(const char *err, ...);
 static void zconf_error(const char *err, ...);
 static bool zconf_endtoken(const char *tokenname,
 			   const char *expected_tokenname);
+static bool zconf_in_whitelist(const char *path);
 
 struct symbol *symbol_hash[SYMBOL_HASHSIZE];
 
@@ -367,7 +375,9 @@ menu_option_list:
 source_stmt: T_SOURCE T_WORD_QUOTE T_EOL
 {
 	printd(DEBUG_PARSE, "%s:%d:source %s\n", zconf_curname(), zconf_lineno(), $2);
-	zconf_nextfile($2);
+	if (access(($2), F_OK) == 0 || zconf_in_whitelist($2) == false) {
+		zconf_nextfile($2);
+	}
 	free($2);
 };
 
@@ -483,6 +493,16 @@ assign_val:
 ;
 
 %%
+
+static bool zconf_in_whitelist(const char *path)
+{
+	int i;
+	for (i = 0; i < sizeof(kconfig_white_list) / sizeof(kconfig_white_list[0]); i++) {
+		if(strcmp(kconfig_white_list[i], path) == 0)
+			return true;
+	}
+	return false;
+}
 
 void conf_parse(const char *name)
 {
