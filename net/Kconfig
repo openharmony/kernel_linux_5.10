@@ -459,13 +459,8 @@ config ETHTOOL_NETLINK
 	  netlink. It provides better extensibility and some new features,
 	  e.g. notification messages.
 
-# The Kconfig file is inserted when the "linux-5.10\net\" directory
-# adds a separate warehouse module. The content of the Kconfig file
-# of the new module is added to this file to avoid downloading the
-# kernel repository separately. When the kernel repository is not downloaded,
-# an error message is displayed indicating that the Kconfig file of the new
-# module cannot be found.
-source "net/net_hooks/Kconfig"
+source "net/newip/Kconfig"
+source "net/newip/hooks/Kconfig"
 
 endif   # if NET
 
