@@ -460,7 +460,6 @@ config ETHTOOL_NETLINK
 	  e.g. notification messages.
 
 source "net/newip/Kconfig"
-source "net/newip/hooks/Kconfig"
 
 endif   # if NET
 
