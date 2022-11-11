@@ -89,11 +89,6 @@ obj-$(CONFIG_NET_NCSI)		+= ncsi/
 obj-$(CONFIG_XDP_SOCKETS)	+= xdp/
 obj-$(CONFIG_MPTCP)		+= mptcp/
 
-# net/newip/hooks/Makefile
-ifeq ($(CONFIG_NEWIP_HOOKS),y)
-obj-$(CONFIG_NET) += newip/hooks/
-endif
-
 # net/newip/Makefile
 ifeq ($(CONFIG_NEWIP),y)
 obj-$(CONFIG_NET) += newip/
