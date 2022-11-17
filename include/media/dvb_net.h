@@ -43,7 +43,7 @@
  * @ioctl_mutex:	protect access to this struct.
  * @remove_mutex:	mutex that avoids a race condition between a callback
  *			called when the hardware is disconnected and the
- *			file_operations of dvb_net
+ *			file_operations of dvb_net.
  *
  * Currently, the core supports up to %DVB_NET_DEVICES_MAX (10) network
  * devices.
