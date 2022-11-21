@@ -1789,8 +1789,9 @@ static int dvb_ca_en50221_io_release(struct inode *inode, struct file *file)
 	if (dvbdev->users == 1 && ca->exit == 1) {
 		mutex_unlock(&ca->remove_mutex);
 		wake_up(&dvbdev->wait_queue);
-	} else
+	} else {
 		mutex_unlock(&ca->remove_mutex);
+	}
 
 	return err;
 }
