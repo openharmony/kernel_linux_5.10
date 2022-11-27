@@ -205,14 +205,22 @@ bool zlist_set_priv(u32 idx, struct zlist_table *tab)
 	return ret;
 }
 
-bool zlist_clr_priv(u32 idx, struct zlist_table *tab)
+bool zlist_clr_priv_nolock(u32 idx, struct zlist_table *tab)
 {
 	struct zlist_node *node = idx2node(idx, tab);
 	bool ret = false;
 
-	zlist_node_lock(node);
 	ret = !test_and_clear_bit(ZLIST_PRIV_BIT, (unsigned long *)node);
-	zlist_node_unlock(node);
+
+	return ret;
+}
+
+bool zlist_test_priv_nolock(u32 idx, struct zlist_table *tab)
+{
+	struct zlist_node *node = idx2node(idx, tab);
+	bool ret = false;
+
+	ret = test_bit(ZLIST_PRIV_BIT, (unsigned long *)node);
 
 	return ret;
 }
