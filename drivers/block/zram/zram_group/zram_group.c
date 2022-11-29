@@ -489,6 +489,45 @@ u32 zgrp_isolate_exts(struct zram_group *zgrp, u16 gid, u32 *eids, u32 nr, bool 
 	return cnt;
 }
 
+void zgrp_get_ext(struct zram_group *zgrp, u32 eid)
+{
+	u32 hid;
+
+	if (!CHECK(zgrp, "zram group is not enable!\n"))
+		return;
+	if (!CHECK(zgrp->wbgrp.enable, "zram group writeback is not enable!\n"))
+		return;
+	if (!CHECK_BOUND(eid, 0, zgrp->wbgrp.nr_ext - 1))
+		return;
+
+	hid = eid + zgrp->nr_obj + zgrp->nr_grp;
+	zlist_set_priv(hid, zgrp->obj_tab);
+	pr_info("get extent %u\n", eid);
+}
+
+bool zgrp_put_ext(struct zram_group *zgrp, u32 eid)
+{
+	u32 hid;
+	bool ret = false;
+
+	if (!CHECK(zgrp, "zram group is not enable!\n"))
+		return false;
+	if (!CHECK(zgrp->wbgrp.enable, "zram group writeback is not enable!\n"))
+		return false;
+	if (!CHECK_BOUND(eid, 0, zgrp->wbgrp.nr_ext - 1))
+		return false;
+
+	hid = eid + zgrp->nr_obj + zgrp->nr_grp;
+	zlist_lock(hid, zgrp->obj_tab);
+	zlist_clr_priv_nolock(hid, zgrp->obj_tab);
+	ret = zlist_is_isolated_nolock(hid, zgrp->obj_tab);
+	zlist_unlock(hid, zgrp->obj_tab);
+
+	pr_info("put extent %u, ret = %d\n", eid, ret);
+
+	return ret;
+}
+
 /*
  * insert obj at @index into extent @eid
  */
@@ -517,6 +556,7 @@ void wbgrp_obj_insert(struct zram_group *zgrp, u32 index, u32 eid)
 bool wbgrp_obj_delete(struct zram_group *zgrp, u32 index, u32 eid)
 {
 	u32 hid;
+	bool ret = false;
 
 	if (!zgrp) {
 		pr_debug("zram group is not enable!");
@@ -531,7 +571,12 @@ bool wbgrp_obj_delete(struct zram_group *zgrp, u32 index, u32 eid)
 	pr_debug("delete obj %u from extent %u\n", index, eid);
 	hid = eid + zgrp->nr_obj + zgrp->nr_grp;
 
-	return zlist_del(hid, index, zgrp->obj_tab);
+	zlist_lock(hid, zgrp->obj_tab);
+	ret = zlist_del_nolock(hid, index, zgrp->obj_tab)
+		&& !zlist_test_priv_nolock(hid, zgrp->obj_tab);
+	zlist_unlock(hid, zgrp->obj_tab);
+
+	return ret;
 }
 
 /*
@@ -567,7 +612,8 @@ u32 wbgrp_isolate_objs(struct zram_group *zgrp, u32 eid, u32 *idxs, u32 nr, bool
 	for (i = 0; i < cnt; i++)
 		zlist_del_nolock(hid, idxs[i], zgrp->obj_tab);
 	if (last)
-		*last = cnt && zlist_is_isolated_nolock(hid, zgrp->obj_tab);
+		*last = cnt && zlist_is_isolated_nolock(hid, zgrp->obj_tab)
+			&& !zlist_test_priv_nolock(hid, zgrp->obj_tab);
 	zlist_unlock(hid, zgrp->obj_tab);
 
 	pr_debug("isolated %u objs from extent %u.\n", cnt, eid);

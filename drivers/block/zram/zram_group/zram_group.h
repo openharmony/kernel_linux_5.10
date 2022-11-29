@@ -86,6 +86,8 @@ int zram_group_apply_writeback(struct zram_group *zgrp, u32 nr_ext);
 void zgrp_ext_insert(struct zram_group *zgrp, u32 eid, u16 gid);
 bool zgrp_ext_delete(struct zram_group *zgrp, u32 eid, u16 gid);
 u32 zgrp_isolate_exts(struct zram_group *zgrp, u16 gid, u32 *eids, u32 nr, bool *last);
+void zgrp_get_ext(struct zram_group *zgrp, u32 eid);
+bool zgrp_put_ext(struct zram_group *zgrp, u32 eid);
 void wbgrp_obj_insert(struct zram_group *zgrp, u32 index, u32 eid);
 bool wbgrp_obj_delete(struct zram_group *zgrp, u32 index, u32 eid);
 u32 wbgrp_isolate_objs(struct zram_group *zgrp, u32 eid, u32 *idxs, u32 nr, bool *last);

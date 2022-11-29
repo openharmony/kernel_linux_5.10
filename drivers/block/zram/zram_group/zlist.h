@@ -15,10 +15,10 @@
 #define ZLIST_IDX_MAX (1 << ZLIST_IDX_SHIFT)
 
 struct zlist_node {
-	u32 prev	: ZLIST_IDX_SHIFT;
-	u32 lock	: 1;
-	u32 next	: ZLIST_IDX_SHIFT;
-	u32 priv	: 1;
+	u64 prev	: ZLIST_IDX_SHIFT;
+	u64 lock	: 1;
+	u64 next	: ZLIST_IDX_SHIFT;
+	u64 priv	: 1;
 };
 
 struct zlist_table {
@@ -83,7 +83,8 @@ static inline bool zlist_del(u32 hid, u32 idx, struct zlist_table *tab)
 }
 
 bool zlist_set_priv(u32 idx, struct zlist_table *tab);
-bool zlist_clr_priv(u32 idx, struct zlist_table *tab);
+bool zlist_clr_priv_nolock(u32 idx, struct zlist_table *tab);
+bool zlist_test_priv_nolock(u32 idx, struct zlist_table *tab);
 
 void zlist_node_init(u32 idx, struct zlist_table *tab);
 

@@ -280,12 +280,18 @@ static u64 write_one_extent(struct zram *zram, u16 gid)
 	if (!hpio)
 		goto free_extent;
 
+	zgrp_get_ext(zram->zgrp, eid);
 	size = collect_objs(zram, gid, hpio, hyperhold_extent_size(eid));
 	if (size == 0) {
 		pr_err("group %u has no data in zram.\n", gid);
+		zgrp_put_ext(zram->zgrp, eid);
 		goto put_hpio;
 	}
 	zgrp_ext_insert(zram->zgrp, eid, gid);
+	if (zgrp_put_ext(zram->zgrp, eid)) {
+		zgrp_ext_delete(zram->zgrp, eid, gid);
+		hyperhold_should_free_extent(eid);
+	}
 
 	ret = hyperhold_write_async(hpio, write_endio, priv);
 	if (ret)
