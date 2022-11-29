@@ -1504,6 +1504,9 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags)
 	test = curr &&
 	       unlikely(rt_task(curr)) &&
 	       (curr->nr_cpus_allowed < 2 || curr->prio <= p->prio);
+#ifdef CONFIG_SCHED_RT_CAS
+	test |= sysctl_sched_enable_rt_cas;
+#endif
 
 	if (test || !rt_task_fits_capacity(p, cpu)) {
 		int target = find_lowest_rq(p);
@@ -1519,8 +1522,11 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags)
 		 * Don't bother moving it if the destination CPU is
 		 * not running a lower priority task.
 		 */
-		if (target != -1 &&
-		    p->prio < cpu_rq(target)->rt.highest_prio.curr)
+		if (target != -1 && (
+#ifdef CONFIG_SCHED_RT_CAS
+		    sysctl_sched_enable_rt_cas ||
+#endif
+		    p->prio < cpu_rq(target)->rt.highest_prio.curr))
 			cpu = target;
 	}
 
