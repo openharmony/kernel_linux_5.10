@@ -45,6 +45,8 @@ struct liointc_priv {
 	struct irq_chip_generic		*gc;
 	struct liointc_handler_data	handler[LIOINTC_NUM_PARENT];
 	u8				map_cache[LIOINTC_CHIP_IRQ];
+	u32				int_pol;
+	u32				int_edge;
 	bool				has_lpc_irq_errata;
 };
 
@@ -125,6 +127,14 @@ static int liointc_set_type(struct irq_data *data, unsigned int type)
 	return 0;
 }
 
+static void liointc_suspend(struct irq_chip_generic *gc)
+{
+	struct liointc_priv *priv = gc->private;
+
+	priv->int_pol = readl(gc->reg_base + LIOINTC_REG_INTC_POL);
+	priv->int_edge = readl(gc->reg_base + LIOINTC_REG_INTC_EDGE);
+}
+
 static void liointc_resume(struct irq_chip_generic *gc)
 {
 	struct liointc_priv *priv = gc->private;
@@ -137,6 +147,8 @@ static void liointc_resume(struct irq_chip_generic *gc)
 	/* Restore map cache */
 	for (i = 0; i < LIOINTC_CHIP_IRQ; i++)
 		writeb(priv->map_cache[i], gc->reg_base + i);
+	writel(priv->int_pol, gc->reg_base + LIOINTC_REG_INTC_POL);
+	writel(priv->int_edge, gc->reg_base + LIOINTC_REG_INTC_EDGE);
 	/* Restore mask cache */
 	writel(gc->mask_cache, gc->reg_base + LIOINTC_REG_INTC_ENABLE);
 	irq_gc_unlock_irqrestore(gc, flags);
@@ -213,6 +225,7 @@ static int liointc_init(phys_addr_t addr, unsigned long size, int revision,
 	gc->private = priv;
 	gc->reg_base = base;
 	gc->domain = domain;
+	gc->suspend = liointc_suspend;
 	gc->resume = liointc_resume;
 
 	ct = gc->chip_types;
