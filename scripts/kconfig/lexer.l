@@ -21,6 +21,11 @@
 
 #define START_STRSIZE	16
 
+static const char *kconfig_white_list[] = {
+	"vendor/Kconfig",
+	"net/newip/Kconfig",
+};
+
 static struct {
 	struct file *file;
 	int lineno;
@@ -401,20 +406,35 @@ void zconf_initscan(const char *name)
 	yylineno = 1;
 }
 
+static bool zconf_in_whitelist(const char *path)
+{
+	int i;
+	for (i = 0; i < sizeof(kconfig_white_list) / sizeof(kconfig_white_list[0]); i++) {
+		if(strcmp(kconfig_white_list[i], path) == 0)
+			return true;
+	}
+	return false;
+}
+
 void zconf_nextfile(const char *name)
 {
 	struct file *iter;
 	struct file *file = file_lookup(name);
-	struct buffer *buf = xmalloc(sizeof(*buf));
-	memset(buf, 0, sizeof(*buf));
-
-	current_buf->state = YY_CURRENT_BUFFER;
-	yyin = zconf_fopen(file->name);
-	if (!yyin) {
+	struct buffer *buf = NULL;
+	FILE *yyin_tmp = zconf_fopen(file->name);
+	if (!yyin_tmp) {
+		if (zconf_in_whitelist(name) == true)
+			return;
 		fprintf(stderr, "%s:%d: can't open file \"%s\"\n",
 			zconf_curname(), zconf_lineno(), file->name);
 		exit(1);
 	}
+
+	buf = xmalloc(sizeof(*buf));
+	memset(buf, 0, sizeof(*buf));
+	current_buf->state = YY_CURRENT_BUFFER;
+	yyin = yyin_tmp;
+
 	yy_switch_to_buffer(yy_create_buffer(yyin, YY_BUF_SIZE));
 	buf->parent = current_buf;
 	current_buf = buf;
