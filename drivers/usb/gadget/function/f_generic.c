@@ -1472,6 +1472,9 @@ static long usbfn_ioctl(struct file *file, unsigned int cmd, unsigned long value
                 return (-ENOMEM);
             }
 
+            if (newfn.nameLen > MAX_NAMELEN) {
+                return -EPERM;
+            }
             memcpy(ffs->dev_name, newfn.name, newfn.nameLen);
             
             if (unlikely(!ffs->dev_name)) {
