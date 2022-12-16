@@ -410,6 +410,10 @@ read:
 		goto out;
 
 	hyperhold_io_wait(hpio);
+
+	/* if not reset to zero, will return err sometimes and cause SIG_BUS error */
+	ret = 0;
+
 	/* get a write io, data is ready, copy the pages even write failed */
 	if (op_is_write(hyperhold_io_operate(hpio)))
 		goto move;
@@ -424,6 +428,7 @@ move:
 		zgrp_ext_delete(zram->zgrp, eid, gid);
 		hyperhold_should_free_extent(eid);
 	}
+	move_obj_from_hpio(zram, index, hpio);
 out:
 	hyperhold_io_put(hpio);
 	zram_slot_lock(zram, index);
