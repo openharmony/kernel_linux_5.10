@@ -18,6 +18,7 @@
 #include "internal.h"
 
 #define UNSET_ZRAM_WM_RATIO 0
+#define ESWAP_PERCENT_CONSTANT 100
 #define DEFAULT_ZRAM_WM_RATIO 37
 #define SWAP_MORE_ZRAM (50 * (SZ_1M))
 
@@ -86,11 +87,11 @@ u64 swapin_memcg(struct mem_cgroup *memcg, u64 req_size)
 	u64 ratio = atomic64_read(&memcg->memcg_reclaimed.ub_ufs2zram_ratio);
 	struct group_swap_device *gsdev = NULL;
 
-	if (req_size > swap_size * ratio)
-		req_size = swap_size * ratio;
+	if (req_size > swap_size * ratio / ESWAP_PERCENT_CONSTANT)
+		req_size = swap_size * ratio / ESWAP_PERCENT_CONSTANT;
 	down_read(&gs_lock);
 	list_for_each_entry(gsdev, &gs_list, list) {
-		read_size += gsdev->ops->group_write(memcg->id.id, req_size - read_size,
+		read_size += gsdev->ops->group_read(memcg->id.id, req_size - read_size,
 							gsdev->priv);
 		if (read_size >= req_size)
 			break;
@@ -109,10 +110,10 @@ static u64 swapout_memcg(struct mem_cgroup *memcg, u64 req_size)
 	u32 ratio = atomic_read(&memcg->memcg_reclaimed.ub_zram2ufs_ratio);
 	struct group_swap_device *gsdev = NULL;
 
-	if (all_size * ratio <= swap_size)
+	if (all_size * ratio / ESWAP_PERCENT_CONSTANT <= swap_size)
 		return 0;
-	if (req_size > all_size * ratio - swap_size)
-		req_size = all_size * ratio - swap_size;
+	if (req_size > all_size * ratio / ESWAP_PERCENT_CONSTANT - swap_size)
+		req_size = all_size * ratio / ESWAP_PERCENT_CONSTANT - swap_size;
 	down_read(&gs_lock);
 	list_for_each_entry(gsdev, &gs_list, list) {
 		write_size += gsdev->ops->group_write(memcg->id.id, req_size - write_size,
