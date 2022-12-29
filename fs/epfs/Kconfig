@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0
+config EPFS
+	tristate "Enhanced Proxy File System support"
+	depends on TMPFS
+	help
+	  Enhanced Proxy File System support. If unsure, say N.
+
+config EPFS_DEBUG
+	tristate "Debug message of Enhanced Proxy File System"
+	depends on EPFS
+	help
+	  Enhanced Proxy File System debug support.
