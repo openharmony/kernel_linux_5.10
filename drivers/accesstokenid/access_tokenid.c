@@ -8,7 +8,6 @@
 
 #define pr_fmt(fmt) "access_token_id: " fmt
 
-#include <linux/cred.h>
 #include <linux/errno.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
@@ -24,7 +23,7 @@ int access_tokenid_get_tokenid(struct file *file, void __user *uarg)
 
 static bool check_permission_for_set_tokenid(struct file *file)
 {
-	const struct cred *cred = get_task_cred(current);
+	kuid_t uid = current_uid();
 	struct inode *inode = file->f_inode;
 
 	if (inode == NULL) {
@@ -32,8 +31,8 @@ static bool check_permission_for_set_tokenid(struct file *file)
 		return false;
 	}
 
-	if (uid_eq(cred->uid, GLOBAL_ROOT_UID) ||
-	    uid_eq(cred->uid, inode->i_uid)) {
+	if (uid_eq(uid, GLOBAL_ROOT_UID) ||
+	    uid_eq(uid, inode->i_uid)) {
 		return true;
 	}
 
@@ -58,7 +57,7 @@ static bool check_permission_for_ftokenid(struct file *file)
 {
 	int i;
 	struct group_info *group_info;
-	const struct cred *cred = get_task_cred(current);
+	kuid_t uid = current_uid();
 	struct inode *inode = file->f_inode;
 
 	if (inode == NULL) {
@@ -66,7 +65,7 @@ static bool check_permission_for_ftokenid(struct file *file)
 		return false;
 	}
 
-	if (uid_eq(cred->uid, GLOBAL_ROOT_UID))
+	if (uid_eq(uid, GLOBAL_ROOT_UID))
 		return true;
 
 	group_info = get_current_groups();
