@@ -415,22 +415,6 @@ struct tcp_sock {
 	 */
 	struct request_sock __rcu *fastopen_rsk;
 	struct saved_syn *saved_syn;
-
-#ifdef CONFIG_NEWIP
-/* newip tcp retrans */
-	u32 ack_retrans_num;
-	u32 ack_retrans_seq;
-	u32 nip_ssthresh;
-	u32 nip_ssthresh_reset;
-	bool nip_keepalive_enable;
-	u32 idle_ka_probes_out;
-	u32 nip_keepalive_out;
-	u32 last_rcv_nxt;
-	u32 dup_ack_cnt;
-	u32 keepalive_time_bak;
-	u32 keepalive_probes_bak;
-	u32 keepalive_intvl_bak;
-#endif
 };
 
 enum tsq_enum {
