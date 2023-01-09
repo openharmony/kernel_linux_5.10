@@ -23,9 +23,7 @@
 #if IS_ENABLED(CONFIG_IPV6)
 #include <net/inet6_hashtables.h>
 #endif
-#if IS_ENABLED(CONFIG_NEWIP)
-#include <net/ninet_hashtables.h>
-#endif
+#include <trace/hooks/inet.h>
 #include <net/secure_seq.h>
 #include <net/ip.h>
 #include <net/tcp.h>
@@ -56,13 +54,14 @@ static u32 sk_ehashfn(const struct sock *sk)
 				     &sk->sk_v6_daddr, sk->sk_dport);
 #endif
 
-#if IS_ENABLED(CONFIG_NEWIP)
-	/* NIP */
-	if (sk->sk_family == AF_NINET)
-		return ninet_ehashfn(sock_net(sk),
-				     &sk->sk_nip_rcv_saddr, sk->sk_num,
-				     &sk->sk_nip_daddr, sk->sk_dport);
-#endif
+	if (trace_vendor_ninet_ehashfn_enabled()) {
+		if (sk->sk_family == AF_NINET) {
+			u32 ret = 0;
+
+			trace_vendor_ninet_ehashfn(sk, &ret);
+			return ret;
+		}
+	}
 
 	return inet_ehashfn(sock_net(sk),
 			    sk->sk_rcv_saddr, sk->sk_num,

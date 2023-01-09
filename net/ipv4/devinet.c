@@ -61,6 +61,7 @@
 #include <net/rtnetlink.h>
 #include <net/net_namespace.h>
 #include <net/addrconf.h>
+#include <trace/hooks/inet.h>
 
 #define IPV6ONLY_FLAGS	\
 		(IFA_F_NODAD | IFA_F_OPTIMISTIC | IFA_F_DADFAILED | \
@@ -1278,6 +1279,7 @@ int inet_gifconf(struct net_device *dev, char __user *buf, int len, int size)
 		len  -= size;
 		done += size;
 	}
+	trace_vendor_ninet_gifconf(dev, buf, len, size, &done);
 out:
 	return done;
 }
