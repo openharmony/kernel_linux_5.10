@@ -169,6 +169,7 @@ struct hmdfs_sb_info {
 	/* To bridge the userspace utils */
 	struct kfifo notify_fifo;
 	spinlock_t notify_fifo_lock;
+	struct mutex cmd_handler_mutex;
 
 	/* For reboot detect */
 	uint64_t boot_cookie;
