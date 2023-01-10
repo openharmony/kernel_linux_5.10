@@ -512,7 +512,7 @@ int hmdfs_init_writeback(struct hmdfs_sb_info *sbi)
 free_i_wq:
 	destroy_workqueue(hwb->dirty_inode_writeback_wq);
 free_bdp:
-	free_percpu(sbi->h_wb->bdp_ratelimits);
+	free_percpu(hwb->bdp_ratelimits);
 free_hwb:
 	kfree(hwb);
 	return ret;
