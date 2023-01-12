@@ -86,6 +86,7 @@ int check_range(struct epfs_range *range)
 long epfs_set_range(struct file *file, unsigned long arg)
 {
 	struct inode *inode = file->f_inode;
+	struct inode *origin_inode;
 	struct epfs_inode_info *info = epfs_inode_to_private(inode);
 	int ret = 0;
 	struct epfs_range *range;
@@ -95,6 +96,13 @@ long epfs_set_range(struct file *file, unsigned long arg)
 	if (!info->origin_file) {
 		epfs_err("origin file not exist!");
 		ret = -EBADF;
+		goto out_set_range;
+	}
+	origin_inode = info->origin_file->f_inode;
+	if (!in_group_p(origin_inode->i_gid)) {
+		epfs_err("Only group member can set range: %u",
+			 i_gid_read(origin_inode));
+		ret = -EACCES;
 		goto out_set_range;
 	}
 
@@ -142,6 +150,19 @@ static long __epfs_ioctl(struct file *file, unsigned int cmd,
 			 unsigned long arg)
 {
 	long rc = -ENOTTY;
+
+	if (unlikely(_IOC_TYPE(cmd) != EPFS_IOCTL_MAGIC)) {
+		epfs_err("Failed to check epfs magic: %u", _IOC_TYPE(cmd));
+		return -ENOTTY;
+	}
+	if (unlikely(_IOC_NR(cmd) >= EPFS_IOCTL_MAXNR)) {
+		epfs_err("Failed to check ioctl number: %u", _IOC_NR(cmd));
+		return -ENOTTY;
+	}
+	if (unlikely(!access_ok((void __user *)arg, _IOC_SIZE(cmd)))) {
+		epfs_err("Failed to check user address space range!");
+		return -EFAULT;
+	}
 
 	switch (cmd) {
 	case IOC_SET_ORIGIN_FD:

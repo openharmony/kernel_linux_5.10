@@ -27,6 +27,7 @@ struct __attribute__((__packed__)) epfs_range {
 #define EPFS_IOCTL_MAGIC 0x71
 #define IOC_SET_ORIGIN_FD _IOW(EPFS_IOCTL_MAGIC, 1, __s32)
 #define IOC_SET_EPFS_RANGE _IOW(EPFS_IOCTL_MAGIC, 2, struct epfs_range)
+#define EPFS_IOCTL_MAXNR 3
 
 #define EPFS_TAG "Epfs"
 
