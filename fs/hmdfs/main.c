@@ -762,6 +762,7 @@ static int hmdfs_update_dst(struct hmdfs_sb_info *sbi)
 		goto out_err;
 	}
 	kfree(sbi->local_dst);
+	sbi->local_dst = NULL;
 
 	len = strlen(sbi->real_dst) + strlen(path_local) + 1;
 	if (len > PATH_MAX) {
