@@ -8,6 +8,7 @@
 #define _ASM_UNWIND_H
 
 #include <linux/module.h>
+#include <linux/ftrace.h>
 #include <linux/sched.h>
 
 #include <asm/ptrace.h>
@@ -52,4 +53,13 @@ void unwind_module_init(struct module *mod, void *orc_ip, size_t orc_ip_size, vo
 static inline void unwind_init(void) {}
 static inline void unwind_module_init(struct module *mod, void *orc_ip, size_t orc_ip_size, void *orc, size_t orc_size) {}
 #endif /* CONFIG_UNWINDER_ORC */
+
+#define GRAPH_FAKE_OFFSET (sizeof(struct pt_regs) - offsetof(struct pt_regs, regs[1]))
+
+static inline unsigned long unwind_graph_addr(struct unwind_state *state,
+					unsigned long pc, unsigned long cfa)
+{
+	return ftrace_graph_ret_addr(state->task, &state->graph_idx,
+				     pc, (unsigned long *)(cfa - GRAPH_FAKE_OFFSET));
+}
 #endif /* _ASM_UNWIND_H */

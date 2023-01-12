@@ -14,14 +14,7 @@ unsigned long unwind_get_return_address(struct unwind_state *state)
 	if (unwind_done(state))
 		return 0;
 
-	if (state->enable) {
-		return state->pc;
-	} else {
-		if (state->first)
-			return state->pc;
-
-		return *(unsigned long *)(state->sp);
-	}
+	return state->pc;
 }
 EXPORT_SYMBOL_GPL(unwind_get_return_address);
 
@@ -156,7 +149,8 @@ static bool unwind_by_guess(struct unwind_state *state)
 	     state->sp += sizeof(unsigned long)) {
 		addr = *(unsigned long *)(state->sp);
 
-		if (__kernel_text_address(addr))
+		state->pc = unwind_graph_addr(state, addr, state->sp + 8);
+		if (__kernel_text_address(state->pc))
 			return true;
 	}
 
@@ -174,9 +168,10 @@ bool unwind_next_frame(struct unwind_state *state)
 
 	do {
 		if (state->enable) {
-			if (unwind_by_prologue(state))
+			if (unwind_by_prologue(state)) {
+				state->pc = unwind_graph_addr(state, state->pc, state->sp);
 				return true;
-
+			}
 			if (info->type == STACK_TYPE_IRQ &&
 				info->end == state->sp) {
 				regs = (struct pt_regs *)info->next_sp;
@@ -224,7 +219,7 @@ void unwind_start(struct unwind_state *state, struct task_struct *task,
 	state->sp = regs->regs[3];
 	state->ra = regs->regs[1];
 	state->first = true;
-
+	state->pc = unwind_graph_addr(state, state->pc, state->sp);
 	get_stack_info(state->sp, state->task, &state->stack_info);
 
 	if (!unwind_done(state) && !__kernel_text_address(state->pc))

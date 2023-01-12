@@ -378,8 +378,6 @@ static bool is_entry_func(unsigned long addr)
 		addr < (unsigned long)&kernel_entry_end;
 }
 
-#define GRAPH_FAKE_OFFSET (sizeof(struct pt_regs) - offsetof(struct pt_regs, regs[1]))
-
 bool unwind_next_frame(struct unwind_state *state)
 {
 	struct stack_info *info = &state->stack_info;
@@ -437,17 +435,13 @@ bool unwind_next_frame(struct unwind_state *state)
 			if (!stack_access_ok(state, (unsigned long)p, sizeof(unsigned long)))
 				goto err;
 
-			pc = ftrace_graph_ret_addr(state->task, &state->graph_idx,
-					*p, (unsigned long *)(state->sp - GRAPH_FAKE_OFFSET));
-
+			pc = unwind_graph_addr(state, *p, state->sp);
 			pc -= INSN_LINK_OFFSET;
 		} else if (orc->ra_reg == ORC_REG_UNDEFINED) {
 			if (!state->ra || state->ra == state->pc)
 				goto err;
 
-			pc = ftrace_graph_ret_addr(state->task, &state->graph_idx,
-					state->ra, (unsigned long *)(state->sp - GRAPH_FAKE_OFFSET));
-
+			pc = unwind_graph_addr(state, state->ra, state->sp);
 			pc -=  INSN_LINK_OFFSET;
 			state->ra = 0;
 		} else {
