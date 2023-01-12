@@ -1082,7 +1082,7 @@ static void hmdfs_recv_mesg_callback(struct hmdfs_peer *con, void *head,
 	default:
 		hmdfs_err("Fatal! Unexpected msg cmd %d",
 			  hmdfs_head->operations.cmd_flag);
-		break;
+		goto out_err;
 	}
 	return;
 
