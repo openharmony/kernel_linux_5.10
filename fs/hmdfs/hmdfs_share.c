@@ -302,7 +302,7 @@ int hmdfs_check_share_access_permission(struct hmdfs_sb_info *sbi,
 }
 
 
-void hmdfs_init_share_table(struct hmdfs_sb_info *sbi)
+int hmdfs_init_share_table(struct hmdfs_sb_info *sbi)
 {
 	spin_lock_init(&sbi->share_table.item_list_lock);
 	INIT_LIST_HEAD(&sbi->share_table.item_list_head);
@@ -310,6 +310,10 @@ void hmdfs_init_share_table(struct hmdfs_sb_info *sbi)
 	sbi->share_table.max_cnt = HMDFS_SHARE_ITEMS_MAX;
 	sbi->share_table.share_item_timeout_wq =
 			create_singlethread_workqueue("share_item_timeout_wq");
+
+	if (!sbi->share_table.share_item_timeout_wq)
+		return -ENOMEM;
+	return 0;
 }
 
 void hmdfs_clear_share_table(struct hmdfs_sb_info *sbi)
