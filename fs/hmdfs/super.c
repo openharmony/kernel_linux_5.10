@@ -63,6 +63,8 @@ static int hmdfs_match_strdup(const substring_t *s, char **dst)
 	if (!dup)
 		return -ENOMEM;
 
+	if (*dst)
+		kfree(*dst);
 	*dst = dup;
 
 	return 0;
