@@ -409,18 +409,23 @@ int hmdfs_sendmessage_request(struct hmdfs_peer *con,
 	struct hmdfs_head_cmd *head = NULL;
 	bool dec = false;
 
-	if (!hmdfs_is_node_online(con))
-		return -EAGAIN;
+	if (!hmdfs_is_node_online(con)) {
+		ret = -EAGAIN;
+		goto free_filp;
+	}
 
 	if (timeout == TIMEOUT_UNINIT) {
 		hmdfs_err_ratelimited("send msg %d with uninitialized timeout",
 				      sm->operations.command);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto free_filp;
 	}
 
 	head = kzalloc(sizeof(struct hmdfs_head_cmd), GFP_KERNEL);
-	if (!head)
-		return -ENOMEM;
+	if (!head) {
+		ret = -ENOMEM;
+		goto free_filp;
+	}
 
 	sm->out_buf = NULL;
 	head->magic = HMDFS_MSG_MAGIC;
@@ -503,6 +508,11 @@ free:
 	if (dec)
 		hmdfs_dec_msg_idr_process(con);
 	kfree(head);
+	return ret;
+
+free_filp:
+	if (sm->local_filp)
+		fput(sm->local_filp);
 	return ret;
 }
 
