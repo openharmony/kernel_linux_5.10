@@ -957,6 +957,10 @@ static struct dentry *hmdfs_mount(struct file_system_type *fs_type, int flags,
 		.dev_name = dev_name,
 		.raw_data = raw_data,
 	};
+
+	/* hmdfs needs a valid dev_name to get the lower_sb's metadata */
+	if (!dev_name || !*dev_name)
+		return ERR_PTR(-EINVAL);
 	return mount_nodev(fs_type, flags, &priv, hmdfs_fill_super);
 }
 
