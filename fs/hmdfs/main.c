@@ -712,7 +712,9 @@ static int hmdfs_init_sbi(struct hmdfs_sb_info *sbi)
 	mutex_init(&sbi->connections.node_lock);
 	INIT_LIST_HEAD(&sbi->connections.node_list);
 
-	hmdfs_init_share_table(sbi);
+	ret = hmdfs_init_share_table(sbi);
+	if (ret)
+		goto out;
 	init_waitqueue_head(&sbi->async_readdir_wq);
 	INIT_LIST_HEAD(&sbi->async_readdir_msg_list);
 	INIT_LIST_HEAD(&sbi->async_readdir_work_list);

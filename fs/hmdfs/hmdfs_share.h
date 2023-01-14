@@ -60,7 +60,7 @@ void hmdfs_close_share_item(struct hmdfs_sb_info *sbi, struct file *file,
 int hmdfs_check_share_access_permission(struct hmdfs_sb_info *sbi,
 					const char *filename, char *cid);
 
-void hmdfs_init_share_table(struct hmdfs_sb_info *sbi);
+int hmdfs_init_share_table(struct hmdfs_sb_info *sbi);
 void hmdfs_clear_share_table(struct hmdfs_sb_info *sbi);
 int hmdfs_clear_first_item(struct hmdfs_share_table *st);
 
