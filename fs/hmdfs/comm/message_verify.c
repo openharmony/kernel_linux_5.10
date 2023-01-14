@@ -934,7 +934,9 @@ int hmdfs_message_verify(struct hmdfs_peer *con, struct hmdfs_head_cmd *head,
 		goto handle_bad_msg;
 	}
 
-	if (head->version == DFS_2_0) {
+	if (head->version != DFS_2_0) {
+		err = -EINVAL;
+	} else {
 		len = le32_to_cpu(head->data_len) -
 		      sizeof(struct hmdfs_head_cmd);
 		min = message_length[flag][cmd][HMDFS_MESSAGE_MIN_INDEX];
@@ -973,13 +975,6 @@ int hmdfs_message_verify(struct hmdfs_peer *con, struct hmdfs_head_cmd *head,
 	}
 
 handle_bad_msg:
-	if (err) {
-		handle_bad_message(con, head, &err);
-		return err;
-	}
-
-	if (head->version == DFS_1_0)
-		return err; // now, DFS_1_0 version do not verify
-
-	return -EINVAL;
+	handle_bad_message(con, head, &err);
+	return err;
 }
