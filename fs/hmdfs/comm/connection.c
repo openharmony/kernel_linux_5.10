@@ -706,7 +706,7 @@ void connection_handshake_recv_handler(struct connection *conn_impl, void *buf,
 		}
 		fallthrough;
 	default:
-		return;
+		break;
 	}
 out:
 	kfree(data);
