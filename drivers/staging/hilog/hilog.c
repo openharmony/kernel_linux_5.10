@@ -273,7 +273,7 @@ static void hilog_cover_old_log(size_t buf_len)
 	static bool is_last_time_full;
 	bool is_this_time_full = false;
 
-	while (total_size + hilog_dev.size >= HILOG_BUFFER) {
+	while (total_size + hilog_dev.size > HILOG_BUFFER) {
 		retval = hilog_read_ring_head_buffer((unsigned char *)&header,
 						     sizeof(header));
 		if (retval < 0)
