@@ -712,7 +712,9 @@ static int hmdfs_init_sbi(struct hmdfs_sb_info *sbi)
 	mutex_init(&sbi->connections.node_lock);
 	INIT_LIST_HEAD(&sbi->connections.node_list);
 
-	hmdfs_init_share_table(sbi);
+	ret = hmdfs_init_share_table(sbi);
+	if (ret)
+		goto out;
 	init_waitqueue_head(&sbi->async_readdir_wq);
 	INIT_LIST_HEAD(&sbi->async_readdir_msg_list);
 	INIT_LIST_HEAD(&sbi->async_readdir_work_list);
@@ -762,6 +764,7 @@ static int hmdfs_update_dst(struct hmdfs_sb_info *sbi)
 		goto out_err;
 	}
 	kfree(sbi->local_dst);
+	sbi->local_dst = NULL;
 
 	len = strlen(sbi->real_dst) + strlen(path_local) + 1;
 	if (len > PATH_MAX) {
@@ -954,6 +957,10 @@ static struct dentry *hmdfs_mount(struct file_system_type *fs_type, int flags,
 		.dev_name = dev_name,
 		.raw_data = raw_data,
 	};
+
+	/* hmdfs needs a valid dev_name to get the lower_sb's metadata */
+	if (!dev_name || !*dev_name)
+		return ERR_PTR(-EINVAL);
 	return mount_nodev(fs_type, flags, &priv, hmdfs_fill_super);
 }
 

@@ -153,7 +153,7 @@ struct dentry *hmdfs_device_lookup(struct inode *parent_inode,
 			ret_dentry = ERR_PTR(err);
 			goto out;
 		}
-		memcpy(cid, d_name, HMDFS_CID_SIZE);
+		strncpy(cid, d_name, HMDFS_CID_SIZE);
 		cid[HMDFS_CID_SIZE] = '\0';
 		con = hmdfs_lookup_from_cid(sbi, cid);
 		if (!con) {

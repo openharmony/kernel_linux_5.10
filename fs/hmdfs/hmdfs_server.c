@@ -315,8 +315,8 @@ static struct file *get_file_by_fid_and_ver(struct hmdfs_peer *con,
 	__u64 cur_file_ver = hmdfs_server_pack_fid_ver(con, cmd);
 
 	if (file_ver != cur_file_ver) {
-		hmdfs_warning("Stale file version %llu for fid %u (ver %llu)",
-			      file_ver, file_id, cur_file_ver);
+		hmdfs_warning("Stale file version %llu for fid %u",
+			      file_ver, file_id);
 		return ERR_PTR(-EBADF);
 	}
 
