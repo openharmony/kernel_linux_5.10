@@ -194,7 +194,7 @@ static void hievent_cover_old_log(size_t buf_len)
 	struct hievent_entry header;
 	size_t total_size = buf_len + sizeof(struct hievent_entry);
 
-	while (total_size + hievent_dev.size >= HIEVENT_BUFFER) {
+	while (total_size + hievent_dev.size > HIEVENT_BUFFER) {
 		retval = hievent_read_ring_head_buffer((unsigned char *)&header,
 						       sizeof(header));
 		if (retval < 0)
