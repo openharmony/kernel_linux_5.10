@@ -121,12 +121,13 @@ static void hmdfs_remote_readdir_work(struct work_struct *work)
 	hmdfs_d(dentry)->async_readdir_in_progress = 0;
 	hmdfs_revert_creds(old_cred);
 
-	dput(dentry);
-	peer_put(con);
 	spin_lock(&con->sbi->async_readdir_work_lock);
 	list_del(&rw->head);
 	empty = list_empty(&con->sbi->async_readdir_work_list);
 	spin_unlock(&con->sbi->async_readdir_work_lock);
+
+	dput(dentry);
+	peer_put(con);
 	kfree(rw);
 
 	if (empty)
