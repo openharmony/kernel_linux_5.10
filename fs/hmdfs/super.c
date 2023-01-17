@@ -79,7 +79,13 @@ int hmdfs_parse_options(struct hmdfs_sb_info *sbi, const char *data)
 	unsigned int user_id = 0;
 	struct super_block *sb = sbi->sb;
 	int err = 0;
+	size_t size = 0;
 
+	size = strlen(data);
+	if (size >= HMDFS_PAGE_SIZE) {
+		return -EINVAL;
+	}
+	
 	options = kstrdup(data, GFP_KERNEL);
 	if (data && !options) {
 		err = -ENOMEM;
