@@ -408,6 +408,7 @@ static void merge_lookup_work_func(struct work_struct *work)
 	comrade = merge_lookup_comrade(ml_work->sbi, ml_work->name,
 		ml_work->devid, ml_work->flags);
 	if (IS_ERR(comrade)) {
+		mutex_lock(&mdi->work_lock);
 		goto out;
 	}
 
@@ -504,6 +505,7 @@ static int lookup_merge_normal(struct dentry *dentry, unsigned int flags)
 		goto out_ppath;
 	}
 
+	mutex_lock(&mdi->work_lock);
 	mutex_lock(&sbi->connections.node_lock);
 	if (mdi->type != DT_REG || devid == 0) {
 		snprintf(cpath, PATH_MAX, "device_view/local%s/%s", ppath,
@@ -524,6 +526,7 @@ static int lookup_merge_normal(struct dentry *dentry, unsigned int flags)
 			hmdfs_err("failed to create remote lookup work");
 	}
 	mutex_unlock(&sbi->connections.node_lock);
+	mutex_unlock(&mdi->work_lock);
 
 	wait_event(mdi->wait_queue, is_merge_lookup_end(mdi));
 	
