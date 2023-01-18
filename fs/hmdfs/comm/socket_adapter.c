@@ -439,13 +439,13 @@ int hmdfs_sendmessage_request(struct hmdfs_peer *con,
 		msg_wq = kzalloc(sizeof(*msg_wq), GFP_KERNEL);
 		if (!msg_wq) {
 			ret = -ENOMEM;
-			goto free;
+			goto free_filp;
 		}
 		ret = msg_init(con, msg_wq);
 		if (ret) {
 			kfree(msg_wq);
 			msg_wq = NULL;
-			goto free;
+			goto free_filp;
 		}
 		dec = true;
 		head->msg_id = cpu_to_le32(msg_wq->head.msg_id);
@@ -513,6 +513,7 @@ free:
 free_filp:
 	if (sm->local_filp)
 		fput(sm->local_filp);
+	kfree(head);
 	return ret;
 }
 
