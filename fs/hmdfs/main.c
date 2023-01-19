@@ -692,6 +692,7 @@ static int hmdfs_init_sbi(struct hmdfs_sb_info *sbi)
 	ret = 0;
 
 	spin_lock_init(&sbi->notify_fifo_lock);
+	mutex_init(&sbi->cmd_handler_mutex);
 	sbi->s_case_sensitive = false;
 	sbi->s_features = HMDFS_FEATURE_READPAGES |
 			  HMDFS_FEATURE_READPAGES_OPEN |

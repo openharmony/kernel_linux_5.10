@@ -232,9 +232,11 @@ static ssize_t sbi_cmd_store(struct kobject *kobj, struct sbi_attribute *attr,
 		hmdfs_err("Illegal cmd : cmd = %d", cmd);
 		return len;
 	}
+	mutex_lock(&sbi->cmd_handler_mutex);
 	hmdfs_info("Recved cmd: %s", cmd2str(cmd));
 	if (cmd_handler[cmd])
 		cmd_handler[cmd](buf, len, sbi);
+	mutex_unlock(&sbi->cmd_handler_mutex);
 	return len;
 }
 
