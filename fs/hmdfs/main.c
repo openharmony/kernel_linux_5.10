@@ -904,7 +904,6 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 	if (err)
 		goto out_freeroot;
 	hmdfs_set_lower_path(root_dentry, &lower_path);
-	d_rehash(sb->s_root);
 	sbi->cred = get_cred(current_cred());
 	INIT_LIST_HEAD(&sbi->client_cache);
 	INIT_LIST_HEAD(&sbi->server_cache);
