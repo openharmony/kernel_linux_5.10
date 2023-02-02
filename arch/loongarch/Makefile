@@ -106,7 +106,11 @@ endif
 # This is required to get dwarf unwinding tables into .debug_frame
 # instead of .eh_frame so we don't discard them.
 KBUILD_CFLAGS += -fno-asynchronous-unwind-tables
+ifdef CONFIG_ARCH_STRICT_ALIGN
 KBUILD_CFLAGS += $(call cc-option,-mstrict-align)
+else
+KBUILD_CFLAGS += $(call cc-option,-mno-strict-align)
+endif
 
 KBUILD_LDFLAGS	+= -m $(ld-emul)
 

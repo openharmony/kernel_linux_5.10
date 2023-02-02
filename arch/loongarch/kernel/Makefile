@@ -7,11 +7,13 @@ extra-y		:= head.o vmlinux.lds
 
 obj-y		+= cpu-probe.o elf.o entry.o genex.o idle.o irq.o \
 		   process.o ptrace.o reset.o setup.o signal.o io.o \
-		   syscall.o time.o topology.o traps.o unaligned.o \
-		   switch.o cacheinfo.o cmpxchg.o vdso.o
+		   syscall.o time.o topology.o traps.o switch.o \
+		   cacheinfo.o cmpxchg.o vdso.o
 
 obj-$(CONFIG_ACPI)		+= acpi.o
 obj-$(CONFIG_EFI) 		+= efi.o
+
+obj-$(CONFIG_ARCH_STRICT_ALIGN)	+= unaligned.o
 
 obj-$(CONFIG_MODULES)		+= module.o module-sections.o
 obj-$(CONFIG_STACKTRACE)	+= stacktrace.o
