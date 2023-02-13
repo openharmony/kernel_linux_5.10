@@ -1,0 +1,6 @@
+config SHARE_FS
+	tristate "SHAREFS filesystem support"
+	help
+	  SHAREFS is an overlay file system.SHAREFS is used for file sharing
+	  between applications. Sharefs manages permissions through different
+	  permissions for reading and writing directories.
