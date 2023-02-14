@@ -24,6 +24,7 @@ void fixup_perm_from_level(struct inode *dir, struct dentry *dentry)
 	const unsigned char* cur_name =  dentry->d_name.name;
 	__u16 level = perm_get_next_level(hii->perm);
 	__u16 perm = 0;
+	int bid = 0;
 
 	if (IS_ERR_OR_NULL(dinode))
 		return;
@@ -32,7 +33,7 @@ void fixup_perm_from_level(struct inode *dir, struct dentry *dentry)
 	switch (level)
 	{
 	case SHAREFS_PERM_MNT:
-		int bid = get_bundle_uid(SHAREFS_SB(dentry->d_sb),
+		bid = get_bundle_uid(SHAREFS_SB(dentry->d_sb),
 					 dentry->d_name.name);
 		perm = level;
 		if (bid != 0) {
