@@ -18,11 +18,13 @@
 
 #define DEVICE_VIEW_CTX_POS 2
 #define MERGE_VIEW_CTX_POS  3
+#define CLOUD_MERGE_VIEW_CTX_POS  4
 #define ROOT_DIR_INO_START  20000000
 
 // used by hmdfs_device_iterate functions
 #define DEVICE_VIEW_INO_START 20000002
 #define LOCAL_DEVICE_CTX_POS  2
+#define CLOUD_DEVICE_CTX_POS  3
 
 struct hmdfs_peer *get_next_con(struct hmdfs_sb_info *sbi,
 				unsigned long current_dev_id)
@@ -84,6 +86,16 @@ int hmdfs_device_iterate(struct file *file, struct dir_context *ctx)
 			goto out;
 		(ctx->pos)++;
 	}
+
+	if (ctx->pos == CLOUD_DEVICE_CTX_POS) {
+		err = dir_emit(ctx, DEVICE_VIEW_CLOUD,
+			       sizeof(DEVICE_VIEW_CLOUD) - 1, ino_start++,
+			       DT_DIR);
+		if (!err)
+			goto out;
+		(ctx->pos)++;
+	}
+
 	next_con = get_next_con(file->f_inode->i_sb->s_fs_info, 0);
 	if (!next_con)
 		goto out;
@@ -136,6 +148,12 @@ int hmdfs_root_iterate(struct file *file, struct dir_context *ctx)
 	}
 	if (sbi->s_merge_switch && ctx->pos == MERGE_VIEW_CTX_POS) {
 		if (!dir_emit(ctx, MERGE_VIEW_ROOT, sizeof(MERGE_VIEW_ROOT) - 1,
+			      ino_start, DT_DIR))
+			return 0;
+		(ctx->pos)++;
+	}
+	if (sbi->s_merge_switch && ctx->pos == CLOUD_MERGE_VIEW_CTX_POS) {
+		if (!dir_emit(ctx, CLOUD_MERGE_VIEW_ROOT, sizeof(CLOUD_MERGE_VIEW_ROOT) - 1,
 			      ino_start, DT_DIR))
 			return 0;
 		(ctx->pos)++;

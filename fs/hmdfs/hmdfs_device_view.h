@@ -16,9 +16,12 @@
 
 #define DEVICE_VIEW_ROOT "device_view"
 #define MERGE_VIEW_ROOT	 "merge_view"
+#define CLOUD_MERGE_VIEW_ROOT	 "cloud_merge_view"
 #define UPDATE_LOCAL_DST "/device_view/local/"
+#define UPDATE_CLOUD_DST "/device_view/cloud/"
 
 #define DEVICE_VIEW_LOCAL "local"
+#define DEVICE_VIEW_CLOUD "cloud"
 
 /*
  * in order to distinguish from vfs, we define our own bitmask, this should

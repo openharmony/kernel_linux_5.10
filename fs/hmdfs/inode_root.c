@@ -139,6 +139,34 @@ struct dentry *hmdfs_device_lookup(struct inode *parent_inode,
 			hmdfs_put_reset_lower_path(child_dentry);
 			goto out;
 		}
+	} else if (!strncmp(d_name, DEVICE_VIEW_CLOUD,
+		     sizeof(DEVICE_VIEW_CLOUD) - 1)) {
+		err = init_hmdfs_dentry_info(sbi, child_dentry,
+					     HMDFS_LAYER_SECOND_LOCAL);
+		if (err) {
+			ret_dentry = ERR_PTR(err);
+			goto out;
+		}
+		di = hmdfs_d(sb->s_root);
+		root_lower_path = &(di->lower_path);
+		hmdfs_set_lower_path(child_dentry, root_lower_path);
+		path_get(root_lower_path);
+		root_inode = fill_device_local_inode(
+			sb, d_inode(root_lower_path->dentry));
+		if (IS_ERR(root_inode)) {
+			err = PTR_ERR(root_inode);
+			ret_dentry = ERR_PTR(err);
+			hmdfs_put_reset_lower_path(child_dentry);
+			goto out;
+		}
+		ret_dentry = d_splice_alias(root_inode, child_dentry);
+		if (IS_ERR(ret_dentry)) {
+			err = PTR_ERR(ret_dentry);
+			ret_dentry = ERR_PTR(err);
+			hmdfs_put_reset_lower_path(child_dentry);
+			goto out;
+		}
+
 	} else {
 		err = init_hmdfs_dentry_info(sbi, child_dentry,
 					     HMDFS_LAYER_SECOND_REMOTE);
@@ -197,6 +225,11 @@ struct dentry *hmdfs_root_lookup(struct inode *parent_inode,
 
 	trace_hmdfs_root_lookup(parent_inode, child_dentry, flags);
 	if (sbi->s_merge_switch && !strcmp(d_name, MERGE_VIEW_ROOT)) {
+		ret = hmdfs_lookup_merge(parent_inode, child_dentry, flags);
+		if (ret && !IS_ERR(ret))
+			child_dentry = ret;
+		root_inode = d_inode(child_dentry);
+	} else if (sbi->s_merge_switch && !strcmp(d_name, CLOUD_MERGE_VIEW_ROOT)) {
 		ret = hmdfs_lookup_merge(parent_inode, child_dentry, flags);
 		if (ret && !IS_ERR(ret))
 			child_dentry = ret;
