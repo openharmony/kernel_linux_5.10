@@ -263,10 +263,10 @@ static struct configfs_attribute sharefs_##_attr_##_attr = {		\
 	.store		= sharefs_##_attr_##_store,			\
 };					
 
-SHAREFS_BUNDLE_ATTRIBUTE(bid)
+SHAREFS_BUNDLE_ATTRIBUTE(appid)
 
 static struct configfs_attribute *sharefs_battrs[] = {
-	&sharefs_bid_attr,
+	&sharefs_appid_attr,
 	NULL,
 };
 
@@ -277,8 +277,8 @@ static void sharefs_config_bitem_release(struct config_item *item)
 	sharefs_info("release bundle item");
 
 	bitem = container_of(item, struct sharefs_config_bitem, item);
-	remove_bid_hash_entry(&bitem->str);
-	remove_bid_hash_entry(&bitem->str);
+	remove_appid_hash_entry(&bitem->str);
+	remove_appid_hash_entry(&bitem->str);
 	free_bitem(bitem);
 }
 
@@ -331,7 +331,7 @@ static struct configfs_subsystem sharefs_subsystem = {
 
 int get_bid_config(const char *bname)
 {
-	return sharefs_bid_get(bname);
+	return sharefs_appid_get(bname);
 }
 
 int __init sharefs_init_configfs(void)
@@ -366,7 +366,7 @@ void sharefs_exit_configfs(void)
 	sharefs_info("sharefs exit configfs");
 
 	configfs_unregister_subsystem(&sharefs_subsystem);
-	clear_bid_hash_entry();
+	clear_appid_hash_entry();
 
 	kmem_cache_destroy(sharefs_bid_entry_cachep);
 }
