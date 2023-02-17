@@ -23,4 +23,8 @@ void hmdfs_remote_add_wr_opened_inode_nolock(struct hmdfs_peer *conn,
 ssize_t hmdfs_file_write_iter_remote_nocheck(struct kiocb *iocb,
 					     struct iov_iter *iter);
 
+int analysis_dentry_file_from_con(struct hmdfs_sb_info *sbi,
+					 struct file *file,
+					 struct file *handler,
+					 struct dir_context *ctx);
 #endif

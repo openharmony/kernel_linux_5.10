@@ -22,6 +22,8 @@
 
 #define DEVICE_VIEW_LOCAL "local"
 #define DEVICE_VIEW_CLOUD "cloud"
+#define CLOUD_CID "cloud"
+#define CLOUD_DEVICE (1)
 
 /*
  * in order to distinguish from vfs, we define our own bitmask, this should
@@ -101,6 +103,13 @@ extern const struct file_operations hmdfs_dev_file_fops_remote;
 extern const struct address_space_operations hmdfs_dev_file_aops_remote;
 extern const struct inode_operations hmdfs_dev_dir_inode_ops_remote;
 extern const struct file_operations hmdfs_dev_dir_ops_remote;
+
+/* cloud device operation */
+extern const struct inode_operations hmdfs_dev_file_iops_cloud;
+extern const struct file_operations hmdfs_dev_file_fops_cloud;
+extern const struct address_space_operations hmdfs_dev_file_aops_cloud;
+extern const struct inode_operations hmdfs_dev_dir_inode_ops_cloud;
+extern const struct file_operations hmdfs_dev_dir_ops_cloud;
 extern int hmdfs_dev_unlink_from_con(struct hmdfs_peer *conn,
 				     struct dentry *dentry);
 extern int hmdfs_dev_readdir_from_con(struct hmdfs_peer *con, struct file *file,

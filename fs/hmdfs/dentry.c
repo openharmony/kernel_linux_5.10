@@ -186,6 +186,9 @@ static void hmdfs_dev_d_release(struct dentry *dentry)
 	case HMDFS_LAYER_SECOND_REMOTE:
 		hmdfs_clear_cache_dents(dentry, false);
 		break;
+	case HMDFS_LAYER_SECOND_CLOUD:
+		hmdfs_clear_cache_dents(dentry, false);
+		break;
 	default:
 		hmdfs_err("Unexpected dentry type %d",
 			  hmdfs_d(dentry)->dentry_type);
