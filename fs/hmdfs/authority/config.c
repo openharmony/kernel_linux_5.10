@@ -266,10 +266,10 @@ static struct configfs_attribute hmdfs_##_attr_##_attr = {		\
 	.store		= hmdfs_##_attr_##_store,			\
 };					
 
-HMDFS_BUNDLE_ATTRIBUTE(bid)
+HMDFS_BUNDLE_ATTRIBUTE(appid)
 
 static struct configfs_attribute *hmdfs_battrs[] = {
-	&hmdfs_bid_attr,
+	&hmdfs_appid_attr,
 	NULL,
 };
 
@@ -280,8 +280,8 @@ static void hmdfs_config_bitem_release(struct config_item *item)
 	hmdfs_info("release bundle item");
 
 	bitem = container_of(item, struct hmdfs_config_bitem, item);
-	remove_bid_hash_entry(&bitem->str);
-	remove_bid_hash_entry(&bitem->str);
+	remove_appid_hash_entry(&bitem->str);
+	remove_appid_hash_entry(&bitem->str);
 	free_bitem(bitem);
 }
 
@@ -336,7 +336,7 @@ static struct configfs_subsystem hmdfs_subsystem = {
 
 int get_bid(const char *bname)
 {
-	return hmdfs_bid_get(bname);
+	return hmdfs_appid_get(bname);
 }
 
 int __init hmdfs_init_configfs(void)
@@ -371,7 +371,7 @@ void hmdfs_exit_configfs(void)
 	hmdfs_info("hmdfs exit configfs");
 
 	configfs_unregister_subsystem(&hmdfs_subsystem);
-	clear_bid_hash_entry();
+	clear_appid_hash_entry();
 
 	kmem_cache_destroy(hmdfs_bid_entry_cachep);
 }
