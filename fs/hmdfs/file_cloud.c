@@ -30,14 +30,6 @@ static const struct vm_operations_struct hmdfs_cloud_vm_ops = {
 	.page_mkwrite = NULL,
 };
 
-static int hmdfs_file_mmap_cloud(struct file *file, struct vm_area_struct *vma)
-{
-	vma->vm_ops = &hmdfs_cloud_vm_ops;
-	file_accessed(file);
-
-	return 0;
-}
-
 int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 {
 	return -ENOENT;
@@ -88,7 +80,6 @@ static int hmdfs_iterate_cloud(struct file *file, struct dir_context *ctx)
 
 int hmdfs_dir_open_cloud(struct inode *inode, struct file *file)
 {
-	struct hmdfs_inode_info *info = hmdfs_i(inode);
 	struct clearcache_item *cache_item = NULL;
 
 	get_cloud_cache_file(file->f_path.dentry, file->f_inode->i_sb->s_fs_info);

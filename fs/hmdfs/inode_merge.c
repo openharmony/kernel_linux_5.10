@@ -53,7 +53,7 @@ struct dentry *hmdfs_get_lo_d(struct dentry *dentry, int dev_id)
 	return d;
 }
 
-static void update_inode_attr(struct inode *inode, struct dentry *child_dentry)
+void update_inode_attr(struct inode *inode, struct dentry *child_dentry)
 {
 	struct inode *li = NULL;
 	struct hmdfs_dentry_info_merge *cdi = hmdfs_dm(child_dentry);
@@ -82,7 +82,7 @@ static void update_inode_attr(struct inode *inode, struct dentry *child_dentry)
 	mutex_unlock(&cdi->comrade_list_lock);
 }
 
-static int get_num_comrades(struct dentry *dentry)
+int get_num_comrades(struct dentry *dentry)
 {
 	struct list_head *pos;
 	struct hmdfs_dentry_info_merge *dim = hmdfs_dm(dentry);
@@ -206,8 +206,8 @@ void link_comrade(struct list_head *onstack_comrades_head,
  * We tend to setup a local list of all the comrades we found and place the
  * list onto the dentry_info to achieve atomicity.
  */
-static void assign_comrades_unlocked(struct dentry *child_dentry,
-				     struct list_head *onstack_comrades_head)
+void assign_comrades_unlocked(struct dentry *child_dentry,
+			      struct list_head *onstack_comrades_head)
 {
 	struct hmdfs_dentry_info_merge *cdi = hmdfs_dm(child_dentry);
 
@@ -217,10 +217,10 @@ static void assign_comrades_unlocked(struct dentry *child_dentry,
 	mutex_unlock(&cdi->comrade_list_lock);
 }
 
-static struct hmdfs_dentry_comrade *lookup_comrade(struct path lower_path,
-						   const char *d_name,
-						   int dev_id,
-						   unsigned int flags)
+struct hmdfs_dentry_comrade *lookup_comrade(struct path lower_path,
+					    const char *d_name,
+					    int dev_id,
+					    unsigned int flags)
 {
 	struct path path;
 	struct hmdfs_dentry_comrade *comrade = NULL;
@@ -432,7 +432,7 @@ out:
 	kfree(ml_work);
 }
 
-static int merge_lookup_async(struct hmdfs_dentry_info_merge *mdi,
+int merge_lookup_async(struct hmdfs_dentry_info_merge *mdi,
 	struct hmdfs_sb_info *sbi, int devid, const char *name,
 	unsigned int flags)
 {
@@ -462,7 +462,7 @@ out:
 	return err;
 }
 
-static char *hmdfs_get_real_dname(struct dentry *dentry, int *devid, int *type)
+char *hmdfs_get_real_dname(struct dentry *dentry, int *devid, int *type)
 {
 	char *rname;
 
@@ -597,7 +597,7 @@ out:
 }
 
 // mkdir -p
-static void lock_root_inode_shared(struct inode *root, bool *locked, bool *down)
+void lock_root_inode_shared(struct inode *root, bool *locked, bool *down)
 {
 	struct rw_semaphore *sem = &root->i_rwsem;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)
@@ -627,7 +627,7 @@ static void lock_root_inode_shared(struct inode *root, bool *locked, bool *down)
 	*locked = true;
 }
 
-static void restore_root_inode_sem(struct inode *root, bool locked, bool down)
+void restore_root_inode_sem(struct inode *root, bool locked, bool down)
 {
 	if (!locked)
 		return;
@@ -785,7 +785,7 @@ out:
 	return err ? ERR_PTR(err) : ret_dentry;
 }
 
-static int hmdfs_getattr_merge(const struct path *path, struct kstat *stat,
+int hmdfs_getattr_merge(const struct path *path, struct kstat *stat,
 			       u32 request_mask, unsigned int flags)
 {
 	int ret;
@@ -806,7 +806,7 @@ out:
 	return ret;
 }
 
-static int hmdfs_setattr_merge(struct dentry *dentry, struct iattr *ia)
+int hmdfs_setattr_merge(struct dentry *dentry, struct iattr *ia)
 {
 	struct inode *inode = d_inode(dentry);
 	struct dentry *lower_dentry = hmdfs_get_fst_lo_d(dentry);

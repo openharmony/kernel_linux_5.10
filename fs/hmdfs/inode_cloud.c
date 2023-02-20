@@ -259,13 +259,11 @@ static struct dentry *hmdfs_lookup_cloud_dentry(struct inode *parent_inode,
 	struct dentry *ret = NULL;
 	struct inode *inode = NULL;
 	struct super_block *sb = parent_inode->i_sb;
-	struct hmdfs_sb_info *sbi = sb->s_fs_info;
 	struct hmdfs_lookup_ret *lookup_result = NULL;
 	char *file_name = NULL;
 	int file_name_len = child_dentry->d_name.len;
 	struct qstr qstr;
 	struct hmdfs_dentry_info *gdi = hmdfs_d(child_dentry);
-	uint64_t device_id = 0;
 	char *relative_path = NULL;
 
 	file_name = kzalloc(NAME_MAX + 1, GFP_KERNEL);

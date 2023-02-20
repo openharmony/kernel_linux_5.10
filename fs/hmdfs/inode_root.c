@@ -254,7 +254,7 @@ struct dentry *hmdfs_root_lookup(struct inode *parent_inode,
 			child_dentry = ret;
 		root_inode = d_inode(child_dentry);
 	} else if (sbi->s_merge_switch && !strcmp(d_name, CLOUD_MERGE_VIEW_ROOT)) {
-		ret = hmdfs_lookup_merge(parent_inode, child_dentry, flags);
+		ret = hmdfs_lookup_cloud_merge(parent_inode, child_dentry, flags);
 		if (ret && !IS_ERR(ret))
 			child_dentry = ret;
 		root_inode = d_inode(child_dentry);
