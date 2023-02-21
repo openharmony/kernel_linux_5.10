@@ -329,7 +329,7 @@ static void hmdfs_update_inode(struct inode *inode,
 		hmdfs_update_inode_size(inode, lookup_result->i_size);
 }
 
-static void hmdfs_fill_inode_android(struct inode *inode, struct inode *dir,
+static void hmdfs_fill_inode_remote(struct inode *inode, struct inode *dir,
 				     umode_t mode)
 {
 #ifdef CONFIG_HMDFS_FS_PERMISSION
@@ -355,7 +355,7 @@ struct inode *fill_inode_remote(struct super_block *sb, struct hmdfs_peer *con,
 	if (con->version > USERSPACE_MAX_VER) {
 		/* the inode was found in cache */
 		if (!(inode->i_state & I_NEW)) {
-			hmdfs_fill_inode_android(inode, dir, mode);
+			hmdfs_fill_inode_remote(inode, dir, mode);
 			hmdfs_update_inode(inode, res);
 			return inode;
 		}
@@ -396,7 +396,7 @@ struct inode *fill_inode_remote(struct super_block *sb, struct hmdfs_peer *con,
 
 	inode->i_mapping->a_ops = con->conn_operations->remote_file_aops;
 
-	hmdfs_fill_inode_android(inode, dir, mode);
+	hmdfs_fill_inode_remote(inode, dir, mode);
 	unlock_new_inode(inode);
 	return inode;
 bad_inode:
