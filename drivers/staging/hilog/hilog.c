@@ -44,7 +44,7 @@ module_param(hilog_major, int, 0444);
 
 struct cdev g_hilog_cdev;
 
-#define HILOG_BUFFER ((size_t)1024)
+#define HILOG_BUFFER ((size_t)CONFIG_HILOG_BUFFER_SIZE)
 #define HILOG_DRIVER "/dev/hilog"
 
 struct hilog_entry {
@@ -161,7 +161,7 @@ static ssize_t hilog_read(struct file *file,
 
 	if (count < header.len + sizeof(header)) {
 		pr_err("buffer too small,buf_len=%d, header.len=%d,%d\n",
-		       count, header.len, header.header_size);
+		       (int)count, header.len, header.header_size);
 		retval = -ENOMEM;
 		goto out;
 	}
@@ -187,6 +187,13 @@ static ssize_t hilog_read(struct file *file,
 	hilog_buffer_dec(header.len);
 	retval = header.len + sizeof(header);
 out:
+	if (retval == -ENOMEM) {
+		// clean ring buffer
+		hilog_dev.wr_off = 0;
+		hilog_dev.hdr_off = 0;
+		hilog_dev.size = 0;
+		hilog_dev.count = 0;
+	}
 	(void)mutex_unlock(&hilog_dev.mtx);
 
 	return retval;
@@ -253,7 +260,7 @@ static void hilog_head_init(struct hilog_entry *header, size_t len)
 
 	header->len = len;
 	header->pid = current->pid;
-	header->task_id = current->pid;
+	header->task_id = current->tgid;
 	header->header_size = sizeof(struct hilog_entry);
 }
 
@@ -262,6 +269,9 @@ static void hilog_cover_old_log(size_t buf_len)
 	int retval;
 	struct hilog_entry header;
 	size_t total_size = buf_len + sizeof(struct hilog_entry);
+	static int drop_log_lines;
+	static bool is_last_time_full;
+	bool is_this_time_full = false;
 
 	while (total_size + hilog_dev.size >= HILOG_BUFFER) {
 		retval = hilog_read_ring_head_buffer((unsigned char *)&header,
@@ -269,7 +279,18 @@ static void hilog_cover_old_log(size_t buf_len)
 		if (retval < 0)
 			break;
 
+		drop_log_lines++;
+		is_this_time_full = true;
+		is_last_time_full = true;
 		hilog_buffer_dec(sizeof(header) + header.len);
+	}
+	if (is_last_time_full && !is_this_time_full) {
+		/* so we can only print one log if hilog ring buffer is full in a short time */
+		if (drop_log_lines > 0)
+			pr_info("hilog ringbuffer full, drop %d line(s) log\n",
+				drop_log_lines);
+		is_last_time_full = false;
+		drop_log_lines = 0;
 	}
 }
 
