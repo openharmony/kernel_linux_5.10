@@ -64,36 +64,34 @@ static void __init apply_r_loongarch_mark_la_rel(u32 *loc_new, long offset)
 	lu52id->reg2i12_format.simmediate = (dest >> 52) & 0xfff;
 }
 
-static void (*reloc_handlers_rel[]) (u32 *, long) __initdata = {
-	[R_LARCH_32]		= apply_r_loongarch_32_rel,
-	[R_LARCH_64]		= apply_r_loongarch_64_rel,
-	[R_LARCH_MARK_LA]	= apply_r_loongarch_mark_la_rel,
-};
-
-static int __init do_relocations(void *kbase_old, void *kbase_new, long offset)
+static int __init do_relocations(void *kbase_new, long offset, u32 *rstart, u32 *rend)
 {
 	int type;
 	u32 *r;
 	u32 *loc_new;
-	u32 *loc_orig;
 
-	for (r = _relocation_start; r < _relocation_end; r++) {
+	for (r = rstart; r < rend; r++) {
 		/* Sentinel for last relocation */
 		if (*r == 0)
 			break;
 
 		type = (*r >> 24) & 0xff;
-		loc_orig = (void *)(kbase_old + ((*r & 0x00ffffff) << 2));
-		loc_new = RELOCATED(loc_orig);
+		loc_new = (void *)(kbase_new + ((*r & 0x00ffffff) << 2));
 
-		if (reloc_handlers_rel[type] == NULL) {
-			/* Unsupported relocation */
-			pr_err("Unhandled relocation type %d at 0x%pK\n",
-			       type, loc_orig);
+		switch (type) {
+		case R_LARCH_32:
+			apply_r_loongarch_32_rel(loc_new, offset);
+			break;
+		case R_LARCH_64:
+			apply_r_loongarch_64_rel(loc_new, offset);
+			break;
+		case R_LARCH_MARK_LA:
+			apply_r_loongarch_mark_la_rel(loc_new, offset);
+			break;
+		default:
+			pr_err("Unhandled relocation type %d\n", type);
 			return -ENOEXEC;
 		}
-
-		reloc_handlers_rel[type](loc_new, offset);
 	}
 
 	return 0;
@@ -231,7 +229,7 @@ void *__init relocate_kernel(void)
 		memcpy(loc_new, &_text, kernel_length);
 
 		/* Perform relocations on the new kernel */
-		res = do_relocations(&_text, loc_new, offset);
+		res = do_relocations(loc_new, offset, _relocation_start, _relocation_end);
 		if (res < 0)
 			goto out;
 
@@ -257,6 +255,36 @@ void *__init relocate_kernel(void)
 	}
 out:
 	return kernel_entry;
+}
+
+void *__init relocate_kdump_kernel(long offset)
+{
+#ifdef CONFIG_CRASH_DUMP
+	void *loc_new;
+	int res = 1;
+	u32 *rstart, *rend;
+	/* Default to original kernel entry point */
+	void *kernel_entry = start_kernel;
+
+	rstart = RELOCATED((unsigned long)_relocation_start - (unsigned long)&_text
+			+ VMLINUX_LOAD_ADDRESS);
+	rend = RELOCATED((unsigned long)_relocation_end - (unsigned long)&_text
+			+ VMLINUX_LOAD_ADDRESS);
+
+	loc_new = (void *)(offset + VMLINUX_LOAD_ADDRESS);
+
+	/* Perform relocations on the new kernel */
+	res = do_relocations(loc_new, offset, rstart, rend);
+	if (res < 0)
+		return NULL;
+
+	/* Return the new kernel's entry point */
+	kernel_entry = RELOCATED((unsigned long)start_kernel - (unsigned long)&_text
+		+ VMLINUX_LOAD_ADDRESS);
+
+	return kernel_entry;
+#endif
+	return NULL;
 }
 
 /*

@@ -71,7 +71,7 @@ void error(char *x)
 #include "../../../../lib/decompress_unzstd.c"
 #endif
 
-void decompress_kernel(unsigned long boot_heap_start)
+void decompress_kernel(unsigned long boot_heap_start, long kdump_reloc_offset)
 {
 	unsigned long zimage_start, zimage_size;
 
@@ -96,7 +96,7 @@ void decompress_kernel(unsigned long boot_heap_start)
 
 	/* Decompress the kernel with according algorithm */
 	__decompress((char *)zimage_start, zimage_size, 0, 0,
-		   (void *)VMLINUX_LOAD_ADDRESS_ULL, 0, 0, error);
+		   (void *)VMLINUX_LOAD_ADDRESS_ULL + kdump_reloc_offset, 0, 0, error);
 
 	puts("Now, booting the kernel...\n");
 }

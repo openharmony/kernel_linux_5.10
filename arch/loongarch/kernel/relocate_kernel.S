@@ -21,6 +21,7 @@ SYM_CODE_START(relocate_new_kernel)
 	 * a2: System table pointer for the new kernel
 	 * a3: Start address to jump to after relocation
 	 * a4: Pointer to the current indirection page entry
+	 * a5: Kdump kernel relocate offset
 	 */
 	move		s0, a4
 
@@ -80,9 +81,11 @@ done:
 
 	/*
 	 * Jump to the new kernel,
-	 * make sure the values of a0, a1, a2 and a3 are not changed.
+	 * make sure the values of a0, a1, a2, a3 and a5 are not changed.
 	 */
-	jr		a3
+	move		t0, a3
+	move		a3, a5
+	jr		t0
 SYM_CODE_END(relocate_new_kernel)
 
 #ifdef CONFIG_SMP

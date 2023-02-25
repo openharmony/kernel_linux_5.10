@@ -85,10 +85,6 @@ endif
 #
 include arch/loongarch/Kbuild.platforms
 
-ifdef CONFIG_PHYSICAL_START
-load-y				= $(CONFIG_PHYSICAL_START)
-endif
-
 entry-y				= $(shell $(objtree)/arch/loongarch/tools/elf-entry vmlinux)
 drivers-$(CONFIG_PCI)		+= arch/loongarch/pci/
 

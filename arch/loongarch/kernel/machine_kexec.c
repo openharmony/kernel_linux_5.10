@@ -38,6 +38,7 @@ static unsigned long cmdline_ptr;
 static unsigned long systable_ptr;
 static unsigned long start_addr;
 static unsigned long first_ind_entry;
+static unsigned long kdump_reloc_offset;
 
 static void kexec_image_info(const struct kimage *kimage)
 {
@@ -131,7 +132,7 @@ void kexec_reboot(void)
 #endif
 
 	do_kexec = (void *)reboot_code_buffer;
-	do_kexec(efi_boot, cmdline_ptr, systable_ptr, start_addr, first_ind_entry);
+	do_kexec(efi_boot, cmdline_ptr, systable_ptr, start_addr, first_ind_entry, kdump_reloc_offset);
 
 	unreachable();
 }
@@ -194,6 +195,8 @@ void crash_smp_send_stop(void)
 	unsigned int ncpus;
 	unsigned long timeout;
 	static int cpus_stopped;
+
+	kdump_reloc_offset = crashk_res.start;
 
 	/*
 	 * This function can be called twice in panic path, but obviously
@@ -290,6 +293,7 @@ void machine_kexec(struct kimage *image)
 	pr_notice("EFI boot flag 0x%lx\n", efi_boot);
 	pr_notice("Command line at 0x%lx\n", cmdline_ptr);
 	pr_notice("System table at 0x%lx\n", systable_ptr);
+	pr_notice("Kdump relocation offset 0x%lx\n", kdump_reloc_offset);
 	pr_notice("We will call new kernel at 0x%lx\n", start_addr);
 	pr_notice("Bye ...\n");
 

@@ -45,7 +45,8 @@ typedef void (*do_kexec_t)(unsigned long efi_boot,
 			   unsigned long cmdline_ptr,
 			   unsigned long systable_ptr,
 			   unsigned long start_addr,
-			   unsigned long first_ind_entry);
+			   unsigned long first_ind_entry,
+			   unsigned long kdump_reloc_offset);
 
 struct kimage;
 extern const unsigned char relocate_new_kernel[];

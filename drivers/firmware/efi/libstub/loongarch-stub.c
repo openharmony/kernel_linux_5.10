@@ -12,10 +12,10 @@
 #define BOOT_HEAP_SIZE 0x400000
 
 typedef void __noreturn (*kernel_entry_t)(bool efi, unsigned long cmdline,
-					  unsigned long systab);
+					  unsigned long systab, long kdump_reloc_offset);
 
 extern long kernel_entaddr;
-extern void decompress_kernel(unsigned long boot_heap_start);
+extern void decompress_kernel(unsigned long boot_heap_start, long kdump_reloc_offset);
 
 static unsigned char efi_heap[BOOT_HEAP_SIZE];
 static efi_guid_t screen_info_guid = LINUX_EFI_ARM_SCREEN_INFO_TABLE_GUID;
@@ -66,7 +66,7 @@ efi_status_t handle_kernel_image(unsigned long *image_addr,
 	csr_write64(CSR_DMW0_INIT, LOONGARCH_CSR_DMWIN0);
 	csr_write64(CSR_DMW1_INIT, LOONGARCH_CSR_DMWIN1);
 
-	decompress_kernel((unsigned long)efi_heap);
+	decompress_kernel((unsigned long)efi_heap, 0);
 	kernel_entry = (kernel_entry_t)kernel_entaddr;
 
 	return EFI_SUCCESS;
@@ -118,5 +118,5 @@ efi_status_t efi_boot_kernel(void *handle, efi_loaded_image_t *image,
 		    priv.runtime_entry_count * desc_size, desc_size,
 		    desc_ver, priv.runtime_map);
 
-	kernel_entry(true, (unsigned long)cmdline_ptr, (unsigned long)efi_system_table);
+	kernel_entry(true, (unsigned long)cmdline_ptr, (unsigned long)efi_system_table, 0);
 }

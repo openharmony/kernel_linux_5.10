@@ -478,11 +478,9 @@ config RANDOMIZE_BASE_MAX_OFFSET
 	help
 	  When kASLR is active, this provides the maximum offset that will
 	  be applied to the kernel image. It should be set according to the
-	  amount of physical RAM available in the target system minus
-	  PHYSICAL_START and must be a power of 2.
+	  amount of physical RAM available in the target system.
 
-	  This is limited by the size of KPRANGE1, 256Mb on 32-bit or 1Gb with
-	  64-bit. The default is 16Mb.
+	  This is limited by the size of the lower address memory, 256MB.
 
 config NODES_SHIFT
 	int
@@ -656,6 +654,7 @@ config KEXEC
 
 config CRASH_DUMP
 	bool "Build kdump crash kernel"
+	select RELOCATABLE
 	help
 	  Generate crash dump after being started by kexec. This should
 	  be normally only set in special crash dump kernels which are
@@ -664,17 +663,6 @@ config CRASH_DUMP
 	  kdump/kexec.
 
 	  For more details see Documentation/admin-guide/kdump/kdump.rst
-
-config PHYSICAL_START
-	hex "Physical address where the kernel is loaded"
-	default "0x90000000a0000000"
-	depends on CRASH_DUMP
-	help
-	  This gives the XKPRANGE address where the kernel is loaded.
-	  If you plan to use kernel for capturing the crash dump change
-	  this value to start of the reserved region (the "X" value as
-	  specified in the "crashkernel=YM@XM" command line boot parameter
-	  passed to the panic-ed kernel).
 
 config ARCH_IOREMAP
 	bool "Enable LoongArch DMW-based ioremap()"

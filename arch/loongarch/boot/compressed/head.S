@@ -14,6 +14,7 @@ SYM_CODE_START(start)
 	move	s0, a0
 	move	s1, a1
 	move	s2, a2
+	move	s3, a3 /* for kdump */
 
 	/* Config Direct Mapping */
 	li.d	t0, CSR_DMW0_INIT
@@ -22,26 +23,34 @@ SYM_CODE_START(start)
 	csrwr	t0, LOONGARCH_CSR_DMWIN1
 
 	/* Clear BSS */
-	la.abs	a0, _edata
-	la.abs	a2, _end
+	la.pcrel a0, _edata
+	la.pcrel a2, _end
 1:	st.d	zero, a0, 0
 	addi.d	a0, a0, 8
 	bne	a2, a0, 1b
 
-	la.abs	a0, .heap	   /* heap address */
-	la.abs	sp, .stack + 8192  /* stack address */
+	la.pcrel a0, .heap	   /* heap address */
+	la.pcrel sp, .stack + 8192  /* stack address */
 
-	la.pcrel ra, 2f
+	la.pcrel a0, .heap	  /* heap address */
+	move	a1, a3		  /* kdump relocate offset */
+	bnez	a3, 2f
+	li.w	a1, 0
+	li.w	s3, 0
+2:
+	la.pcrel ra, 3f
 	la.pcrel t4, decompress_kernel
 	jirl	zero, t4, 0
-2:
+3:
 	move	a0, s0
 	move	a1, s1
 	move	a2, s2
+	move	a3, s3
 	PTR_LI	t4, KERNEL_ENTRY
+	add.d	t4, t4, a3
 	jirl	zero, t4, 0
-3:
-	b	3b
+4:
+	b	4b
 SYM_CODE_END(start)
 
 	.comm .heap,BOOT_HEAP_SIZE,4
