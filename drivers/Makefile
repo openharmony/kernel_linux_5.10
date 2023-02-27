@@ -194,3 +194,4 @@ obj-$(CONFIG_COUNTER)		+= counter/
 obj-$(CONFIG_MOST)		+= most/
 obj-$(CONFIG_ACCESS_TOKENID)	+= accesstokenid/
 obj-$(CONFIG_VENDOR_HOOKS)	+= hooks/
+obj-$(CONFIG_HCK_VENDOR_HOOKS)	+= hck/

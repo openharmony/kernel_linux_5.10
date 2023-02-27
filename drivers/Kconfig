@@ -242,4 +242,6 @@ source "drivers/accesstokenid/Kconfig"
 
 source "drivers/hooks/Kconfig"
 
+source "drivers/hck/Kconfig"
+
 endmenu
