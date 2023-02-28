@@ -50,6 +50,7 @@ int init_hmdfs_dentry_info(struct hmdfs_sb_info *sbi, struct dentry *dentry,
 	if (dentry_type == HMDFS_LAYER_ZERO ||
 	    dentry_type == HMDFS_LAYER_FIRST_DEVICE ||
 	    dentry_type == HMDFS_LAYER_SECOND_LOCAL ||
+	    dentry_type == HMDFS_LAYER_SECOND_CLOUD ||
 	    dentry_type == HMDFS_LAYER_SECOND_REMOTE)
 		d_set_d_op(dentry, &hmdfs_dev_dops);
 	else

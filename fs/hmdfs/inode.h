@@ -202,7 +202,9 @@ enum HMDFS_ROOT {
 	HMDFS_ROOT_DEV,		 // /device_view
 	HMDFS_ROOT_DEV_LOCAL,	 // /device_view/local
 	HMDFS_ROOT_DEV_REMOTE,	 // /device_view/remote
+	HMDFS_ROOT_DEV_CLOUD,	 // /device_view/cloud
 	HMDFS_ROOT_MERGE,	 // /merge_view
+	HMDFS_ROOT_MERGE_CLOUD,	 // /cloud_merge_view
 
 	HMDFS_ROOT_INVALID,
 };
@@ -213,11 +215,15 @@ enum HMDFS_LAYER_TYPE {
 	HMDFS_LAYER_FIRST_DEVICE,  // /device_view
 	HMDFS_LAYER_SECOND_LOCAL,  // /device_view/local
 	HMDFS_LAYER_SECOND_REMOTE, // /device_view/remote
+	HMDFS_LAYER_SECOND_CLOUD,  // /device_view/cloud
 	HMDFS_LAYER_OTHER_LOCAL,   // /device_view/local/xx
 	HMDFS_LAYER_OTHER_REMOTE,  // /device_view/remote/xx
+	HMDFS_LAYER_OTHER_CLOUD,   // /device_view/cloud/xx
 
 	HMDFS_LAYER_FIRST_MERGE, // /merge_view
 	HMDFS_LAYER_OTHER_MERGE, // /merge_view/xxx
+	HMDFS_LAYER_FIRST_MERGE_CLOUD, // /cloud_merge_view
+	HMDFS_LAYER_OTHER_MERGE_CLOUD, // /coud_merge_view/xxx
 	HMDFS_LAYER_INVALID,
 };
 

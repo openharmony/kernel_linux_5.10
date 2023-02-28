@@ -96,6 +96,36 @@ out:
 	return inode;
 }
 
+static struct inode *fill_device_inode_cloud(struct super_block *sb)
+{
+	struct inode *inode = NULL;
+	struct hmdfs_inode_info *info = NULL;
+
+	inode = hmdfs_iget_locked_root(sb, HMDFS_ROOT_DEV_CLOUD, NULL, NULL);
+	if (!inode) {
+		hmdfs_err("get inode NULL");
+		inode = ERR_PTR(-ENOMEM);
+		goto out;
+	}
+	if (!(inode->i_state & I_NEW))
+		goto out;
+
+	info = hmdfs_i(inode);
+	info->inode_type = HMDFS_LAYER_SECOND_CLOUD;
+
+	inode->i_mode = S_IFDIR | S_IRWXU | S_IRWXG | S_IXOTH;
+
+	inode->i_uid = KUIDT_INIT((uid_t)1000);
+	inode->i_gid = KGIDT_INIT((gid_t)1000);
+	inode->i_op = &hmdfs_dev_dir_inode_ops_cloud;
+	inode->i_fop = &hmdfs_dev_dir_ops_cloud;
+
+	unlock_new_inode(inode);
+
+out:
+	return inode;
+}
+
 struct dentry *hmdfs_device_lookup(struct inode *parent_inode,
 				   struct dentry *child_dentry,
 				   unsigned int flags)
@@ -139,6 +169,28 @@ struct dentry *hmdfs_device_lookup(struct inode *parent_inode,
 			hmdfs_put_reset_lower_path(child_dentry);
 			goto out;
 		}
+	} else if (!strncmp(d_name, DEVICE_VIEW_CLOUD,
+		     sizeof(DEVICE_VIEW_CLOUD) - 1)) {
+		err = init_hmdfs_dentry_info(sbi, child_dentry,
+					     HMDFS_LAYER_SECOND_CLOUD);
+		if (err) {
+			ret_dentry = ERR_PTR(err);
+			goto out;
+		}
+		di = hmdfs_d(sb->s_root);
+		root_inode = fill_device_inode_cloud(sb);
+		if (IS_ERR(root_inode)) {
+			err = PTR_ERR(root_inode);
+			ret_dentry = ERR_PTR(err);
+			goto out;
+		}
+		ret_dentry = d_splice_alias(root_inode, child_dentry);
+		if (IS_ERR(ret_dentry)) {
+			err = PTR_ERR(ret_dentry);
+			ret_dentry = ERR_PTR(err);
+			goto out;
+		}
+
 	} else {
 		err = init_hmdfs_dentry_info(sbi, child_dentry,
 					     HMDFS_LAYER_SECOND_REMOTE);
@@ -198,6 +250,11 @@ struct dentry *hmdfs_root_lookup(struct inode *parent_inode,
 	trace_hmdfs_root_lookup(parent_inode, child_dentry, flags);
 	if (sbi->s_merge_switch && !strcmp(d_name, MERGE_VIEW_ROOT)) {
 		ret = hmdfs_lookup_merge(parent_inode, child_dentry, flags);
+		if (ret && !IS_ERR(ret))
+			child_dentry = ret;
+		root_inode = d_inode(child_dentry);
+	} else if (sbi->s_merge_switch && !strcmp(d_name, CLOUD_MERGE_VIEW_ROOT)) {
+		ret = hmdfs_lookup_cloud_merge(parent_inode, child_dentry, flags);
 		if (ret && !IS_ERR(ret))
 			child_dentry = ret;
 		root_inode = d_inode(child_dentry);

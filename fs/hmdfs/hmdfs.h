@@ -136,6 +136,7 @@ struct hmdfs_sb_info {
 	unsigned long dcache_threshold;
 	struct list_head client_cache;
 	struct list_head server_cache;
+	struct list_head cloud_cache;
 	struct list_head to_delete;
 	struct mutex cache_list_lock;
 

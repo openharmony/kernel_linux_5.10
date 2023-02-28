@@ -7,6 +7,8 @@ hmdfs-y += inode_merge.o hmdfs_dentryfile.o file_root.o file_remote.o
 hmdfs-y += file_local.o client_writeback.o server_writeback.o stash.o
 hmdfs-y += hmdfs_share.o
 
+hmdfs-y += file_cloud.o inode_cloud.o
+hmdfs-y += inode_cloud_merge.o
 hmdfs-y += comm/device_node.o comm/message_verify.o comm/node_cb.o
 hmdfs-y += comm/connection.o comm/socket_adapter.o comm/transport.o
 

@@ -888,7 +888,7 @@ loff_t hmdfs_set_pos(unsigned long dev_id, unsigned long group_id,
 	return pos;
 }
 
-static int analysis_dentry_file_from_con(struct hmdfs_sb_info *sbi,
+int analysis_dentry_file_from_con(struct hmdfs_sb_info *sbi,
 					 struct file *file,
 					 struct file *handler,
 					 struct dir_context *ctx)
