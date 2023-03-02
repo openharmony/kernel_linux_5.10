@@ -216,4 +216,27 @@ config SAMPLE_WATCH_QUEUE
 	  Build example userspace program to use the new mount_notify(),
 	  sb_notify() syscalls and the KEYCTL_WATCH_KEY keyctl() function.
 
+config SAMPLE_HCK
+	bool "HCK sample"
+	help
+	  HCK sample
+
+config SAMPLE_HCK_CALL
+	bool "HCK call sample"
+	depends on SAMPLE_HCK
+	help
+	  HCK call sample
+
+config SAMPLE_HCK_REGISTER
+	bool "HCK register sample"
+	depends on SAMPLE_HCK
+	help
+	  HCK register sample
+
+config SAMPLE_HCK_REGISTER_ONE
+	bool "HCK register one interface sample"
+	depends on SAMPLE_HCK
+	help
+	  HCK register sample
+
 endif # SAMPLES

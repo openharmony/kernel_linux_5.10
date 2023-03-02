@@ -341,6 +341,7 @@
 	__end_once = .;							\
 	STRUCT_ALIGN();							\
 	*(__tracepoints)						\
+	*(__vendor_hooks)						\
 	/* implement dynamic printk debug */				\
 	. = ALIGN(8);							\
 	__start___dyndbg = .;						\
