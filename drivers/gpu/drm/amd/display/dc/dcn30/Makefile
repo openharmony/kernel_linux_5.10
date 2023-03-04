@@ -46,6 +46,11 @@ CFLAGS_REMOVE_$(AMDDALPATH)/dc/dcn30/dcn30_resource.o := -mgeneral-regs-only
 CFLAGS_REMOVE_$(AMDDALPATH)/dc/dcn30/dcn30_optc.o := -mgeneral-regs-only
 endif
 
+ifdef CONFIG_LOONGARCH
+CFLAGS_REMOVE_$(AMDDALPATH)/dc/dcn30/dcn30_resource.o := -msoft-float
+CFLAGS_REMOVE_$(AMDDALPATH)/dc/dcn30/dcn30_optc.o := -msoft-float
+endif
+
 ifdef CONFIG_CC_IS_GCC
 ifeq ($(call cc-ifversion, -lt, 0701, y), y)
 IS_OLD_GCC = 1
