@@ -22,6 +22,9 @@
 
 struct sigcontext;
 
+extern void kernel_fpu_begin(void);
+extern void kernel_fpu_end(void);
+
 extern void _init_fpu(unsigned int);
 extern void _save_fp(struct loongarch_fpu *);
 extern void _restore_fp(struct loongarch_fpu *);
