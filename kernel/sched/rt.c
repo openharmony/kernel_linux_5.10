@@ -2644,6 +2644,10 @@ static int rt_active_load_balance_cpu_stop(void *data)
 	raw_spin_lock_irqsave(&busiest_rq->lock, flags);
 	busiest_rq->rt_active_balance = 0;
 
+	if (!task_on_rq_queued(next_task) ||
+	    task_cpu(next_task) != cpu_of(busiest_rq))
+		goto out;
+
 	/* find_lock_lowest_rq locks the rq if found */
 	lowest_rq = find_lock_lowest_rq(next_task, busiest_rq);
 	if (!lowest_rq)
