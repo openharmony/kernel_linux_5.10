@@ -149,7 +149,7 @@ bool unwind_next_frame(struct unwind_state *state)
 				regs = (struct pt_regs *)info->next_sp;
 				pc = regs->csr_era;
 				if (user_mode(regs) || !__kernel_text_address(pc))
-					return false;
+					goto out;
 
 				state->pc = pc;
 				state->sp = regs->regs[3];
@@ -171,6 +171,8 @@ bool unwind_next_frame(struct unwind_state *state)
 
 	} while (!get_stack_info(state->sp, state->task, info));
 
+out:
+	state->error = true;
 	return false;
 }
 EXPORT_SYMBOL_GPL(unwind_next_frame);
