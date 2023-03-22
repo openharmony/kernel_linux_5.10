@@ -90,6 +90,13 @@ struct inode *sharefs_iget(struct super_block *sb, struct inode *lower_inode)
 		iput(lower_inode);
 		return ERR_PTR(-ENOMEM);
 	}
+
+	if (lower_inode->i_nlink == 0) {
+		iput(lower_inode);
+		iput(inode);
+		return ERR_PTR(-ENOENT);
+	}
+
 	/* if found a cached inode, then just return it (after iput) */
 	if (!(inode->i_state & I_NEW)) {
 		iput(lower_inode);
