@@ -276,7 +276,36 @@ void clear_comrades(struct dentry *dentry)
  */
 static int d_revalidate_merge(struct dentry *direntry, unsigned int flags)
 {
-	return 0;
+	struct hmdfs_dentry_info_merge *dim = hmdfs_dm(direntry);
+	struct hmdfs_dentry_comrade *comrade = NULL;
+	struct dentry *parent_dentry = NULL;
+	struct dentry *lower_cur_parent_dentry = NULL;
+	int ret = 1;
+
+	if (flags & LOOKUP_RCU) {
+		return -ECHILD;
+	}
+
+	if (flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET | LOOKUP_REVAL)) {
+		return 0;
+	}
+
+	parent_dentry = dget_parent(direntry);
+	list_for_each_entry(comrade, &(dim->comrade_list), list) {
+		lower_cur_parent_dentry = dget_parent(comrade->lo_d);
+		if ((comrade->lo_d->d_flags & DCACHE_OP_REVALIDATE)) {
+			ret = comrade->lo_d->d_op->d_revalidate(
+				comrade->lo_d, flags);
+			if (ret == 0) {
+				dput(lower_cur_parent_dentry);
+				goto out;
+			}
+		}
+		dput(lower_cur_parent_dentry);
+	}
+out:
+	dput(parent_dentry);
+	return ret;
 }
 
 static void d_release_merge(struct dentry *dentry)
