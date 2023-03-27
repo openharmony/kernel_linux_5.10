@@ -161,6 +161,22 @@ static int hmdfs_xattr_remote_set(struct dentry *dentry, const char *name,
 	return res;
 }
 
+static int hmdfs_xattr_merge_set(struct dentry *dentry, const char *name,
+				  const void *value, size_t size, int flags)
+{
+	int err = 0;
+	struct dentry *lower_dentry = hmdfs_get_lo_d(dentry, HMDFS_DEVID_LOCAL);
+
+	if (!lower_dentry) {
+		err = -EOPNOTSUPP;
+		goto out;
+	}
+	err = hmdfs_xattr_local_set(lower_dentry, name, value, size, flags);
+out:
+	dput(lower_dentry);
+	return err;
+}
+
 static int hmdfs_xattr_set(const struct xattr_handler *handler,
 			   struct dentry *dentry, struct inode *inode,
 			   const char *name, const void *value,
@@ -181,6 +197,8 @@ static int hmdfs_xattr_set(const struct xattr_handler *handler,
 
 	if (info->inode_type == HMDFS_LAYER_OTHER_LOCAL)
 		return hmdfs_xattr_local_set(dentry, name, value, size, flags);
+	else if (info->inode_type == HMDFS_LAYER_OTHER_MERGE)
+		return hmdfs_xattr_merge_set(dentry, name, value, size, flags);
 
 	return hmdfs_xattr_remote_set(dentry, name, value, size, flags);
 }
