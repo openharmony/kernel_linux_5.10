@@ -165,21 +165,13 @@ static int hmdfs_xattr_merge_set(struct dentry *dentry, const char *name,
 				  const void *value, size_t size, int flags)
 {
 	int err = 0;
-	struct inode *lower_inode = NULL;
-	struct hmdfs_inode_info *info = NULL;
-	struct dentry *lower_dentry = hmdfs_get_fst_lo_d(dentry);
+	struct dentry *lower_dentry = hmdfs_get_lo_d(dentry, HMDFS_DEVID_LOCAL);
 
 	if (!lower_dentry) {
 		err = -EOPNOTSUPP;
 		goto out;
 	}
-
-	lower_inode = d_inode(lower_dentry);
-	info = hmdfs_i(lower_inode);
-	if (info->inode_type == HMDFS_LAYER_OTHER_LOCAL)
-		err = hmdfs_xattr_local_set(lower_dentry, name, value, size, flags);
-	else
-		err = -EOPNOTSUPP;
+	err = hmdfs_xattr_local_set(lower_dentry, name, value, size, flags);
 out:
 	dput(lower_dentry);
 	return err;

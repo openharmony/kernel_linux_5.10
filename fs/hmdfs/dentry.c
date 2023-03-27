@@ -289,8 +289,7 @@ static int d_revalidate_merge(struct dentry *direntry, unsigned int flags)
 	if (flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET | LOOKUP_REVAL)) {
 		return 0;
 	}
-		
-	
+
 	parent_dentry = dget_parent(direntry);
 	list_for_each_entry(comrade, &(dim->comrade_list), list) {
 		lower_cur_parent_dentry = dget_parent(comrade->lo_d);
