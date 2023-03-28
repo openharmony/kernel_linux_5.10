@@ -120,6 +120,8 @@ int soft_crypt_page(struct crypto_skcipher *ctfm, struct page *dst_page,
 	else
 		BUG();
 
+	skcipher_request_free(req);
+
 	if (ret)
 		pr_err("%scrypt failed!\n", op == HP_DEV_ENCRYPT ? "en" : "de");
 
