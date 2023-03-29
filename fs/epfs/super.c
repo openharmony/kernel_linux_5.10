@@ -79,7 +79,7 @@ static int epfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 struct super_operations epfs_sops = {
 	.alloc_inode = epfs_alloc_inode,
 	.destroy_inode = epfs_destroy_inode,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
 	.free_inode = epfs_free_inode,
 #endif
 	.evict_inode = epfs_evict_inode,

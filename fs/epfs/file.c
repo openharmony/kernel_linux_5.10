@@ -236,7 +236,7 @@ static ssize_t epfs_read(struct file *file, char __user *buf, size_t count,
 			// read directly when epfs range gone;
 			if (IS_ENABLED(CONFIG_EPFS_DEBUG))
 				epfs_debug(
-					"read from %llu with len %lu at the end.",
+					"read from %llu with len %zu at the end.",
 					pos, count);
 			ret = vfs_read(origin_file, buf, count, &pos);
 			break;
