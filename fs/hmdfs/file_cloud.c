@@ -23,6 +23,7 @@
 #include "hmdfs_client.h"
 #include "hmdfs_dentryfile.h"
 #include "hmdfs_trace.h"
+#define DATA_CLOUD "/mnt/hmdfs/100/cloud"
 
 static const struct vm_operations_struct hmdfs_cloud_vm_ops = {
 	.fault = filemap_fault,
@@ -32,7 +33,60 @@ static const struct vm_operations_struct hmdfs_cloud_vm_ops = {
 
 int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 {
-	return -ENOENT;
+	const char *dir_path;
+	const char *root_name = DATA_CLOUD;
+	struct path root_path;
+	struct file *lower_file;
+	struct hmdfs_file_info *gfi = kzalloc(sizeof(*gfi), GFP_KERNEL);
+	int err = 0;
+
+	err = kern_path(root_name, 0, &root_path);
+	if (err) {
+		hmdfs_info("kern_path failed: %d", err);
+		return ERR_PTR(err);
+	}
+
+	dir_path = hmdfs_get_dentry_relative_path(file->f_path.dentry);
+	if(dir_path)
+		hmdfs_info("path %s", dir_path);
+	else
+		hmdfs_err("get cloud path failed");
+
+	lower_file = file_open_root(&root_path, dir_path,
+			      file->f_flags, file->f_mode);
+	if (IS_ERR(lower_file)) {
+		hmdfs_info("file_open_root failed: %ld", PTR_ERR(lower_file));
+		err = PTR_ERR(lower_file);
+		kfree(gfi);
+	} else {
+		gfi->lower_file = lower_file;
+		file->private_data = gfi;
+	}
+	path_put(&root_path);
+
+	return err;
+}
+
+int hmdfs_file_release_cloud(struct inode *inode, struct file *file)
+{
+	struct hmdfs_file_info *gfi = hmdfs_f(file);
+
+	file->private_data = NULL;
+	fput(gfi->lower_file);
+	kfree(gfi);
+	return 0;
+}
+
+static int hmdfs_file_flush_cloud(struct file *file, fl_owner_t id)
+{
+	struct hmdfs_file_info *gfi = hmdfs_f(file);
+
+	if(!gfi || !gfi->lower_file)
+		return 0;
+
+	if (gfi->lower_file->f_op->flush)
+		return gfi->lower_file->f_op->flush(gfi->lower_file, id);
+	return 0;
 }
 
 const struct file_operations hmdfs_dev_file_fops_cloud = {
@@ -42,8 +96,8 @@ const struct file_operations hmdfs_dev_file_fops_cloud = {
 	.write_iter = NULL,
 	.mmap = NULL,
 	.open = hmdfs_file_open_cloud,
-	.release = NULL,
-	.flush = NULL,
+	.release = hmdfs_file_release_cloud,
+	.flush = hmdfs_file_flush_cloud,
 	.fsync = NULL,
 	.splice_read = NULL,
 	.splice_write = NULL,
