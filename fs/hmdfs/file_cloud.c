@@ -40,20 +40,26 @@ int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 	struct hmdfs_file_info *gfi = kzalloc(sizeof(*gfi), GFP_KERNEL);
 	int err = 0;
 
+	if(!gfi)
+		return -ENOMEM;
+
 	err = kern_path(root_name, 0, &root_path);
 	if (err) {
 		hmdfs_info("kern_path failed: %d", err);
+		kfree(gfi);
 		return ERR_PTR(err);
 	}
 
 	dir_path = hmdfs_get_dentry_relative_path(file->f_path.dentry);
-	if(dir_path)
-		hmdfs_info("path %s", dir_path);
-	else
+	if(!dir_path) {
 		hmdfs_err("get cloud path failed");
+		kfree(gfi);
+		return -ENOENT;
+	}
 
 	lower_file = file_open_root(&root_path, dir_path,
 			      file->f_flags, file->f_mode);
+	path_put(&root_path);
 	if (IS_ERR(lower_file)) {
 		hmdfs_info("file_open_root failed: %ld", PTR_ERR(lower_file));
 		err = PTR_ERR(lower_file);
@@ -62,8 +68,7 @@ int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 		gfi->lower_file = lower_file;
 		file->private_data = gfi;
 	}
-	path_put(&root_path);
-
+	kfree(dir_path);
 	return err;
 }
 
