@@ -67,6 +67,8 @@ static int sharefs_getattr(const struct path *path, struct kstat *stat,
 	stat->uid = d_inode(path->dentry)->i_uid;
 	stat->gid = d_inode(path->dentry)->i_gid;
 	stat->mode = d_inode(path->dentry)->i_mode;
+	stat->dev = 0;
+	stat->rdev = 0;
 	sharefs_put_lower_path(path->dentry, &lower_path);
 
 	return ret;
