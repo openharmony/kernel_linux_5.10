@@ -47,7 +47,7 @@ int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 	if (err) {
 		hmdfs_info("kern_path failed: %d", err);
 		kfree(gfi);
-		return ERR_PTR(err);
+		return err;
 	}
 
 	dir_path = hmdfs_get_dentry_relative_path(file->f_path.dentry);
