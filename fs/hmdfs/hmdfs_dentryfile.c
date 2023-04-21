@@ -85,7 +85,7 @@ static void tea_transform(unsigned int buf[4], unsigned int const in[])
 	buf[1] += b1;
 }
 
-static __u32 hmdfs_dentry_hash(const struct qstr *qstr, bool case_sense)
+__u32 hmdfs_dentry_hash(const struct qstr *qstr, bool case_sense)
 {
 	__u32 hash;
 	__u32 hmdfs_hash;
@@ -420,7 +420,7 @@ int hmdfs_metainfo_write(struct hmdfs_sb_info *sbi, struct file *filp,
  * level2  bucket0(3) bucket1(4) bucket2(5) bucket3(6)
  * return bucket number.
  */
-static __u32 get_bucketaddr(int level, int buckoffset)
+__u32 get_bucketaddr(int level, int buckoffset)
 {
 	int all_level_bucketaddr = 0;
 	__u32 curlevelmaxbucks;
@@ -440,7 +440,7 @@ static __u32 get_bucketaddr(int level, int buckoffset)
 	return all_level_bucketaddr;
 }
 
-static __u32 get_bucket_by_level(int level)
+__u32 get_bucket_by_level(int level)
 {
 	int buckets = 0;
 

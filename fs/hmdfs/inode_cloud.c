@@ -14,21 +14,37 @@
 #include "hmdfs.h"
 #include "hmdfs_client.h"
 #include "hmdfs_dentryfile.h"
+#include "hmdfs_dentryfile_cloud.h"
 #include "hmdfs_share.h"
 #include "hmdfs_trace.h"
 #include "authority/authentication.h"
 #include "stash.h"
 
-struct hmdfs_lookup_ret *lookup_cloud_dentry(struct dentry *child_dentry,
+struct hmdfs_lookup_cloud_ret {
+	uint64_t i_size;
+	uint64_t i_mtime;
+	uint8_t record_id[CLOUD_RECORD_ID_LEN];
+	uint16_t i_mode;
+};
+
+uint32_t make_ino_raw_cloud(uint8_t *cloud_id)
+{
+	struct qstr str;
+
+	str.len = CLOUD_RECORD_ID_LEN;
+	str.name = cloud_id;
+	return hmdfs_dentry_hash(&str, CLOUD_RECORD_ID_LEN);
+}
+
+struct hmdfs_lookup_cloud_ret *lookup_cloud_dentry(struct dentry *child_dentry,
 					      const struct qstr *qstr,
 					      uint64_t dev_id)
 {
-	struct hmdfs_lookup_ret *lookup_ret;
-	struct hmdfs_dentry *dentry = NULL;
+	struct hmdfs_lookup_cloud_ret *lookup_ret;
+	struct hmdfs_dentry_cloud *dentry = NULL;
 	struct clearcache_item *cache_item = NULL;
-	struct hmdfs_dcache_lookup_ctx ctx;
+	struct hmdfs_dcache_lookup_ctx_cloud ctx;
 	struct hmdfs_sb_info *sbi = hmdfs_sb(child_dentry->d_sb);
-
 
 	get_cloud_cache_file(child_dentry->d_parent, sbi);
 	cache_item = hmdfs_find_cache_item(dev_id, child_dentry->d_parent);
@@ -39,8 +55,8 @@ struct hmdfs_lookup_ret *lookup_cloud_dentry(struct dentry *child_dentry,
 	if (!lookup_ret)
 		goto out;
 
-	hmdfs_init_dcache_lookup_ctx(&ctx, sbi, qstr, cache_item->filp);
-	dentry = hmdfs_find_dentry(child_dentry, &ctx);
+	hmdfs_init_dcache_lookup_ctx_cloud(&ctx, sbi, qstr, cache_item->filp);
+	dentry = hmdfs_find_dentry_cloud(child_dentry, &ctx);
 	if (!dentry) {
 		kfree(lookup_ret);
 		lookup_ret = NULL;
@@ -50,8 +66,7 @@ struct hmdfs_lookup_ret *lookup_cloud_dentry(struct dentry *child_dentry,
 	lookup_ret->i_mode = le16_to_cpu(dentry->i_mode);
 	lookup_ret->i_size = le64_to_cpu(dentry->i_size);
 	lookup_ret->i_mtime = le64_to_cpu(dentry->i_mtime);
-	lookup_ret->i_mtime_nsec = le32_to_cpu(dentry->i_mtime_nsec);
-	lookup_ret->i_ino = le64_to_cpu(dentry->i_ino);
+	memcpy(lookup_ret->record_id, dentry->record_id, CLOUD_RECORD_ID_LEN);
 
 	hmdfs_unlock_file(ctx.filp, get_dentry_group_pos(ctx.bidx),
 			  DENTRYGROUP_SIZE);
@@ -61,12 +76,12 @@ out:
 	return lookup_ret;
 }
 
-struct hmdfs_lookup_ret *hmdfs_lookup_by_cloud(struct dentry *dentry,
+struct hmdfs_lookup_cloud_ret *hmdfs_lookup_by_cloud(struct dentry *dentry,
 					     struct qstr *qstr,
 					     unsigned int flags,
 					     const char *relative_path)
 {
-	struct hmdfs_lookup_ret *result = NULL;
+	struct hmdfs_lookup_cloud_ret *result = NULL;
 
 	result = lookup_cloud_dentry(dentry, qstr, CLOUD_DEVICE);
 	return result;
@@ -154,11 +169,11 @@ update_info:
 }
 
 static void hmdfs_update_inode(struct inode *inode,
-			       struct hmdfs_lookup_ret *lookup_result)
+			       struct hmdfs_lookup_cloud_ret *lookup_result)
 {
 	struct hmdfs_time_t remote_mtime = {
 		.tv_sec = lookup_result->i_mtime,
-		.tv_nsec = lookup_result->i_mtime_nsec,
+		.tv_nsec = 0,
 	};
 
 	/*
@@ -190,7 +205,7 @@ static void hmdfs_fill_inode_permission(struct inode *inode, struct inode *dir,
 
 struct hmdfs_peer peer;
 
-struct inode *fill_inode_cloud(struct super_block *sb, struct hmdfs_lookup_ret *res, struct inode *dir)
+struct inode *fill_inode_cloud(struct super_block *sb, struct hmdfs_lookup_cloud_ret *res, struct inode *dir)
 {
 	int ret = 0;
 	struct inode *inode = NULL;
@@ -198,7 +213,7 @@ struct inode *fill_inode_cloud(struct super_block *sb, struct hmdfs_lookup_ret *
 	umode_t mode = res->i_mode;
 	peer.device_id = CLOUD_DEVICE;
 
-	inode = hmdfs_iget5_locked_remote(sb, &peer, res->i_ino);
+	inode = hmdfs_iget5_locked_cloud(sb, &peer, res->record_id);
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
 
@@ -214,7 +229,7 @@ struct inode *fill_inode_cloud(struct super_block *sb, struct hmdfs_lookup_ret *
 	inode->i_ctime.tv_sec = 0;
 	inode->i_ctime.tv_nsec = 0;
 	inode->i_mtime.tv_sec = res->i_mtime;
-	inode->i_mtime.tv_nsec = res->i_mtime_nsec;
+	inode->i_mtime.tv_nsec = 0;
 
 	inode->i_uid = KUIDT_INIT((uid_t)0);
 	inode->i_gid = KGIDT_INIT((gid_t)0);
@@ -259,7 +274,7 @@ static struct dentry *hmdfs_lookup_cloud_dentry(struct inode *parent_inode,
 	struct dentry *ret = NULL;
 	struct inode *inode = NULL;
 	struct super_block *sb = parent_inode->i_sb;
-	struct hmdfs_lookup_ret *lookup_result = NULL;
+	struct hmdfs_lookup_cloud_ret *lookup_result = NULL;
 	char *file_name = NULL;
 	int file_name_len = child_dentry->d_name.len;
 	struct qstr qstr;
