@@ -4389,7 +4389,15 @@ static int purgeable(struct ctl_table *table, int write, void *buffer,
 		.reclaim_idx = MAX_NR_ZONES - 1,
 	};
 	int nid = 0;
+	const struct cred *cred = current_cred();
+	if (!cred)
+		return 0;
 
+	if (!uid_eq(cred->euid, GLOBAL_MEMMGR_UID) &&
+			!uid_eq(cred->euid, GLOBAL_ROOT_UID)) {
+			pr_err("no permission to shrink purgeable heap!\n");
+			return -EINVAL;
+	}
 	for_each_node_state(nid, N_MEMORY)
 		purgeable_node(NODE_DATA(nid), &sc);
 	return 0;
@@ -4398,7 +4406,7 @@ static int purgeable(struct ctl_table *table, int write, void *buffer,
 static struct ctl_table ker_tab[] = {
 	{
 		.procname = "purgeable",
-		.mode = 0200,
+		.mode = 0666,
 		.proc_handler = purgeable,
 	},
 	{},
