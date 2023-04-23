@@ -1203,10 +1203,7 @@ struct cache_file_node *__find_cfn(struct hmdfs_sb_info *sbi, const char *cid,
 	struct cache_file_node *cfn = NULL;
 	struct list_head *head = NULL;
 
-	if (!strcmp(cid, CLOUD_CID))
-		head = &sbi->cloud_cache;
-	else
-		head = get_list_head(sbi, server);
+	head = get_list_head(sbi, server);
 
 	list_for_each_entry(cfn, head, list) {
 		if (dentry_file_match(cfn, cid, path)) {
@@ -1261,10 +1258,7 @@ static struct file *insert_cfn(struct hmdfs_sb_info *sbi, const char *filename,
 		goto out;
 	}
 
-	if (!strcmp(cid, CLOUD_CID))
-		head = &sbi->cloud_cache;
-	else
-		head = get_list_head(sbi, server);
+	head = get_list_head(sbi, server);
 
 	mutex_lock(&sbi->cache_list_lock);
 	exist = __find_cfn(sbi, cid, path, server);
@@ -1491,7 +1485,6 @@ void hmdfs_cfn_destroy(struct hmdfs_sb_info *sbi)
 	mutex_lock(&sbi->cache_list_lock);
 	__destroy_cfn(&sbi->client_cache);
 	__destroy_cfn(&sbi->server_cache);
-	__destroy_cfn(&sbi->cloud_cache);
 	mutex_unlock(&sbi->cache_list_lock);
 }
 
@@ -1697,10 +1690,7 @@ void load_cfn(struct hmdfs_sb_info *sbi, const char *fullname, const char *path,
 		return;
 	}
 
-	if (!strcmp(cid, CLOUD_CID))
-		head = &sbi->cloud_cache;
-	else
-		head = get_list_head(sbi, server);
+	head = get_list_head(sbi, server);
 
 	mutex_lock(&sbi->cache_list_lock);
 	cfn1 = __find_cfn(sbi, cid, path, server);

@@ -925,7 +925,6 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 	sbi->cred = get_cred(current_cred());
 	INIT_LIST_HEAD(&sbi->client_cache);
 	INIT_LIST_HEAD(&sbi->server_cache);
-	INIT_LIST_HEAD(&sbi->cloud_cache);
 	INIT_LIST_HEAD(&sbi->to_delete);
 	mutex_init(&sbi->cache_list_lock);
 	hmdfs_cfn_load(sbi);
