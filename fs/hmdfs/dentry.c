@@ -169,6 +169,7 @@ out:
 
 static void hmdfs_dev_d_release(struct dentry *dentry)
 {
+	struct clearcache_item *item;
 	if (!dentry || !dentry->d_fsdata)
 		return;
 
@@ -187,6 +188,14 @@ static void hmdfs_dev_d_release(struct dentry *dentry)
 		hmdfs_clear_cache_dents(dentry, false);
 		break;
 	case HMDFS_LAYER_SECOND_CLOUD:
+		item = hmdfs_find_cache_item(CLOUD_DEVICE, dentry);
+		if (item) {
+			/* cloud dentryfile didn't link to
+			   'struct cache_file_node', so close file here.
+			 */
+			filp_close(item->filp, NULL);
+			kref_put(&item->ref, release_cache_item);
+		}
 		hmdfs_clear_cache_dents(dentry, false);
 		break;
 	default:
