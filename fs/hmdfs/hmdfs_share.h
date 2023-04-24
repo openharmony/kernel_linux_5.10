@@ -18,10 +18,6 @@
 #define HMDFS_SHARE_ITEM_TIMEOUT_S 120
 #define HMDFS_SHARE_ITEMS_MAX 128
 
-#define HMDFS_IOC 0xf2
-#define HMDFS_IOC_SET_SHARE_PATH	_IOW(HMDFS_IOC, 1, \
-						struct hmdfs_share_control)
-
 #define SHARE_RESERVED_DIR ".share"
 #define SHARE_ALL_DEVICE "0"
 

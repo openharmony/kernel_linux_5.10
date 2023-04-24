@@ -74,6 +74,7 @@ struct hmdfs_inode_info {
 	unsigned long fid_flags;
 	wait_queue_head_t fid_wq;
 	__u8 inode_type; // deprecated: use ino system instead
+	__u32 write_opened;
 
 	/* writeback list */
 	struct list_head wb_list;

@@ -22,6 +22,7 @@
 #include "hmdfs.h"
 #include "hmdfs_client.h"
 #include "hmdfs_dentryfile.h"
+#include "hmdfs_dentryfile_cloud.h"
 #include "hmdfs_trace.h"
 #define DATA_CLOUD "/mnt/hmdfs/100/cloud"
 
@@ -117,16 +118,91 @@ const struct address_space_operations hmdfs_dev_file_aops_cloud = {
 	.set_page_dirty = NULL,
 };
 
+int analysis_dentry_file_from_cloud(struct hmdfs_sb_info *sbi,
+				    struct file *file, struct file *handler,
+				    struct dir_context *ctx)
+{
+	struct hmdfs_dentry_group_cloud *dentry_group = NULL;
+	loff_t pos = ctx->pos;
+	unsigned long dev_id = (unsigned long)((pos << 1) >> (POS_BIT_NUM - DEV_ID_BIT_NUM));
+	unsigned long group_id = (unsigned long)((pos << (1 + DEV_ID_BIT_NUM)) >>
+				 (POS_BIT_NUM - GROUP_ID_BIT_NUM));
+	loff_t offset = pos & OFFSET_BIT_MASK;
+	int group_num = 0;
+	char *dentry_name = NULL;
+	int iterate_result = 0;
+	int i, j;
+
+	dentry_group = kzalloc(sizeof(*dentry_group), GFP_KERNEL);
+
+	if (!dentry_group)
+		return -ENOMEM;
+
+	if (IS_ERR_OR_NULL(handler)) {
+		kfree(dentry_group);
+		return -ENOENT;
+	}
+
+	group_num = get_dentry_group_cnt(file_inode(handler));
+	dentry_name = kzalloc(DENTRY_NAME_MAX_LEN, GFP_KERNEL);
+	if (!dentry_name) {
+		kfree(dentry_group);
+		return -ENOMEM;
+	}
+
+	for (i = group_id; i < group_num; i++) {
+		int ret = hmdfs_metainfo_read(sbi, handler, dentry_group,
+					      sizeof(struct hmdfs_dentry_group_cloud),
+					      i);
+		if (ret != sizeof(struct hmdfs_dentry_group_cloud)) {
+			hmdfs_err("read dentry group failed ret:%d", ret);
+			goto done;
+		}
+
+		for (j = offset; j < DENTRY_PER_GROUP_CLOUD; j++) {
+			int len;
+			int file_type = DT_UNKNOWN;
+			bool is_continue;
+
+			len = le16_to_cpu(dentry_group->nsl[j].namelen);
+			if (!test_bit_le(j, dentry_group->bitmap) || len == 0)
+				continue;
+
+			memset(dentry_name, 0, DENTRY_NAME_MAX_LEN);
+			if (S_ISDIR(le16_to_cpu(dentry_group->nsl[j].i_mode)))
+				file_type = DT_DIR;
+			else if (S_ISREG(le16_to_cpu(
+					 dentry_group->nsl[j].i_mode)))
+				file_type = DT_REG;
+
+			strncat(dentry_name, dentry_group->filename[j], len);
+			pos = hmdfs_set_pos(dev_id, i, j);
+			is_continue =
+				dir_emit(ctx, dentry_name, len,
+					 pos + INUNUMBER_START, file_type);
+			if (!is_continue) {
+				ctx->pos = pos;
+				iterate_result = 1;
+				goto done;
+			}
+		}
+		offset = 0;
+	}
+
+done:
+	kfree(dentry_name);
+	kfree(dentry_group);
+	return iterate_result;
+}
+
 static int hmdfs_iterate_cloud(struct file *file, struct dir_context *ctx)
 {
 	int err = 0;
 	loff_t start_pos = ctx->pos;
-	uint64_t dev_id = CLOUD_DEVICE;
 
 	if (ctx->pos == -1)
 		return 0;
-	ctx->pos = hmdfs_set_pos(dev_id, 0, 0);
-	err = analysis_dentry_file_from_con(
+	err = analysis_dentry_file_from_cloud(
 		file->f_inode->i_sb->s_fs_info, file, file->private_data, ctx);
 
 	if (err <= 0)

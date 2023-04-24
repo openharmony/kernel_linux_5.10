@@ -28,6 +28,7 @@ int hmdfs_file_open_local(struct inode *inode, struct file *file)
 	struct super_block *sb = inode->i_sb;
 	const struct cred *cred = hmdfs_sb(sb)->cred;
 	struct hmdfs_file_info *gfi = kzalloc(sizeof(*gfi), GFP_KERNEL);
+	struct hmdfs_inode_info *info = hmdfs_i(inode);
 
 	if (!gfi) {
 		err = -ENOMEM;
@@ -43,6 +44,8 @@ int hmdfs_file_open_local(struct inode *inode, struct file *file)
 	} else {
 		gfi->lower_file = lower_file;
 		file->private_data = gfi;
+		if (file->f_flags & (O_RDWR | O_WRONLY))
+			info->write_opened++;
 	}
 out_err:
 	return err;
@@ -51,7 +54,10 @@ out_err:
 int hmdfs_file_release_local(struct inode *inode, struct file *file)
 {
 	struct hmdfs_file_info *gfi = hmdfs_f(file);
+	struct hmdfs_inode_info *info = hmdfs_i(inode);
 
+	if (file->f_flags & (O_RDWR | O_WRONLY))
+		info->write_opened--;
 	file->private_data = NULL;
 	fput(gfi->lower_file);
 	kfree(gfi);
