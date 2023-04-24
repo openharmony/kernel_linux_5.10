@@ -122,6 +122,7 @@ struct hmdfs_sb_info {
 	char *real_dst;
 	char *local_src;
 	char *cache_dir;
+	char *cloud_dir;
 	/* seq number for hmdfs super block */
 	unsigned int seq;
 

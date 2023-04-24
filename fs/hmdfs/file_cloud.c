@@ -23,7 +23,6 @@
 #include "hmdfs_client.h"
 #include "hmdfs_dentryfile.h"
 #include "hmdfs_trace.h"
-#define DATA_CLOUD "/mnt/hmdfs/100/cloud"
 
 static const struct vm_operations_struct hmdfs_cloud_vm_ops = {
 	.fault = filemap_fault,
@@ -58,16 +57,21 @@ static ssize_t hmdfs_file_read_iter_cloud(struct kiocb *iocb,
 int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 {
 	const char *dir_path;
-	const char *root_name = DATA_CLOUD;
+	struct hmdfs_sb_info *sbi = inode->i_sb->s_fs_info;
 	struct path root_path;
 	struct file *lower_file;
 	struct hmdfs_file_info *gfi = kzalloc(sizeof(*gfi), GFP_KERNEL);
 	int err = 0;
 
+	if (!sbi->cloud_dir) {
+		hmdfs_info("no cloud_dir");
+		return -EPERM;
+	}
+
 	if (!gfi)
 		return -ENOMEM;
 
-	err = kern_path(root_name, 0, &root_path);
+	err = kern_path(sbi->cloud_dir, 0, &root_path);
 	if (err) {
 		hmdfs_info("kern_path failed: %d", err);
 		kfree(gfi);
