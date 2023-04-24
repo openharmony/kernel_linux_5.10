@@ -31,6 +31,30 @@ static const struct vm_operations_struct hmdfs_cloud_vm_ops = {
 	.page_mkwrite = NULL,
 };
 
+static ssize_t hmdfs_file_read_iter_cloud(struct kiocb *iocb,
+					  struct iov_iter *iter)
+{
+	ssize_t ret = -ENOENT;
+	const struct iovec *iov;
+	struct file *filp = iocb->ki_filp;
+	struct hmdfs_file_info *gfi = filp->private_data;
+	struct file *lower_file = NULL;
+
+	if (gfi)
+		lower_file = gfi->lower_file;
+
+	if (uaccess_kernel())
+		iov = (struct iovec *)iter->kvec;
+	else
+		iov = iter->iov;
+
+	if (lower_file)
+		ret = vfs_read(lower_file, iov->iov_base, iov->iov_len,
+			       &iocb->ki_pos);
+
+	return ret;
+}
+
 int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 {
 	const char *dir_path;
@@ -40,7 +64,7 @@ int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 	struct hmdfs_file_info *gfi = kzalloc(sizeof(*gfi), GFP_KERNEL);
 	int err = 0;
 
-	if(!gfi)
+	if (!gfi)
 		return -ENOMEM;
 
 	err = kern_path(root_name, 0, &root_path);
@@ -97,7 +121,7 @@ static int hmdfs_file_flush_cloud(struct file *file, fl_owner_t id)
 const struct file_operations hmdfs_dev_file_fops_cloud = {
 	.owner = THIS_MODULE,
 	.llseek = generic_file_llseek,
-	.read_iter = NULL,
+	.read_iter = hmdfs_file_read_iter_cloud,
 	.write_iter = NULL,
 	.mmap = NULL,
 	.open = hmdfs_file_open_cloud,
