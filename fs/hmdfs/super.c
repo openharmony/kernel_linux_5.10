@@ -16,6 +16,7 @@ enum {
 	OPT_RA_PAGES,
 	OPT_LOCAL_DST,
 	OPT_CACHE_DIR,
+	OPT_CLOUD_DIR,
 	OPT_S_CASE,
 	OPT_VIEW_TYPE,
 	OPT_NO_OFFLINE_STASH,
@@ -28,6 +29,7 @@ static match_table_t hmdfs_tokens = {
 	{ OPT_RA_PAGES, "ra_pages=%s" },
 	{ OPT_LOCAL_DST, "local_dst=%s" },
 	{ OPT_CACHE_DIR, "cache_dir=%s" },
+	{ OPT_CLOUD_DIR, "cloud_dir=%s" },
 	{ OPT_S_CASE, "sensitive" },
 	{ OPT_VIEW_TYPE, "merge" },
 	{ OPT_NO_OFFLINE_STASH, "no_offline_stash" },
@@ -124,6 +126,11 @@ int hmdfs_parse_options(struct hmdfs_sb_info *sbi, const char *data)
 			break;
 		case OPT_CACHE_DIR:
 			err = hmdfs_match_strdup(&args[0], &sbi->cache_dir);
+			if (err)
+				goto out;
+			break;
+		case OPT_CLOUD_DIR:
+			err = hmdfs_match_strdup(&args[0], &sbi->cloud_dir);
 			if (err)
 				goto out;
 			break;

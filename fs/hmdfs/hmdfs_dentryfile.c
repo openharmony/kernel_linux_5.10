@@ -1132,7 +1132,7 @@ static void hmdfs_cache_path_create(char *s, const char *dir, bool server)
 		snprintf(s, PATH_MAX, "%s/dentry_cache/client/", dir);
 }
 
-static void hmdfs_cache_file_create(char *s, uint64_t hash, const char *id,
+static void concat_cachefile_name(char *s, uint64_t hash, const char *id,
 				    bool server)
 {
 	int offset = strlen(s);
@@ -1164,7 +1164,7 @@ int cache_file_name_generate(char *fullname, struct hmdfs_peer *con,
 
 	hash = path_hash(relative_path, strlen(relative_path),
 			 sbi->s_case_sensitive);
-	hmdfs_cache_file_create(fullname, hash, cid, server);
+	concat_cachefile_name(fullname, hash, cid, server);
 
 	return 0;
 }
@@ -1178,17 +1178,23 @@ static void free_cfn(struct cache_file_node *cfn)
 	kfree(cfn);
 }
 
-static bool dentry_file_match(struct cache_file_node *cfn, const char *id,
-			      const char *path)
+static bool path_cmp(const char *path1, const char *path2, bool case_sensitive)
 {
 	int ret;
 
-	if (cfn->sbi->s_case_sensitive)
-		ret = strcmp(cfn->relative_path, path);
+	if (case_sensitive)
+		ret = strcmp(path1, path2);
 	else
-		ret = strcasecmp(cfn->relative_path, path);
+		ret = strcasecmp(path1, path2);
 
-	return (!ret && !strncmp((cfn)->cid, id, HMDFS_CFN_CID_SIZE - 1));
+	return !ret;
+}
+
+static bool dentry_file_match(struct cache_file_node *cfn, const char *id,
+			      const char *path)
+{
+	return (path_cmp(cfn->relative_path, path, cfn->sbi->s_case_sensitive) &&
+		!strncmp((cfn)->cid, id, HMDFS_CFN_CID_SIZE - 1));
 }
 
 struct cache_file_node *__find_cfn(struct hmdfs_sb_info *sbi, const char *cid,
@@ -1197,10 +1203,7 @@ struct cache_file_node *__find_cfn(struct hmdfs_sb_info *sbi, const char *cid,
 	struct cache_file_node *cfn = NULL;
 	struct list_head *head = NULL;
 
-	if (!strcmp(cid, CLOUD_CID))
-		head = &sbi->cloud_cache;
-	else
-		head = get_list_head(sbi, server);
+	head = get_list_head(sbi, server);
 
 	list_for_each_entry(cfn, head, list) {
 		if (dentry_file_match(cfn, cid, path)) {
@@ -1255,10 +1258,7 @@ static struct file *insert_cfn(struct hmdfs_sb_info *sbi, const char *filename,
 		goto out;
 	}
 
-	if (!strcmp(cid, CLOUD_CID))
-		head = &sbi->cloud_cache;
-	else
-		head = get_list_head(sbi, server);
+	head = get_list_head(sbi, server);
 
 	mutex_lock(&sbi->cache_list_lock);
 	exist = __find_cfn(sbi, cid, path, server);
@@ -1374,29 +1374,99 @@ out:
 
 int get_cloud_cache_file(struct dentry *dentry, struct hmdfs_sb_info *sbi)
 {
+	int ret;
+	ssize_t res;
 	struct hmdfs_dentry_info *d_info = hmdfs_d(dentry);
-	char *relative_path = NULL;
-	struct cache_file_node *cfn = NULL;
-	char *cid = CLOUD_CID;
+	struct clearcache_item *item;
 	struct file *filp = NULL;
+	uint64_t  hash;
+	char *relative_path = NULL;
+	char *dirname = NULL;
+	char *fullname = NULL;
+	char *cache_file_name = NULL;
+	char *kvalue = NULL;
+
+	item = hmdfs_find_cache_item(CLOUD_DEVICE, dentry);
+	if (item) {
+		kref_put(&item->ref, release_cache_item);
+		return 0;
+	}
 
 	relative_path = hmdfs_get_dentry_relative_path(dentry);
 	if (unlikely(!relative_path)) {
 		hmdfs_err("get relative path failed %d", -ENOMEM);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	dirname = kzalloc(PATH_MAX, GFP_KERNEL);
+	if (!dirname) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	cache_file_name = kzalloc(PATH_MAX, GFP_KERNEL);
+	if (!cache_file_name) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	fullname = kzalloc(PATH_MAX, GFP_KERNEL);
+	if (!fullname) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	kvalue = kzalloc(PATH_MAX, GFP_KERNEL);
+	if (!kvalue) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	hash = path_hash(relative_path, strlen(relative_path),
+			 sbi->s_case_sensitive);
+	concat_cachefile_name(cache_file_name, hash, CLOUD_CID, false);
+	snprintf(dirname, PATH_MAX, "%s/dentry_cache/cloud/",
+		 sbi->cache_dir);
+	snprintf(fullname, PATH_MAX, "%s%s", dirname, cache_file_name);
+
+	filp = filp_open(fullname, O_RDWR | O_LARGEFILE, 0);
+	if (IS_ERR(filp)) {
+		hmdfs_err("open fail %ld", PTR_ERR(filp));
+		ret = PTR_ERR(filp);
+		goto out;
+	}
+
+	res = __vfs_getxattr(file_dentry(filp), file_inode(filp),
+			       DENTRY_FILE_XATTR_NAME, kvalue, PATH_MAX);
+	if (res <= 0 || res >= PATH_MAX) {
+		hmdfs_err("getxattr return: %zd", res);
+		filp_close(filp, NULL);
+		ret = -ENOENT;
+		goto out;
+	}
+	kvalue[res] = '\0';
+
+	if (!path_cmp(relative_path, kvalue, sbi->s_case_sensitive)) {
+		hmdfs_err("relative path from xattr do not match");
+		filp_close(filp, NULL);
+		ret = -ENOENT;
+		goto out;
 	}
 
 	mutex_lock(&d_info->cache_pull_lock);
-	cfn = find_cfn(sbi, cid, relative_path, false);
-	if (cfn) {
-		filp = cfn->filp;
-		release_cfn(cfn);
-		hmdfs_add_cache_list(CLOUD_DEVICE, dentry, filp);
-	}
+	hmdfs_add_cache_list(CLOUD_DEVICE, dentry, filp);
 	mutex_unlock(&d_info->cache_pull_lock);
 
+	ret = 0;
+out:
 	kfree(relative_path);
-	return 0;
+	kfree(dirname);
+	kfree(fullname);
+	kfree(cache_file_name);
+	kfree(kvalue);
+
+	return ret;
 }
 
 void __destroy_cfn(struct list_head *head)
@@ -1415,7 +1485,6 @@ void hmdfs_cfn_destroy(struct hmdfs_sb_info *sbi)
 	mutex_lock(&sbi->cache_list_lock);
 	__destroy_cfn(&sbi->client_cache);
 	__destroy_cfn(&sbi->server_cache);
-	__destroy_cfn(&sbi->cloud_cache);
 	mutex_unlock(&sbi->cache_list_lock);
 }
 
@@ -1621,10 +1690,7 @@ void load_cfn(struct hmdfs_sb_info *sbi, const char *fullname, const char *path,
 		return;
 	}
 
-	if (!strcmp(cid, CLOUD_CID))
-		head = &sbi->cloud_cache;
-	else
-		head = get_list_head(sbi, server);
+	head = get_list_head(sbi, server);
 
 	mutex_lock(&sbi->cache_list_lock);
 	cfn1 = __find_cfn(sbi, cid, path, server);
@@ -1847,9 +1913,6 @@ void hmdfs_cfn_load(struct hmdfs_sb_info *sbi)
 		 sbi->cache_dir);
 	hmdfs_do_load(sbi, fullname, true);
 
-	snprintf(fullname, PATH_MAX, "%s/dentry_cache/cloud/",
-		 sbi->cache_dir);
-	hmdfs_do_load(sbi, fullname, false);
 	kfree(fullname);
 
 	hmdfs_delete_useless_cfn(sbi);

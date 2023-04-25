@@ -272,6 +272,7 @@ void hmdfs_put_super(struct super_block *sb)
 	kfree(sbi->local_dst);
 	kfree(sbi->real_dst);
 	kfree(sbi->cache_dir);
+	kfree(sbi->cloud_dir);
 	kfifo_free(&sbi->notify_fifo);
 	sb->s_fs_info = NULL;
 	sbi->lower_sb = NULL;
@@ -398,6 +399,8 @@ static int hmdfs_show_options(struct seq_file *m, struct dentry *root)
 		seq_printf(m, ",cache_dir=%s", sbi->cache_dir);
 	if (sbi->real_dst)
 		seq_printf(m, ",real_dst=%s", sbi->real_dst);
+	if (sbi->cloud_dir)
+		seq_printf(m, ",cloud_dir=%s", sbi->cloud_dir);
 
 	seq_printf(m, ",%soffline_stash", sbi->s_offline_stash ? "" : "no_");
 	seq_printf(m, ",%sdentry_cache", sbi->s_dentry_cache ? "" : "no_");
@@ -925,7 +928,6 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 	sbi->cred = get_cred(current_cred());
 	INIT_LIST_HEAD(&sbi->client_cache);
 	INIT_LIST_HEAD(&sbi->server_cache);
-	INIT_LIST_HEAD(&sbi->cloud_cache);
 	INIT_LIST_HEAD(&sbi->to_delete);
 	mutex_init(&sbi->cache_list_lock);
 	hmdfs_cfn_load(sbi);
@@ -961,6 +963,7 @@ out_freesbi:
 		kfree(sbi->local_dst);
 		kfree(sbi->real_dst);
 		kfree(sbi->cache_dir);
+		kfree(sbi->cloud_dir);
 		kfree(sbi->s_server_statis);
 		kfree(sbi->s_client_statis);
 		kfree(sbi);
