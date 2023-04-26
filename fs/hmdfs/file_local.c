@@ -45,7 +45,7 @@ int hmdfs_file_open_local(struct inode *inode, struct file *file)
 		gfi->lower_file = lower_file;
 		file->private_data = gfi;
 		if (file->f_flags & (O_RDWR | O_WRONLY))
-			info->write_opened++;
+			atomic_inc(&info->write_opened);
 	}
 out_err:
 	return err;
@@ -57,7 +57,7 @@ int hmdfs_file_release_local(struct inode *inode, struct file *file)
 	struct hmdfs_inode_info *info = hmdfs_i(inode);
 
 	if (file->f_flags & (O_RDWR | O_WRONLY))
-		info->write_opened--;
+		atomic_dec(&info->write_opened);
 	file->private_data = NULL;
 	fput(gfi->lower_file);
 	kfree(gfi);
