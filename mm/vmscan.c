@@ -3947,6 +3947,9 @@ kswapd_try_sleep:
 		 */
 		trace_mm_vmscan_kswapd_wake(pgdat->node_id, highest_zoneidx,
 						alloc_order);
+#ifdef CONFIG_MEMORY_MONITOR
+		kswapd_monitor_wake_up_queue();
+#endif
 #ifdef CONFIG_RECLAIM_ACCT
 		reclaimacct_start(KSWAPD_RECLAIM, &ra);
 #endif

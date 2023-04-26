@@ -63,6 +63,14 @@ config SPARSEMEM_MANUAL
 
 endchoice
 
+config MEMORY_MONITOR
+	bool "ENABLE MEMORY_MONITOR"
+	depends on PROC_FS
+	default n
+	help
+		MEMORY_MONITOR is a monitor of some memory reclaim method.
+		Now, kswapd wake up monitor use it.
+
 config HYPERHOLD_FILE_LRU
 	bool "Enable HyperHold FILE LRU"
 	depends on HYPERHOLD && MEMCG

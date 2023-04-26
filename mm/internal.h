@@ -227,6 +227,9 @@ extern unsigned long highest_memmap_pfn;
 /*
  * in mm/vmscan.c:
  */
+#ifdef CONFIG_MEMORY_MONITOR
+extern void kswapd_monitor_wake_up_queue(void);
+#endif
 extern int isolate_lru_page(struct page *page);
 extern void putback_lru_page(struct page *page);
 extern unsigned int shrink_page_list(struct list_head *page_list, struct pglist_data *pgdat,
