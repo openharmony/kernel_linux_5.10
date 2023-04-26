@@ -44,17 +44,17 @@ static void handle_cpu_irq(struct pt_regs *regs)
 
 int get_ipi_irq(void)
 {
-	return irq_create_mapping(irq_domain, EXCCODE_IPI - EXCCODE_INT_START);
+	return irq_create_mapping(irq_domain, INT_IPI);
 }
 
 int get_pmc_irq(void)
 {
-	return irq_create_mapping(irq_domain, EXCCODE_PMC - EXCCODE_INT_START);
+	return irq_create_mapping(irq_domain, INT_PCOV);
 }
 
 int get_timer_irq(void)
 {
-	return irq_create_mapping(irq_domain, EXCCODE_TIMER - EXCCODE_INT_START);
+	return irq_create_mapping(irq_domain, INT_TI);
 }
 
 static int loongarch_cpu_intc_map(struct irq_domain *d, unsigned int irq,
