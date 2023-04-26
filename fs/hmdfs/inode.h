@@ -87,6 +87,8 @@ struct hmdfs_inode_info {
 	 * the uniqueness of local inode can be determined.
 	 */
 	__u64 remote_ino;
+#define CLOUD_RECORD_ID_LEN          33
+	__u8 cloud_record_id[CLOUD_RECORD_ID_LEN];
 	/*
 	 * if this value is not ULLONG_MAX, it means that remote getattr syscall
 	 * should return this value as inode size.
@@ -239,5 +241,9 @@ struct hmdfs_peer;
 struct inode *hmdfs_iget5_locked_remote(struct super_block *sb,
 					struct hmdfs_peer *peer,
 					uint64_t remote_ino);
+struct inode *hmdfs_iget5_locked_cloud(struct super_block *sb,
+					struct hmdfs_peer *peer,
+					uint8_t *cloud_id);
 
+uint32_t make_ino_raw_cloud(uint8_t *cloud_id);
 #endif // INODE_H
