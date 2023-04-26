@@ -567,6 +567,27 @@ int hmdfs_file_flush_merge(struct file *file, fl_owner_t id)
 	return 0;
 }
 
+static long hmdfs_ioc_get_writeopen_cnt(struct file *filp, unsigned long arg)
+{
+	struct hmdfs_file_info *gfi = hmdfs_f(filp);
+	struct file *lower_file = gfi->lower_file;
+	struct inode *lower_inode = file_inode(lower_file);
+
+	u32 wo_cnt = atomic_read(&(hmdfs_i(lower_inode))->write_opened);
+
+	return put_user(wo_cnt, (int __user *)arg);
+}
+
+static long hmdfs_file_ioctl_merge(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	switch (cmd) {
+	case HMDFS_IOC_GET_WRITEOPEN_CNT:
+		return hmdfs_ioc_get_writeopen_cnt(filp, arg);
+	default:
+		return -ENOTTY;
+	}
+}
+
 /* Transparent transmission of parameters to device_view level,
  * so file operations are same as device_view local operations.
  */
@@ -580,6 +601,7 @@ const struct file_operations hmdfs_file_fops_merge = {
 	.flush = hmdfs_file_flush_merge,
 	.release = hmdfs_file_release_local,
 	.fsync = hmdfs_fsync_local,
+	.unlocked_ioctl	= hmdfs_file_ioctl_merge,
 	.splice_read = generic_file_splice_read,
 	.splice_write = iter_file_splice_write,
 };

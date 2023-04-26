@@ -27,6 +27,10 @@
 #define hmdfs_time_add	   timespec_add
 #endif
 
+#define HMDFS_IOC 0xf2
+#define HMDFS_IOC_SET_SHARE_PATH _IOW(HMDFS_IOC, 1, struct hmdfs_share_control)
+#define HMDFS_IOC_GET_WRITEOPEN_CNT _IOR(HMDFS_IOC, 2, __u32)
+
 #define HMDFS_PAGE_SIZE	  4096
 #define HMDFS_PAGE_OFFSET 12
 
