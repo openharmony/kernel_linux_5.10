@@ -39,6 +39,7 @@ typedef __s64	Elf64_Sxword;
 #define PT_GNU_PROPERTY		0x6474e553
 
 #define PT_OHOS_RANDOMDATA  0x6788fc60	/* ohos-specific segment */
+#define PT_OHOS_RANDOMDATA_SIZE_LIMIT  1024 * 128
 
 #define PT_GNU_STACK	(PT_LOOS + 0x474e551)
 
