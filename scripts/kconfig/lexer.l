@@ -24,6 +24,7 @@
 static const char *kconfig_white_list[] = {
 	"vendor/Kconfig",
 	"net/newip/Kconfig",
+	"security/xpm/Kconfig",
 };
 
 static struct {

@@ -250,6 +250,8 @@ struct security_class_mapping secclass_map[] = {
 	  { "open", "cpu", "kernel", "tracepoint", "read", "write", NULL } },
 	{ "lockdown",
 	  { "integrity", "confidentiality", NULL } },
+	{ "xpm",
+	  { "exec_no_sign", "exec_anon_mem", NULL } },
 	{ NULL }
   };
 

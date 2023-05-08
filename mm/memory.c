@@ -86,6 +86,7 @@
 
 #include "pgalloc-track.h"
 #include "internal.h"
+#include <linux/xpm.h>
 
 #if defined(LAST_CPUPID_NOT_IN_PAGE_FLAGS) && !defined(CONFIG_COMPILE_TEST)
 #warning Unfortunate NUMA and NUMA Balancing config, growing page-frame for last_cpupid.
@@ -2953,6 +2954,7 @@ static vm_fault_t wp_page_copy(struct vm_fault *vmf)
 		 */
 		set_pte_at_notify(mm, vmf->address, vmf->pte, entry);
 		update_mmu_cache(vma, vmf->address, vmf->pte);
+		xpm_integrity_update_hook(vma, vmf->flags, new_page);
 		if (old_page) {
 			/*
 			 * Only after switching the pte to the new page may
@@ -3047,6 +3049,13 @@ vm_fault_t finish_mkwrite_fault(struct vm_fault *vmf)
 		pte_unmap_unlock(vmf->pte, vmf->ptl);
 		return VM_FAULT_NOPAGE;
 	}
+
+	if (unlikely(xpm_integrity_validate_hook(vmf->vma, vmf->flags,
+		vmf->address, vmf->page))) {
+		pte_unmap_unlock(vmf->pte, vmf->ptl);
+		return VM_FAULT_SIGSEGV;
+	}
+
 	wp_page_reuse(vmf);
 	return 0;
 }
@@ -3098,6 +3107,13 @@ static vm_fault_t wp_page_shared(struct vm_fault *vmf)
 			return tmp;
 		}
 	} else {
+		if (unlikely(xpm_integrity_validate_hook(vmf->vma, vmf->flags, vmf->address,
+			vmf->page))){
+			pte_unmap_unlock(vmf->pte, vmf->ptl);
+			put_page(vmf->page);
+			return VM_FAULT_SIGSEGV;
+		}
+
 		wp_page_reuse(vmf);
 		lock_page(vmf->page);
 	}
@@ -3182,6 +3198,13 @@ static vm_fault_t do_wp_page(struct vm_fault *vmf)
 		 * it's dark out, and we're wearing sunglasses. Hit it.
 		 */
 		unlock_page(page);
+
+		if (unlikely(xpm_integrity_validate_hook(vmf->vma, vmf->flags, vmf->address,
+			vmf->page))){
+			pte_unmap_unlock(vmf->pte, vmf->ptl);
+			return VM_FAULT_SIGSEGV;
+		}
+
 		wp_page_reuse(vmf);
 		return VM_FAULT_WRITE;
 	} else if (unlikely((vma->vm_flags & (VM_WRITE|VM_SHARED)) ==
@@ -3496,6 +3519,11 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 	 * before page_add_anon_rmap() and swap_free(); try_to_free_swap()
 	 * must be called after the swap_free(), or it will never succeed.
 	 */
+	if (unlikely(xpm_integrity_validate_hook(vmf->vma, vmf->flags,
+		vmf->address, page))){
+		ret = VM_FAULT_SIGSEGV;
+		goto out_nomap;
+	}
 
 	inc_mm_counter_fast(vma->vm_mm, MM_ANONPAGES);
 	dec_mm_counter_fast(vma->vm_mm, MM_SWAPENTS);
@@ -3606,6 +3634,10 @@ static vm_fault_t do_anonymous_page(struct vm_fault *vmf)
 	if (vma->vm_flags & VM_USEREXPTE) {
 		if (do_uxpte_page_fault(vmf, &entry))
 			goto oom;
+
+		if(xpm_integrity_check_hook(vma, vmf->flags, vmf->address,
+			pte_page(entry)))
+			return VM_FAULT_SIGSEGV;
 		else
 			goto got_page;
 	}
@@ -3683,6 +3715,10 @@ got_page:
 setpte:
 	if (vma->vm_flags & VM_PURGEABLE)
 		uxpte_set_present(vma, vmf->address);
+
+	if(!pte_special(entry)){
+		xpm_integrity_update_hook(vma, vmf->flags, page);
+	}
 
 	set_pte_at(vma->vm_mm, vmf->address, vmf->pte, entry);
 
@@ -3940,6 +3976,11 @@ vm_fault_t alloc_set_pte(struct vm_fault *vmf, struct page *page)
 		update_mmu_tlb(vma, vmf->address, vmf->pte);
 		return VM_FAULT_NOPAGE;
 	}
+
+	/* check the confliction of xpm integrity flags*/
+	if (unlikely(xpm_integrity_validate_hook(vmf->vma, vmf->flags,
+		vmf->address, page)))
+		return VM_FAULT_SIGSEGV;
 
 	flush_icache_page(vma, page);
 	entry = mk_pte(page, vma->vm_page_prot);

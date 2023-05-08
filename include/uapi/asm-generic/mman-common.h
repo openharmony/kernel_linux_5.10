@@ -21,6 +21,7 @@
 #define MAP_TYPE	0x0f		/* Mask for type of mapping */
 #define MAP_FIXED	0x10		/* Interpret addr exactly */
 #define MAP_ANONYMOUS	0x20		/* don't use a file */
+#define MAP_XPM		0x40		/* xpm control memory */
 
 /* 0x0100 - 0x4000 flags are defined in asm-generic/mman.h */
 #define MAP_POPULATE		0x008000	/* populate (prefault) pagetables */

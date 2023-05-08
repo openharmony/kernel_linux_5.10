@@ -636,6 +636,13 @@ void migrate_page_states(struct page *newpage, struct page *page)
 	if (page_is_idle(page))
 		set_page_idle(newpage);
 
+	/* Migrate the page's xpm state */
+	if(PageXPMWritetainted(page))
+		SetPageXPMWritetainted(newpage);
+
+	if(PageXPMReadonly(page))
+		SetPageXPMReadonly(newpage);
+
 	/*
 	 * Copy NUMA information to the new page, to prevent over-eager
 	 * future migrations of this same page.

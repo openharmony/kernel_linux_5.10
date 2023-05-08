@@ -146,6 +146,10 @@ enum pageflags {
 #ifdef CONFIG_MEM_PURGEABLE
 	PG_purgeable,
 #endif
+#ifdef CONFIG_SECURITY_XPM
+	PG_xpm_readonly,
+	PG_xpm_writetainted,
+#endif
 	__NR_PAGEFLAGS,
 
 	/* Filesystems */
@@ -349,6 +353,14 @@ PAGEFLAG(Workingset, workingset, PF_HEAD)
 __PAGEFLAG(Slab, slab, PF_NO_TAIL)
 __PAGEFLAG(SlobFree, slob_free, PF_NO_TAIL)
 PAGEFLAG(Checked, checked, PF_NO_COMPOUND)	   /* Used by some filesystems */
+
+#ifdef CONFIG_SECURITY_XPM
+PAGEFLAG(XPMReadonly, xpm_readonly, PF_HEAD)
+PAGEFLAG(XPMWritetainted, xpm_writetainted, PF_HEAD)
+#else
+PAGEFLAG_FALSE(XPMReadonly)
+PAGEFLAG_FALSE(XPMWritetainted)
+#endif
 
 /* Xen */
 PAGEFLAG(Pinned, pinned, PF_NO_COMPOUND)
@@ -843,11 +855,18 @@ static inline void ClearPageSlabPfmemalloc(struct page *page)
  * Flags checked when a page is freed.  Pages being freed should not have
  * these flags set.  It they are, there is a problem.
  */
+#ifdef CONFIG_SECURITY_XPM
+#define	__XPM_PAGE_FLAGS (1UL << PG_xpm_readonly | 1UL << PG_xpm_writetainted)
+#else
+#define	__XPM_PAGE_FLAGS 0
+#endif
+
 #define PAGE_FLAGS_CHECK_AT_FREE				\
 	(1UL << PG_lru		| 1UL << PG_locked	|	\
 	 1UL << PG_private	| 1UL << PG_private_2	|	\
 	 1UL << PG_writeback	| 1UL << PG_reserved	|	\
 	 1UL << PG_slab		| 1UL << PG_active 	|	\
+	 __XPM_PAGE_FLAGS | \
 	 1UL << PG_unevictable	| __PG_MLOCKED)
 
 /*

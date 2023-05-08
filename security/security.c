@@ -2575,3 +2575,10 @@ int security_perf_event_write(struct perf_event *event)
 	return call_int_hook(perf_event_write, 0, event);
 }
 #endif /* CONFIG_PERF_EVENTS */
+
+#ifdef CONFIG_SECURITY_XPM
+int security_mmap_region(struct vm_area_struct *vma)
+{
+	return call_int_hook(mmap_region, 0, vma);
+}
+#endif

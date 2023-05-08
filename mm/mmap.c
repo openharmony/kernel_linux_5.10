@@ -48,6 +48,7 @@
 #include <linux/pkeys.h>
 #include <linux/oom.h>
 #include <linux/sched/mm.h>
+#include <linux/xpm.h>
 
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
@@ -1877,8 +1878,9 @@ unsigned long mmap_region(struct file *file, unsigned long addr,
 		vma_set_anonymous(vma);
 	}
 
-	/* Allow architectures to sanity-check the vm_flags */
-	if (!arch_validate_flags(vma->vm_flags)) {
+	/* Allow architectures to sanity-check the vma */
+	if (security_mmap_region(vma) ||
+		!arch_validate_flags(vma->vm_flags)) {
 		error = -EINVAL;
 		if (file)
 			goto close_and_free_vma;
@@ -2000,8 +2002,9 @@ check_current:
 		/* Check if current node has a suitable gap */
 		if (gap_start > high_limit)
 			return -ENOMEM;
-		if (gap_end >= low_limit &&
-		    gap_end > gap_start && gap_end - gap_start >= length)
+		if ((gap_end >= low_limit &&
+		    gap_end > gap_start && gap_end - gap_start >= length) &&
+		    (xpm_region_outer_hook(gap_start, gap_end, info->flags)))
 			goto found;
 
 		/* Visit right subtree if it looks promising */
@@ -2104,8 +2107,9 @@ check_current:
 		gap_end = vm_start_gap(vma);
 		if (gap_end < low_limit)
 			return -ENOMEM;
-		if (gap_start <= high_limit &&
-		    gap_end > gap_start && gap_end - gap_start >= length)
+		if ((gap_start <= high_limit &&
+		    gap_end > gap_start && gap_end - gap_start >= length) &&
+		    (xpm_region_outer_hook(gap_start, gap_end, info->flags)))
 			goto found;
 
 		/* Visit left subtree if it looks promising */
@@ -2187,6 +2191,7 @@ unsigned long
 arch_get_unmapped_area(struct file *filp, unsigned long addr,
 		unsigned long len, unsigned long pgoff, unsigned long flags)
 {
+	unsigned long xpm_addr;
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma, *prev;
 	struct vm_unmapped_area_info info;
@@ -2194,6 +2199,10 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 
 	if (len > mmap_end - mmap_min_addr)
 		return -ENOMEM;
+
+	xpm_addr = xpm_get_unmapped_area_hook(addr, len, flags, 0);
+	if (xpm_addr)
+		return xpm_addr;
 
 	if (flags & MAP_FIXED)
 		return addr;
@@ -2203,7 +2212,8 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 		vma = find_vma_prev(mm, addr, &prev);
 		if (mmap_end - len >= addr && addr >= mmap_min_addr &&
 		    (!vma || addr + len <= vm_start_gap(vma)) &&
-		    (!prev || addr >= vm_end_gap(prev)))
+		    (!prev || addr >= vm_end_gap(prev)) &&
+		    (xpm_region_outer_hook(addr, addr + len, 0)))
 			return addr;
 	}
 
@@ -2227,6 +2237,7 @@ arch_get_unmapped_area_topdown(struct file *filp, unsigned long addr,
 			  unsigned long len, unsigned long pgoff,
 			  unsigned long flags)
 {
+	unsigned long xpm_addr;
 	struct vm_area_struct *vma, *prev;
 	struct mm_struct *mm = current->mm;
 	struct vm_unmapped_area_info info;
@@ -2235,6 +2246,11 @@ arch_get_unmapped_area_topdown(struct file *filp, unsigned long addr,
 	/* requested length too big for entire address space */
 	if (len > mmap_end - mmap_min_addr)
 		return -ENOMEM;
+
+	xpm_addr = xpm_get_unmapped_area_hook(addr, len, flags,
+		VM_UNMAPPED_AREA_TOPDOWN);
+	if (xpm_addr)
+		return xpm_addr;
 
 	if (flags & MAP_FIXED)
 		return addr;
@@ -2245,7 +2261,8 @@ arch_get_unmapped_area_topdown(struct file *filp, unsigned long addr,
 		vma = find_vma_prev(mm, addr, &prev);
 		if (mmap_end - len >= addr && addr >= mmap_min_addr &&
 				(!vma || addr + len <= vm_start_gap(vma)) &&
-				(!prev || addr >= vm_end_gap(prev)))
+				(!prev || addr >= vm_end_gap(prev)) &&
+				(xpm_region_outer_hook(addr, addr + len, 0)))
 			return addr;
 	}
 

@@ -32,6 +32,7 @@
 #include <asm/cacheflush.h>
 #include <asm/mmu_context.h>
 #include <asm/tlbflush.h>
+#include <linux/xpm.h>
 
 #include <trace/hooks/mm.h>
 #include "internal.h"
@@ -138,6 +139,13 @@ static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 					 !(vma->vm_flags & VM_SOFTDIRTY))) {
 				ptent = pte_mkwrite(ptent);
 			}
+
+			/* if exec added, check xpm integrity before set pte */
+			if(pte_user_mkexec(oldpte, ptent) &&
+				unlikely(xpm_integrity_validate_hook(vma, 0, addr,
+					vm_normal_page(vma, addr, oldpte))))
+				continue;
+
 			ptep_modify_prot_commit(vma, addr, pte, oldpte, ptent);
 			pages++;
 		} else if (is_swap_pte(oldpte)) {
