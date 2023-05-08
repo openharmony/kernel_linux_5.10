@@ -534,6 +534,10 @@
  *	@prot contains the protection that will be applied by the kernel.
  *	@flags contains the operational flags.
  *	Return 0 if permission is granted.
+ * @mmap_region :
+ *	Check permission for a mmap operation. The @file may be NULL, e,g.
+ *	if mapping anonymous memory.
+ *	@vma contains the memory region to mmap.
  * @file_mprotect:
  *	Check permissions before changing memory access permissions.
  *	@vma contains the memory region to modify.

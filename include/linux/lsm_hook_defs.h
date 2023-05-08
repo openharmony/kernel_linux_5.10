@@ -161,6 +161,9 @@ LSM_HOOK(int, 0, file_ioctl, struct file *file, unsigned int cmd,
 LSM_HOOK(int, 0, mmap_addr, unsigned long addr)
 LSM_HOOK(int, 0, mmap_file, struct file *file, unsigned long reqprot,
 	 unsigned long prot, unsigned long flags)
+#ifdef CONFIG_SECURITY_XPM
+LSM_HOOK(int, 0, mmap_region, struct vm_area_struct *vma)
+#endif
 LSM_HOOK(int, 0, file_mprotect, struct vm_area_struct *vma,
 	 unsigned long reqprot, unsigned long prot)
 LSM_HOOK(int, 0, file_lock, struct file *file, unsigned int cmd)

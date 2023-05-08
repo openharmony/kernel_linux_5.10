@@ -16,6 +16,7 @@
 #include <linux/page-flags-layout.h>
 #include <linux/workqueue.h>
 #include <linux/seqlock.h>
+#include <linux/xpm_types.h>
 
 #include <asm/mmu.h>
 
@@ -602,6 +603,10 @@ struct mm_struct {
 
 #ifdef CONFIG_IOMMU_SUPPORT
 		u32 pasid;
+#endif
+
+#ifdef CONFIG_SECURITY_XPM
+		struct xpm_region xpm_region;
 #endif
 	} __randomize_layout;
 

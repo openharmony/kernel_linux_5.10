@@ -41,6 +41,7 @@
 
 #include <asm/tlbflush.h>
 #include "internal.h"
+#include <linux/xpm.h>
 
 #ifdef CONFIG_NUMA
 #define NUMA(x)		(x)
@@ -1210,6 +1211,9 @@ static int try_to_merge_one_page(struct vm_area_struct *vma,
 		return 0;
 
 	if (!PageAnon(page))
+		goto out;
+
+	if(!xpm_integrity_check_one_page_merge(page, kpage))
 		goto out;
 
 	/*

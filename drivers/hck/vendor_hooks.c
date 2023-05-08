@@ -9,3 +9,4 @@
 #define CREATE_LITE_VENDOR_HOOK
 /* add your lite vendor hook header file here */
 #include <linux/hck/lite_hck_sample.h>
+#include <linux/hck/lite_hck_xpm.h>

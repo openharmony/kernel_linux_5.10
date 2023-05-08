@@ -3459,6 +3459,9 @@ static const struct pid_entry tgid_base_stuff[] = {
 #ifdef CONFIG_SCHED_RTG_DEBUG
 	REG("sched_group_id", S_IRUGO|S_IWUGO, proc_pid_sched_group_id_operations),
 #endif
+#ifdef CONFIG_SECURITY_XPM
+	REG("xpm_region", S_IRUSR|S_IRGRP, proc_xpm_region_operations),
+#endif
 };
 
 static int proc_tgid_base_readdir(struct file *file, struct dir_context *ctx)
@@ -3793,6 +3796,9 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 #ifdef CONFIG_SCHED_RTG_DEBUG
 	REG("sched_group_id", S_IRUGO|S_IWUGO, proc_pid_sched_group_id_operations),
+#endif
+#ifdef CONFIG_SECURITY_XPM
+	REG("xpm_region", S_IRUSR|S_IRGRP, proc_xpm_region_operations),
 #endif
 };
 
