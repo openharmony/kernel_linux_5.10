@@ -231,8 +231,8 @@ struct inode *fill_inode_cloud(struct super_block *sb, struct hmdfs_lookup_cloud
 	inode->i_mtime.tv_sec = res->i_mtime;
 	inode->i_mtime.tv_nsec = 0;
 
-	inode->i_uid = KUIDT_INIT((uid_t)0);
-	inode->i_gid = KGIDT_INIT((gid_t)0);
+	inode->i_uid = USER_DATA_RW_UID;
+	inode->i_gid = USER_DATA_RW_GID;
 
 	if (S_ISDIR(mode))
 		inode->i_mode = S_IFDIR | S_IRWXU | S_IRWXG | S_IXOTH;

@@ -58,8 +58,8 @@ static struct inode *fill_inode_merge(struct super_block *sb,
 	else
 		info->inode_type = HMDFS_LAYER_OTHER_MERGE;
 
-	inode->i_uid = KUIDT_INIT((uid_t)0);
-	inode->i_gid = KGIDT_INIT((gid_t)0);
+	inode->i_uid = USER_DATA_RW_UID;
+	inode->i_gid = USER_DATA_RW_GID;
 
 	update_inode_attr(inode, child_dentry);
 	mode = d_inode(fst_lo_d)->i_mode;
