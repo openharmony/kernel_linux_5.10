@@ -357,6 +357,48 @@ static int memcg_force_swapin_write(struct cgroup_subsys_state *css, struct cfty
 	return 0;
 }
 
+#ifdef CONFIG_MEM_PURGEABLE
+static unsigned long purgeable_memcg_node(pg_data_t *pgdata,
+	struct scan_control *sc, struct mem_cgroup *memcg)
+{
+	unsigned long nr = 0;
+	struct lruvec *lruvec = mem_cgroup_lruvec(memcg, pgdata);
+	if (!lruvec)
+		return 0;
+
+	shrink_list(LRU_ACTIVE_PURGEABLE, -1, lruvec, sc);
+	nr += shrink_list(LRU_INACTIVE_PURGEABLE, -1, lruvec, sc);
+
+	pr_info("reclaim %lu purgeable pages \n", nr);
+	return nr;
+}
+
+static int memcg_force_shrink_purgeable_bysize(struct cgroup_subsys_state *css,
+	struct cftype *cft, u64 reclaim_size)
+{
+	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
+	if (!memcg)
+		return 0;
+
+	struct scan_control sc = {
+		.gfp_mask = GFP_KERNEL,
+		.order = 0,
+		.priority = DEF_PRIORITY,
+		.may_deactivate = DEACTIVATE_ANON,
+		.may_writepage = 1,
+		.may_unmap = 1,
+		.may_swap = 1,
+		.reclaim_idx = MAX_NR_ZONES -1,
+	};
+	int nid = 0;
+	sc.nr_to_reclaim = div_u64(reclaim_size, PAGE_SIZE);
+
+	for_each_node_state(nid, N_MEMORY)
+		purgeable_memcg_node(NODE_DATA(nid), &sc, memcg);
+	return 0;
+}
+#endif
+
 static struct cftype memcg_policy_files[] = {
 	{
 		.name = "name",
@@ -385,6 +427,12 @@ static struct cftype memcg_policy_files[] = {
 		.name = "force_swapin",
 		.write_u64 = memcg_force_swapin_write,
 	},
+#ifdef CONFIG_MEM_PURGEABLE
+	{
+		.name = "force_shrink_purgeable_bysize",
+		.write_u64 = memcg_force_shrink_purgeable_bysize,
+	},
+#endif
 	{ },	/* terminate */
 };
 
