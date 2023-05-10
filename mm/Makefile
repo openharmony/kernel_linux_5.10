@@ -129,4 +129,5 @@ obj-$(CONFIG_HYPERHOLD_MEMCG) += memcg_control.o
 obj-$(CONFIG_HYPERHOLD_ZSWAPD) += zswapd.o zswapd_control.o
 obj-$(CONFIG_RECLAIM_ACCT) += reclaim_acct.o reclaimacct_show.o
 obj-$(CONFIG_MEM_PURGEABLE) += purgeable.o
+obj-$(CONFIG_PURGEABLE_ASHMEM) += purgeable_ashmem_trigger.o
 obj-$(CONFIG_MEMORY_MONITOR) += memory_monitor.o
