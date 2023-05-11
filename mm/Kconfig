@@ -981,4 +981,10 @@ config MEM_PURGEABLE_DEBUG
 	help
 	  Debug info for purgeable memory
 
+config PURGEABLE_ASHMEM
+	bool "Purgeable memory feature for ashmem"
+	default n
+	depends on MEM_PURGEABLE
+	help
+	  Support purgeable ashmem for process
 endmenu

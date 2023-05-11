@@ -13,5 +13,10 @@ void init_ashmem_process_info(void);
 static inline void init_ashmem_process_info(void) {}
 #endif
 
+#ifdef CONFIG_PURGEABLE_ASHMEM
+void init_purgeable_ashmem_trigger(void);
+#else
+static inline void init_purgeable_ashmem_trigger(void) {}
+#endif
 #endif /* _MEMCHECK_H */
 

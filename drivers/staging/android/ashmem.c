@@ -31,6 +31,13 @@
 #define ASHMEM_NAME_PREFIX_LEN (sizeof(ASHMEM_NAME_PREFIX) - 1)
 #define ASHMEM_FULL_NAME_LEN (ASHMEM_NAME_LEN + ASHMEM_NAME_PREFIX_LEN)
 
+#ifdef CONFIG_PURGEABLE_ASHMEM
+#define PURGEABLE_ASHMEM_INIT_REFCOUNT 1
+#define PURGEABLE_ASHMEM_UNPIN_REFCOUNT 0
+#define PURGEABLE_ASHMEM_PIN_OFFSET 0
+#define PURGEABLE_ASHMEM_PIN_LEN 0
+#endif
+
 /**
  * struct ashmem_area - The anonymous shared memory area
  * @name:		The optional name in /proc/pid/maps
@@ -50,6 +57,13 @@ struct ashmem_area {
 	struct file *file;
 	size_t size;
 	unsigned long prot_mask;
+#ifdef CONFIG_PURGEABLE_ASHMEM
+	bool is_purgeable;
+	bool purged;
+	unsigned int id;
+	unsigned int create_time;
+	int ref_count;
+#endif
 };
 
 /**
@@ -155,6 +169,12 @@ static inline bool range_before_page(struct ashmem_range *range,
 	return range->pgend < page;
 }
 
+#ifdef CONFIG_PURGEABLE_ASHMEM
+static inline bool is_purgeable_ashmem(const struct ashmem_area *asma)
+{
+	return (asma && asma->is_purgeable);
+}
+#endif
 #define PROT_MASK		(PROT_EXEC | PROT_READ | PROT_WRITE)
 
 /**
@@ -275,7 +295,13 @@ static int ashmem_open(struct inode *inode, struct file *file)
 	memcpy(asma->name, ASHMEM_NAME_PREFIX, ASHMEM_NAME_PREFIX_LEN);
 	asma->prot_mask = PROT_MASK;
 	file->private_data = asma;
-
+#ifdef CONFIG_PURGEABLE_ASHMEM
+	asma->ref_count = PURGEABLE_ASHMEM_INIT_REFCOUNT;
+	asma->is_purgeable = false;
+	asma->purged = false;
+	asma->id = current->pid;
+	asma->create_time = ktime_get();
+#endif
 	return 0;
 }
 
@@ -506,6 +532,10 @@ ashmem_shrink_scan(struct shrinker *shrink, struct shrink_control *sc)
 		get_file(f);
 		atomic_inc(&ashmem_shrink_inflight);
 		range->purged = ASHMEM_WAS_PURGED;
+#ifdef CONFIG_PURGEABLE_ASHMEM
+		if (is_purgeable_ashmem(range->asma))
+			range->asma->purged = true;
+#endif
 		lru_del(range);
 
 		freed += range_size(range);
@@ -647,7 +677,13 @@ static int ashmem_pin(struct ashmem_area *asma, size_t pgstart, size_t pgend,
 {
 	struct ashmem_range *range, *next;
 	int ret = ASHMEM_NOT_PURGED;
-
+#ifdef CONFIG_PURGEABLE_ASHMEM
+	if (is_purgeable_ashmem(asma)) {
+		asma->ref_count++;
+		if (asma->ref_count > 1)
+			return PM_SUCCESS;
+	}
+#endif
 	list_for_each_entry_safe(range, next, &asma->unpinned_list, unpinned) {
 		/* moved past last applicable page; we can short circuit */
 		if (range_before_page(range, pgstart))
@@ -715,7 +751,17 @@ static int ashmem_unpin(struct ashmem_area *asma, size_t pgstart, size_t pgend,
 {
 	struct ashmem_range *range, *next;
 	unsigned int purged = ASHMEM_NOT_PURGED;
-
+#ifdef CONFIG_PURGEABLE_ASHMEM
+	if (is_purgeable_ashmem(asma)) {
+		if (asma->ref_count > PURGEABLE_ASHMEM_UNPIN_REFCOUNT &&
+		    !(--asma->ref_count == PURGEABLE_ASHMEM_UNPIN_REFCOUNT))
+			return PM_SUCCESS;
+		if (asma->ref_count < PURGEABLE_ASHMEM_UNPIN_REFCOUNT) {
+			asma->ref_count = PURGEABLE_ASHMEM_UNPIN_REFCOUNT;
+			return PM_FAIL;
+		}
+	}
+#endif
 restart:
 	list_for_each_entry_safe(range, next, &asma->unpinned_list, unpinned) {
 		/* short circuit: this is our insertion point */
@@ -752,7 +798,10 @@ static int ashmem_get_pin_status(struct ashmem_area *asma, size_t pgstart,
 {
 	struct ashmem_range *range;
 	int ret = ASHMEM_IS_PINNED;
-
+#ifdef CONFIG_PURGEABLE_ASHMEM
+	if (is_purgeable_ashmem(asma))
+		return asma->ref_count;
+#endif
 	list_for_each_entry(range, &asma->unpinned_list, unpinned) {
 		if (range_before_page(range, pgstart))
 			break;
@@ -784,7 +833,15 @@ static int ashmem_pin_unpin(struct ashmem_area *asma, unsigned long cmd,
 
 	mutex_lock(&ashmem_mutex);
 	wait_event(ashmem_shrink_wait, !atomic_read(&ashmem_shrink_inflight));
-
+#ifdef CONFIG_PURGEABLE_ASHMEM
+	if (is_purgeable_ashmem(asma)) {
+		if (pin.offset != PURGEABLE_ASHMEM_PIN_OFFSET ||
+		    pin.len != PURGEABLE_ASHMEM_PIN_LEN) {
+			ret = -EINVAL;
+			goto out_unlock;
+		}
+	}
+#endif
 	if (!asma->file)
 		goto out_unlock;
 
@@ -824,6 +881,120 @@ out_unlock:
 	return ret;
 }
 
+#ifdef CONFIG_PURGEABLE_ASHMEM
+void ashmem_shrinkall(void)
+{
+	struct shrink_control sc = {
+		.gfp_mask = GFP_KERNEL,
+		.nr_to_scan = LONG_MAX,
+	};
+
+	ashmem_shrink_scan(&ashmem_shrinker, &sc);
+}
+
+void ashmem_shrink_by_id(const unsigned int ashmem_id, const unsigned int create_time)
+{
+	struct ashmem_range *range, *next;
+	bool found = false;
+
+	if (!mutex_trylock(&ashmem_mutex))
+		return;
+
+	list_for_each_entry_safe(range, next, &ashmem_lru_list, lru) {
+		if (!is_purgeable_ashmem(range->asma))
+			continue;
+		if (range->asma->id != ashmem_id ||
+		    range->asma->create_time != create_time)
+			continue;
+		found = true;
+		range->asma->purged = true;
+		break;
+	}
+	if (!found)
+		goto out_unlock;
+
+	loff_t start = range->pgstart * PAGE_SIZE;
+	loff_t end = (range->pgend + 1) * PAGE_SIZE;
+	struct file *f = range->asma->file;
+
+	if (!f)
+		goto out_unlock;
+	get_file(f);
+	atomic_inc(&ashmem_shrink_inflight);
+	range->purged = ASHMEM_WAS_PURGED;
+
+	lru_del(range);
+	mutex_unlock(&ashmem_mutex);
+	f->f_op->fallocate(f, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+					   start, end - start);
+	fput(f);
+	if (atomic_dec_and_test(&ashmem_shrink_inflight))
+		wake_up_all(&ashmem_shrink_wait);
+	return;
+
+out_unlock:
+	mutex_unlock(&ashmem_mutex);
+}
+
+static bool is_ashmem_unpin(struct ashmem_area *asma)
+{
+	struct ashmem_range *range, *next;
+	int count = 0;
+
+	mutex_lock(&ashmem_mutex);
+	if (!asma) {
+		mutex_unlock(&ashmem_mutex);
+		return false;
+	}
+	list_for_each_entry_safe(range, next, &asma->unpinned_list, unpinned)
+		count++;
+	mutex_unlock(&ashmem_mutex);
+	return count > 0 ? true : false;
+}
+
+static long purgeable_ashmem_cmd(struct ashmem_area *asma, unsigned int cmd)
+{
+	int ret = -EINVAL;
+
+	if (!is_purgeable_ashmem(asma))
+		return ret;
+	mutex_lock(&ashmem_mutex);
+	switch (cmd) {
+	case ASHMEM_GET_PURGEABLE:
+		ret = asma->is_purgeable;
+		break;
+	case PURGEABLE_ASHMEM_IS_PURGED:
+		ret = asma->purged;
+		break;
+	case PURGEABLE_ASHMEM_REBUILD_SUCCESS:
+		asma->purged = false;
+		ret = PM_SUCCESS;
+		break;
+	}
+	mutex_unlock(&ashmem_mutex);
+	return ret;
+}
+
+bool get_purgeable_ashmem_metadata(struct file *f, struct purgeable_ashmem_metadata *pmdata)
+{
+	struct ashmem_area *asma = f->private_data;
+
+	mutex_lock(&ashmem_mutex);
+	if (!asma) {
+		mutex_unlock(&ashmem_mutex);
+		return false;
+	}
+	pmdata->name = asma->name;
+	pmdata->size = asma->size;
+	pmdata->refc = asma->ref_count;
+	pmdata->purged = asma->purged;
+	pmdata->is_purgeable = asma->is_purgeable;
+	pmdata->id = asma->id;
+	pmdata->create_time = asma->create_time;
+	mutex_unlock(&ashmem_mutex);
+	return true;
+}
+#endif
 static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct ashmem_area *asma = file->private_data;
@@ -870,8 +1041,28 @@ static long ashmem_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			ashmem_shrink_scan(&ashmem_shrinker, &sc);
 		}
 		break;
+#ifdef CONFIG_PURGEABLE_ASHMEM
+	case ASHMEM_SET_PURGEABLE:
+		if (is_ashmem_unpin(asma)) {
+			ret = PM_FAIL;
+			break;
+		}
+		mutex_lock(&ashmem_mutex);
+		if (asma) {
+			asma->is_purgeable = true;
+			ret = PM_SUCCESS;
+		}
+		mutex_unlock(&ashmem_mutex);
+		break;
+	case ASHMEM_GET_PURGEABLE:
+		fallthrough;
+	case PURGEABLE_ASHMEM_IS_PURGED:
+		fallthrough;
+	case PURGEABLE_ASHMEM_REBUILD_SUCCESS:
+		ret = purgeable_ashmem_cmd(asma, cmd);
+		break;
+#endif
 	}
-
 	return ret;
 }
 
@@ -985,6 +1176,9 @@ static int __init ashmem_init(void)
 		goto out_demisc;
 	}
 	init_ashmem_process_info();
+#ifdef CONFIG_PURGEABLE_ASHMEM
+	init_purgeable_ashmem_trigger();
+#endif
 	pr_info("initialized\n");
 
 	return 0;

@@ -26,4 +26,22 @@ size_t get_ashmem_size_by_file(struct file *f);
 char *get_ashmem_name_by_file(struct file *f);
 void ashmem_mutex_lock(void);
 void ashmem_mutex_unlock(void);
+
+#ifdef CONFIG_PURGEABLE_ASHMEM
+struct purgeable_ashmem_metadata {
+	char *name;
+	size_t size;
+	int refc;
+	bool purged;
+	bool is_purgeable;
+	unsigned int id;
+	unsigned int create_time;
+};
+
+void ashmem_shrinkall(void);
+void ashmem_shrink_by_id(const unsigned int ashmem_id,
+			 const unsigned int create_time);
+bool get_purgeable_ashmem_metadata(struct file *f,
+				   struct purgeable_ashmem_metadata *pmdata);
+#endif
 #endif	/* _LINUX_ASHMEM_H */
