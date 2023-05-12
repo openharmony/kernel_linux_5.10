@@ -153,18 +153,8 @@ static struct dentry *__sharefs_interpose(struct dentry *dentry,
 					 struct path *lower_path)
 {
 	struct inode *inode;
-	struct inode *lower_inode;
-	struct super_block *lower_sb;
+	struct inode *lower_inode = d_inode(lower_path->dentry);
 	struct dentry *ret_dentry;
-
-	lower_inode = d_inode(lower_path->dentry);
-	lower_sb = sharefs_lower_super(sb);
-
-	/* check that the lower file system didn't cross a mount point */
-	if (lower_inode->i_sb != lower_sb) {
-		ret_dentry = ERR_PTR(-EXDEV);
-		goto out;
-	}
 
 	/*
 	 * We allocate our new inode below by calling sharefs_iget,
