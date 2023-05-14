@@ -89,6 +89,7 @@ static int purgeable_ashmem_trigger_show(struct seq_file *s, void *d)
 			"process_name", "pid", "adj", "fd",
 			"ashmem_name", "size", "id", "time", "ref_count", "purged");
 
+	ashmem_mutex_lock();
 	rcu_read_lock();
 	for_each_process(tsk) {
 		if (tsk->flags & PF_KTHREAD)
@@ -102,6 +103,7 @@ static int purgeable_ashmem_trigger_show(struct seq_file *s, void *d)
 		task_unlock(tsk);
 	}
 	rcu_read_unlock();
+	ashmem_mutex_unlock();
 	seq_puts(s, "----------------------------------------------------\n");
 	return 0;
 }

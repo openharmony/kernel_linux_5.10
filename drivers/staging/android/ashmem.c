@@ -979,9 +979,7 @@ bool get_purgeable_ashmem_metadata(struct file *f, struct purgeable_ashmem_metad
 {
 	struct ashmem_area *asma = f->private_data;
 
-	mutex_lock(&ashmem_mutex);
 	if (!asma) {
-		mutex_unlock(&ashmem_mutex);
 		return false;
 	}
 	pmdata->name = asma->name;
@@ -991,7 +989,6 @@ bool get_purgeable_ashmem_metadata(struct file *f, struct purgeable_ashmem_metad
 	pmdata->is_purgeable = asma->is_purgeable;
 	pmdata->id = asma->id;
 	pmdata->create_time = asma->create_time;
-	mutex_unlock(&ashmem_mutex);
 	return true;
 }
 #endif
