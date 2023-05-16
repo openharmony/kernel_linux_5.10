@@ -185,7 +185,7 @@ irqreturn_t loongson3_ipi_interrupt(int irq, void *dev)
 
 	action = ipi_read_clear(cpu_logical_map(cpu));
 
-	smp_mb();
+	wbflush();
 
 	if (action & SMP_RESCHEDULE) {
 		scheduler_ipi();
