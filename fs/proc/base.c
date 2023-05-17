@@ -3460,7 +3460,7 @@ static const struct pid_entry tgid_base_stuff[] = {
 	REG("sched_group_id", S_IRUGO|S_IWUGO, proc_pid_sched_group_id_operations),
 #endif
 #ifdef CONFIG_SECURITY_XPM
-	REG("xpm_region", S_IRUSR|S_IRGRP, proc_xpm_region_operations),
+	REG("xpm_region", S_IRUGO, proc_xpm_region_operations),
 #endif
 };
 
@@ -3798,7 +3798,7 @@ static const struct pid_entry tid_base_stuff[] = {
 	REG("sched_group_id", S_IRUGO|S_IWUGO, proc_pid_sched_group_id_operations),
 #endif
 #ifdef CONFIG_SECURITY_XPM
-	REG("xpm_region", S_IRUSR|S_IRGRP, proc_xpm_region_operations),
+	REG("xpm_region", S_IRUGO, proc_xpm_region_operations),
 #endif
 };
 
