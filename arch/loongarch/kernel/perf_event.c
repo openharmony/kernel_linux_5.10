@@ -272,7 +272,7 @@ static void loongarch_pmu_enable_event(struct hw_perf_event *evt, int idx)
 	WARN_ON(idx < 0 || idx >= loongarch_pmu.num_counters);
 
 	/* Make sure interrupt enabled. */
-	cpuc->saved_ctrl[idx] = M_PERFCTL_EVENT(evt->event_base & 0xff) |
+	cpuc->saved_ctrl[idx] = M_PERFCTL_EVENT(evt->event_base) |
 		(evt->config_base & M_PERFCTL_CONFIG_MASK) | CSR_PERFCTRL_IE;
 
 	cpu = (event->cpu >= 0) ? event->cpu : smp_processor_id();
@@ -585,7 +585,7 @@ static struct pmu pmu = {
 
 static unsigned int loongarch_pmu_perf_event_encode(const struct loongarch_perf_event *pev)
 {
-	return (pev->event_id & 0xff);
+	return M_PERFCTL_EVENT(pev->event_id);
 }
 
 static const struct loongarch_perf_event *loongarch_pmu_map_general_event(int idx)
@@ -840,9 +840,9 @@ static void resume_local_counters(void)
 
 static const struct loongarch_perf_event *loongarch_pmu_map_raw_event(u64 config)
 {
-	/* currently most cores have 7-bit event numbers */
-	unsigned int raw_id = config & 0xff;
-	unsigned int base_id = raw_id & 0x7f;
+	/* currently most cores have 10-bit event numbers */
+	unsigned int raw_id = M_PERFCTL_EVENT(config);
+	unsigned int base_id = M_PERFCTL_EVENT(raw_id);
 
 	switch (current_cpu_data.cputype) {
 	case CPU_LOONGSON64:
