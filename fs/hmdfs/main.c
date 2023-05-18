@@ -842,6 +842,9 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 	char ctrl_path[CTRL_PATH_MAX_LEN];
 	uint64_t ctrl_hash;
 
+        if (!raw_data)
+                return -EINVAL;
+
 	sbi = kzalloc(sizeof(*sbi), GFP_KERNEL);
 	if (!sbi) {
 		err = -ENOMEM;

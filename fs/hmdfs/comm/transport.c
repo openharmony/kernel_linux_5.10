@@ -904,8 +904,14 @@ static int tcp_update_socket(struct tcp_handle *tcp, int fd,
 		goto put_sock;
 	}
 
-	hmdfs_info("socket fd %d, state %d, refcount %ld",
-		   fd, socket->state, file_count(socket->file));
+        hmdfs_info("socket fd %d, state %d, refcount %ld protocol %d",
+                fd, socket->state, file_count(socket->file),
+                   socket->sk->sk_protocol);
+
+        if (socket->sk->sk_protocol != IPPROTO_TCP) {
+                hmdfs_err("invalid socket protocol");
+                return -EINVAL;
+        }
 
 	tcp->recv_cache = kmem_cache_create("hmdfs_socket",
 					    tcp->recvbuf_maxsize,

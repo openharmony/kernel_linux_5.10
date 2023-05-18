@@ -47,6 +47,11 @@ static void ctrl_cmd_update_socket_handler(const char *buf, size_t len,
 		goto out;
 	}
 	memcpy(&cmd, buf, sizeof(cmd));
+        if (cmd.status != CONNECT_STAT_WAIT_REQUEST &&
+                cmd.status != CONNECT_STAT_WAIT_RESPONSE) {
+                hmdfs_err("invalid status");
+                goto out;
+        }
 
 	node = hmdfs_get_peer(sbi, cmd.cid, cmd.devsl);
 	if (unlikely(!node)) {

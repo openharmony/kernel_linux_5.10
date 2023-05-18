@@ -470,7 +470,9 @@ long hmdfs_dir_unlocked_ioctl_merge(struct file *file, unsigned int cmd,
 				  comrade_list) {
 		if (fi_iter->device_id == 0) {
 			lower_file = fi_iter->lower_file;
-			error = lower_file->f_op->unlocked_ioctl(lower_file, cmd, arg);
+                        if (lower_file->f_op->unlocked_ioctl)
+			        error = lower_file->f_op->unlocked_ioctl(
+                                        lower_file, cmd, arg);
 			break;
 		}
 	}
@@ -492,7 +494,9 @@ long hmdfs_dir_compat_ioctl_merge(struct file *file, unsigned int cmd,
 				  comrade_list) {
 		if (fi_iter->device_id == 0) {
 			lower_file = fi_iter->lower_file;
-			error = lower_file->f_op->compat_ioctl(lower_file, cmd, arg);
+                        if (lower_file->f_op->compat_ioctl)
+			        error = lower_file->f_op->compat_ioctl(
+                                        lower_file, cmd, arg);
 			break;
 		}
 	}
