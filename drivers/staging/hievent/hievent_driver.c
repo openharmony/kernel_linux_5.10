@@ -120,12 +120,17 @@ static int hievent_read_ring_head_buffer(unsigned char * const buffer,
 static ssize_t hievent_read(struct file *file, char __user *user_buf,
 			    size_t count, loff_t *ppos)
 {
+	int rc;
 	size_t retval;
 	struct hievent_entry header;
 
 	(void)file;
 
-	wait_event_interruptible(hievent_dev.wq, (hievent_dev.size > 0));
+	rc = wait_event_interruptible(hievent_dev.wq, (hievent_dev.size > 0));
+	if (rc) {
+		retval = -EINVAL;
+		goto out;
+	}
 
 	(void)mutex_lock(&hievent_dev.mtx);
 
