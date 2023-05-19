@@ -13,6 +13,11 @@
 #include <linux/sched/task.h>
 #include <linux/sched/task_stack.h>
 #include <linux/sched/cputime.h>
+
+#ifdef CONFIG_QOS_CTRL
+#include <linux/sched/qos_ctrl.h>
+#endif
+
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/capability.h>
@@ -766,6 +771,10 @@ void __noreturn do_exit(long code)
 	io_uring_files_cancel();
 	exit_signals(tsk);  /* sets PF_EXITING */
 	sched_exit(tsk);
+
+#ifdef CONFIG_QOS_CTRL
+	sched_exit_qos_list(tsk);
+#endif
 
 	/* sync mm's RSS info before statistics gathering */
 	if (tsk->mm)

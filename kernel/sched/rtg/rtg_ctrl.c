@@ -10,6 +10,11 @@
 
 #include <linux/module.h>
 #include <linux/device.h>
+
+#ifdef CONFIG_AUTHORITY_CTRL
+#include <linux/sched/auth_ctrl.h>
+#endif
+
 #include <linux/miscdevice.h>
 #include <linux/compat.h>
 #include <trace/events/rtg.h>
@@ -882,6 +887,9 @@ static long do_proc_rtg_ioctl(int abi, struct file *file, unsigned int cmd, unsi
 {
 	void __user *uarg = (void __user *)(uintptr_t)arg;
 	unsigned int func_id = _IOC_NR(cmd);
+#ifdef CONFIG_RTG_AUTHORITY
+	bool authorized = true;
+#endif
 
 	if (uarg == NULL) {
 		pr_err("[SCHED_RTG] %s: invalid user uarg\n", __func__);
@@ -905,6 +913,13 @@ static long do_proc_rtg_ioctl(int abi, struct file *file, unsigned int cmd, unsi
 		return -INVALID_CMD;
 	}
 
+#ifdef CONFIG_RTG_AUTHORITY
+	authorized = check_authorized(func_id, RTG_AUTH_FLAG);
+	if (!authorized) {
+		pr_err("[SCHED_RTG] %s: uid not authorized.\n", __func__);
+		return -INVALID_CMD;
+	}
+#endif
 	if (g_func_array[func_id] != NULL)
 		return (*g_func_array[func_id])(abi, uarg);
 

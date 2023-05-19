@@ -19,6 +19,10 @@
 #include <linux/irq.h>
 #include <linux/delay.h>
 
+#ifdef CONFIG_QOS_CTRL
+#include <linux/sched/qos_ctrl.h>
+#endif
+
 #include <asm/switch_to.h>
 #include <asm/tlb.h>
 
@@ -3385,6 +3389,11 @@ static inline void init_schedstats(void) {}
 int sched_fork(unsigned long clone_flags, struct task_struct *p)
 {
 	init_new_task_load(p);
+
+#ifdef CONFIG_QOS_CTRL
+	init_task_qos(p);
+#endif
+
 	__sched_fork(clone_flags, p);
 	/*
 	 * We mark the process as NEW here. This guarantees that
@@ -7802,6 +7811,10 @@ void __init sched_init(void)
 	 */
 	init_idle(current, smp_processor_id());
 	init_new_task_load(current);
+
+#ifdef CONIG_QOS_CTRL
+	init_task_qos(current);
+#endif
 
 	calc_load_update = jiffies + LOAD_FREQ;
 
