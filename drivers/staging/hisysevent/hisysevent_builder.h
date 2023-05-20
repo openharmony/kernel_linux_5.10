@@ -17,6 +17,8 @@
 #define MAX_DOMAIN_LENGTH 16
 #define MAX_EVENT_NAME_LENGTH 32
 
+#pragma pack(1)
+
 struct hisysevent_header {
 	/* event domain */
 	char domain[MAX_DOMAIN_LENGTH + 1];
@@ -48,6 +50,8 @@ struct hisysevent_header {
 	/* trace info flag*/
 	u8 is_open_trace: 1;
 };
+
+#pragma pack()
 
 struct hisysevent_params {
 	/* total count of parameters */
