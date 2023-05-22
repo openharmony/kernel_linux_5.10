@@ -32,6 +32,8 @@ enum hisysevent_encode_type {
 	LENGTH_DELIMITED = 1,
 };
 
+#pragma pack(1)
+
 struct param_value_type {
 	/* array flag */
 	u8 is_array: 1;
@@ -42,6 +44,8 @@ struct param_value_type {
 	/* byte count of parameter value */
 	u8 value_byte_cnt: 3;
 };
+
+#pragma pack()
 
 static u8 encode_tag(u8 type)
 {
