@@ -3816,6 +3816,9 @@ static const struct pid_entry tid_base_stuff[] = {
 #ifdef CONFIG_ACCESS_TOKENID
 	ONE("tokenid", S_IRUSR, proc_token_operations),
 #endif
+#ifdef CONFIG_QOS_CTRL
+	REG("sched_qos_ctrl", S_IRUGO|S_IWUGO, proc_qos_ctrl_operations),
+#endif
 #ifdef CONFIG_SCHED_RTG_DEBUG
 	REG("sched_group_id", S_IRUGO|S_IWUGO, proc_pid_sched_group_id_operations),
 #endif
