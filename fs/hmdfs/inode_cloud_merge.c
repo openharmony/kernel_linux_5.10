@@ -599,12 +599,84 @@ out:
 	return ret;
 }
 
+static int rename_lo_d_cloud_child(struct hmdfs_rename_para *rename_para,
+				   struct hmdfs_recursive_para *rec_op_para)
+{
+	struct dentry *d_pparent, *lo_d_parent;
+	struct dentry *d_parent = dget_parent(rename_para->new_dentry);
+	struct hmdfs_dentry_info_merge *pmdi = hmdfs_dm(d_parent);
+	int ret = 0;
+
+	wait_event(pmdi->wait_queue, !has_merge_lookup_work(pmdi));
+
+	lo_d_parent = hmdfs_get_lo_d(d_parent, HMDFS_DEVID_LOCAL);
+	if (!lo_d_parent) {
+		d_pparent = dget_parent(d_parent);
+		ret = create_lo_d_parent_recur(d_pparent, d_parent,
+					       d_inode(d_parent)->i_mode,
+					       rec_op_para);
+		dput(d_pparent);
+		if (unlikely(ret))
+			goto out;
+		lo_d_parent = hmdfs_get_lo_d(d_parent, HMDFS_DEVID_LOCAL);
+		if (!lo_d_parent) {
+			ret = -ENOENT;
+			goto out;
+		}
+	}
+	ret = do_rename_merge(rename_para->old_dir, rename_para->old_dentry,
+			      rename_para->new_dir, rename_para->new_dentry,
+			      rename_para->flags);
+
+out:
+	dput(d_parent);
+	dput(lo_d_parent);
+	return ret;
+}
+
+static int hmdfs_rename_cloud_merge(struct inode *old_dir,
+				    struct dentry *old_dentry,
+				    struct inode *new_dir,
+				    struct dentry *new_dentry,
+				    unsigned int flags)
+{
+	struct hmdfs_recursive_para *rec_op_para = NULL;
+	struct hmdfs_rename_para rename_para = { old_dir, old_dentry, new_dir,
+						 new_dentry, flags };
+	int ret = 0;
+
+	if (hmdfs_file_type(old_dentry->d_name.name) != HMDFS_TYPE_COMMON ||
+	    hmdfs_file_type(new_dentry->d_name.name) != HMDFS_TYPE_COMMON) {
+		ret = -EACCES;
+		goto rename_out;
+	}
+	rec_op_para = kmalloc(sizeof(*rec_op_para), GFP_KERNEL);
+	if (!rec_op_para) {
+		ret = -ENOMEM;
+		goto rename_out;
+	}
+	trace_hmdfs_rename_merge(old_dir, old_dentry, new_dir, new_dentry,
+				 flags);
+
+	hmdfs_init_recursive_para(rec_op_para, F_MKDIR_MERGE, 0, 0, NULL);
+	ret = rename_lo_d_cloud_child(&rename_para, rec_op_para);
+	if (ret != 0)
+		d_drop(new_dentry);
+
+	if (S_ISREG(old_dentry->d_inode->i_mode) && !ret)
+		d_invalidate(old_dentry);
+rename_out:
+	hmdfs_trace_rename_merge(old_dir, old_dentry, new_dir, new_dentry, ret);
+	kfree(rec_op_para);
+	return ret;
+}
+
 const struct inode_operations hmdfs_dir_iops_cloud_merge = {
 	.lookup = hmdfs_lookup_cloud_merge,
 	.mkdir = hmdfs_mkdir_cloud_merge,
 	.create = hmdfs_create_cloud_merge,
 	.rmdir = hmdfs_rmdir_merge,
 	.unlink = hmdfs_unlink_merge,
-	.rename = hmdfs_rename_merge,
+	.rename = hmdfs_rename_cloud_merge,
 	.permission = hmdfs_permission,
 };
