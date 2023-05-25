@@ -13,10 +13,12 @@
 
 enum {
 	OPT_USER_ID,
+        OPT_ERR,
 };
 
 static match_table_t sharefs_tokens = {
-	{ OPT_USER_ID, "user_id=%s"},
+	{ OPT_USER_ID, "user_id=%s" },
+        { OPT_ERR, NULL }
 };
 
 int sharefs_parse_options(struct sharefs_sb_info *sbi, const char *data)
