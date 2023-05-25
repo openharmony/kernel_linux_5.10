@@ -850,11 +850,15 @@ static int tcp_send_message(struct connection *connect,
 
 void tcp_close_socket(struct tcp_handle *tcp)
 {
+	int ret;
 	if (!tcp)
 		return;
 	mutex_lock(&tcp->close_mutex);
 	if (tcp->recv_task) {
-		kthread_stop(tcp->recv_task);
+		ret = kthread_stop(tcp->recv_task);
+		/* recv_task killed before sched, we need to put the connect */
+		if (ret == -EINTR)
+			connection_put(tcp->connect);
 		tcp->recv_task = NULL;
 	}
 	mutex_unlock(&tcp->close_mutex);
