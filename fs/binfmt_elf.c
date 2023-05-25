@@ -1035,12 +1035,14 @@ out_free_interp:
 		unsigned long alignment;
 
 		if (elf_ppnt->p_type == PT_OHOS_RANDOMDATA) {
+			void *temp_buf = NULL;
+
 			if (elf_ppnt->p_memsz > PT_OHOS_RANDOMDATA_SIZE_LIMIT) {
 				retval = -EINVAL;
 				goto out_free_dentry;
 			}
 
-			void *temp_buf = kmalloc(elf_ppnt->p_memsz, GFP_KERNEL);
+			temp_buf = vmalloc(elf_ppnt->p_memsz);
 			if (!temp_buf) {
 				retval = -ENOMEM;
 				goto out_free_dentry;
@@ -1049,10 +1051,10 @@ out_free_interp:
 			get_random_bytes(temp_buf, (int)elf_ppnt->p_memsz);
 			if (copy_to_user((void *)(elf_ppnt->p_vaddr + load_bias), temp_buf, (unsigned long)elf_ppnt->p_memsz)) {
 				retval = -EFAULT;
-				kfree(temp_buf);
+				vfree(temp_buf);
 				goto out_free_dentry;
 			}
-			kfree(temp_buf);
+			vfree(temp_buf);
 			continue;
 		}
 
