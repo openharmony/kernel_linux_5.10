@@ -47,7 +47,11 @@
 #define FRAME_DEFAULT_MAX_PREV_UTIL SCHED_CAPACITY_SCALE
 
 #define DEFAULT_MAX_RT_THREAD 5
-#define RTG_MAX_RT_THREAD_NUM CONFIG_NR_CPUS
+/*
+ * RTG_MAX_RT_THREAD_NUM should be CONFIG_NR_CPUS in previous version
+ * fit for FFRT here
+ */
+#define RTG_MAX_RT_THREAD_NUM 20
 #define INVALID_PREFERRED_CLUSTER 10
 
 enum rtg_type {

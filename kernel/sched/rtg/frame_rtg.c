@@ -455,10 +455,13 @@ static int set_rtg_sched(struct task_struct *task, bool is_rtg,
 		(prio > MAX_USER_RT_PRIO - 1)))
 		return err;
 	/*
+	 * original logic deny the non-cfs task st rt.
+	 * add !fair_policy(task->policy) if needed
+	 *
 	 * if CONFIG_HW_FUTEX_PI is set, task->prio and task->sched_class
 	 * may be modified by rtmutex. So we use task->policy instead.
 	 */
-	if (is_rtg && (!fair_policy(task->policy) || (task->flags & PF_EXITING)))
+	if (is_rtg && task->flags & PF_EXITING)
 		return err;
 
 	if (in_interrupt()) {

@@ -747,6 +747,20 @@ struct wake_q_node {
 	struct wake_q_node *next;
 };
 
+#ifdef CONFIG_QOS_CTRL
+struct qos_task_struct {
+	/*
+	 * 'in_qos' marks the qos level o current task, greater value for
+	 * greater qos, range from (NO_QOS, NR_QOS)
+	 *
+	 *
+	 * 'qos_list' use to track task with qos supply in auth_struct
+	 */
+	int                 in_qos;
+	struct list_head    qos_list;
+};
+#endif
+
 struct task_struct {
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/*
@@ -1493,6 +1507,9 @@ struct task_struct {
 #ifdef CONFIG_ACCESS_TOKENID
 	u64				token;
 	u64				ftoken;
+#endif
+#ifdef CONFIG_QOS_CTRL
+	struct qos_task_struct qts;
 #endif
 	/*
 	 * New fields for task_struct should be added above here, so that

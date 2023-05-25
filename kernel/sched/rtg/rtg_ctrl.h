@@ -24,7 +24,8 @@
 #define MAX_SUBPROCESS_NUM 8
 
 #define RTG_ID_INVALID (-1)
-#define DEFAULT_MAX_RT_FRAME 3
+/* fit for FFRT, original DEFAULT_MAX_RT_FRAME is 3 */
+#define DEFAULT_MAX_RT_FRAME 10
 #define MAX_RT_THREAD (MAX_TID_NUM + 2)
 #define INIT_VALUE		(-1)
 #define UPDATE_RTG_FRAME (1 << 0)

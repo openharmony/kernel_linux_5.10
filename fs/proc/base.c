@@ -54,6 +54,11 @@
 #include <linux/time.h>
 #include <linux/proc_fs.h>
 #include <linux/stat.h>
+
+#ifdef CONFIG_QOS_CTRL
+#include <linux/sched/qos_ctrl.h>
+#endif
+
 #include <linux/task_io_accounting_ops.h>
 #include <linux/init.h>
 #include <linux/capability.h>
@@ -1500,6 +1505,23 @@ static const struct file_operations proc_pid_sched_operations = {
 	.release	= single_release,
 };
 
+#endif
+
+#ifdef CONFIG_QOS_CTRL
+long proc_qos_ctrl_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	return do_qos_ctrl_ioctl(file, cmd, arg);
+}
+
+int proc_qos_ctrl_open(struct inode *inode, struct file *filp)
+{
+	return 0;
+}
+
+static const struct file_operations proc_qos_ctrl_operations = {
+	.open   = proc_qos_ctrl_open,
+	.unlocked_ioctl = proc_qos_ctrl_ioctl,
+};
 #endif
 
 #ifdef CONFIG_SCHED_RTG
@@ -3793,6 +3815,9 @@ static const struct pid_entry tid_base_stuff[] = {
 #endif
 #ifdef CONFIG_ACCESS_TOKENID
 	ONE("tokenid", S_IRUSR, proc_token_operations),
+#endif
+#ifdef CONFIG_QOS_CTRL
+	REG("sched_qos_ctrl", S_IRUGO|S_IWUGO, proc_qos_ctrl_operations),
 #endif
 #ifdef CONFIG_SCHED_RTG_DEBUG
 	REG("sched_group_id", S_IRUGO|S_IWUGO, proc_pid_sched_group_id_operations),
