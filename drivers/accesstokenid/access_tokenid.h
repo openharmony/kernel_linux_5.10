@@ -22,6 +22,15 @@ enum {
 	ACCESS_TOKENID_MAX_NR
 };
 
+typedef struct {
+	unsigned int token_uniqueid : 20;
+	unsigned int res : 5;
+	unsigned int render_flag : 1;
+	unsigned int dlp_flag : 1;
+	unsigned int type : 2;
+	unsigned int version : 3;
+} access_tokenid_inner;
+
 #define	ACCESS_TOKENID_GET_TOKENID \
 	_IOR(ACCESS_TOKEN_ID_IOCTL_BASE, GET_TOKEN_ID, unsigned long long)
 #define	ACCESS_TOKENID_SET_TOKENID \
