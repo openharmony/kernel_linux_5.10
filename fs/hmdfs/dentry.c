@@ -288,6 +288,7 @@ static int d_revalidate_merge(struct dentry *direntry, unsigned int flags)
 	}
 
 	parent_dentry = dget_parent(direntry);
+        mutex_lock(&dim->comrade_list_lock);
 	list_for_each_entry(comrade, &(dim->comrade_list), list) {
 		lower_cur_parent_dentry = dget_parent(comrade->lo_d);
 		if ((comrade->lo_d->d_flags & DCACHE_OP_REVALIDATE)) {
@@ -301,6 +302,7 @@ static int d_revalidate_merge(struct dentry *direntry, unsigned int flags)
 		dput(lower_cur_parent_dentry);
 	}
 out:
+        mutex_unlock(&dim->comrade_list_lock);
 	dput(parent_dentry);
 	return ret;
 }
