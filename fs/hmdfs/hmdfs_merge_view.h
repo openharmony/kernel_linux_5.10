@@ -60,6 +60,14 @@ struct hmdfs_recursive_para {
 	const char *name;
 };
 
+struct hmdfs_rename_para {
+	struct inode *old_dir;
+	struct dentry *old_dentry;
+	struct inode *new_dir;
+	struct dentry *new_dentry;
+	unsigned int flags;
+};
+
 static inline struct hmdfs_dentry_info_merge *hmdfs_dm(struct dentry *dentry)
 {
 	return dentry->d_fsdata;
@@ -122,6 +130,9 @@ int hmdfs_unlink_merge(struct inode *dir, struct dentry *dentry);
 int hmdfs_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 		       struct inode *new_dir, struct dentry *new_dentry,
 		       unsigned int flags);
+int do_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
+		    struct inode *new_dir, struct dentry *new_dentry,
+		    unsigned int flags);
 
 static inline void destroy_comrade(struct hmdfs_dentry_comrade *comrade)
 {
