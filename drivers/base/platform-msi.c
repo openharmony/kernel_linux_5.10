@@ -344,7 +344,7 @@ __platform_msi_create_device_domain(struct device *dev,
 		goto free_priv;
 
 	err = msi_domain_prepare_irqs(domain->parent, dev, nvec, &data->arg);
-	if (err)
+	if (err < 0)
 		goto free_domain;
 
 	return domain;
