@@ -49,8 +49,6 @@ static const request_callback s_recv_callbacks[F_SIZE] = {
 	[F_GETXATTR] = hmdfs_server_getxattr,
 	[F_SETXATTR] = hmdfs_server_setxattr,
 	[F_LISTXATTR] = hmdfs_server_listxattr,
-	[F_READPAGES] = hmdfs_server_readpages,
-	[F_READPAGES_OPEN] = hmdfs_server_readpages_open,
 	[F_ATOMIC_OPEN] = hmdfs_server_atomic_open,
 };
 
@@ -844,14 +842,12 @@ static int hmdfs_request_recv(struct hmdfs_peer *con,
 	case F_GETXATTR:
 	case F_SETXATTR:
 	case F_LISTXATTR:
-	case F_READPAGES_OPEN:
 	case F_ATOMIC_OPEN:
 		ret = hmdfs_msg_handle_async(con, head, buf, con->req_handle_wq,
 					     hmdfs_request_work_fn);
 		break;
 	case F_WRITEPAGE:
 	case F_READPAGE:
-	case F_READPAGES:
 		hmdfs_msg_handle_sync(con, head, buf);
 		ret = 0;
 		break;
