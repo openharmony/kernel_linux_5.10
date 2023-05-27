@@ -380,6 +380,11 @@ static int memcg_force_shrink_purgeable_bysize(struct cgroup_subsys_state *css,
 	if (!memcg)
 		return 0;
 
+	if (reclaim_size == 0) {
+		pr_err("reclaim_size is zero, skip shrink\n");
+		return 0;
+	}
+
 	struct scan_control sc = {
 		.gfp_mask = GFP_KERNEL,
 		.order = 0,
