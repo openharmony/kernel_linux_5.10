@@ -144,16 +144,12 @@ static int hilog_read_ring_head_buffer(unsigned char *buffer, size_t buf_len)
 static ssize_t hilog_read(struct file *file,
 			  char __user *user_buf, size_t count, loff_t *ppos)
 {
-	int rc;
 	size_t retval;
 	struct hilog_entry header;
 
 	(void)file;
-	rc = wait_event_interruptible(hilog_dev.wq, (hilog_dev.size > 0));
-	if (rc) {
-		retval = -EINVAL;
-		goto out;
-	}
+	if (wait_event_interruptible(hilog_dev.wq, (hilog_dev.size > 0)))
+		return -EINVAL;
 
 	(void)mutex_lock(&hilog_dev.mtx);
 
