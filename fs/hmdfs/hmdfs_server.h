@@ -37,10 +37,6 @@ void hmdfs_server_release(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 			  void *data);
 void hmdfs_server_readpage(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 			   void *data);
-void hmdfs_server_readpages(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
-			    void *data);
-void hmdfs_server_readpages_open(struct hmdfs_peer *con,
-				 struct hmdfs_head_cmd *cmd, void *data);
 void hmdfs_server_writepage(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 			    void *data);
 
