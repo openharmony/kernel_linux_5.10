@@ -15,8 +15,8 @@
 
 
 struct sharefs_mount_priv {
-       const char *dev_name;
-       const char *raw_data;
+	const char *dev_name;
+	const char *raw_data;
 };
 
 /*
@@ -27,8 +27,8 @@ static int sharefs_fill_super(struct super_block *sb, void *data, int silent)
 {
 
 	struct sharefs_mount_priv *priv = (struct sharefs_mount_priv *)data;
-        const char *dev_name = priv->dev_name;
-        const char *raw_data = priv->raw_data;
+	const char *dev_name = priv->dev_name;
+	const char *raw_data = priv->raw_data;
 
 	int err = 0;
 	struct super_block *lower_sb;

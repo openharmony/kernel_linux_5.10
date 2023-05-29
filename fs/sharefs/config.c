@@ -316,8 +316,8 @@ static struct configfs_group_operations sharefs_group_ops = {
 };
 
 static struct config_item_type sharefs_group_type = {
-    .ct_group_ops     = &sharefs_group_ops,
-    .ct_owner         = THIS_MODULE,
+	.ct_group_ops     = &sharefs_group_ops,
+	.ct_owner         = THIS_MODULE,
 };
 
 static struct configfs_subsystem sharefs_subsystem = {

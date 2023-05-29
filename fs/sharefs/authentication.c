@@ -30,8 +30,7 @@ void fixup_perm_from_level(struct inode *dir, struct dentry *dentry)
 		return;
 	dinode->i_uid = dir->i_uid;
 	dinode->i_gid = dir->i_gid;
-	switch (level)
-	{
+	switch (level) {
 	case SHAREFS_PERM_MNT:
 		bid = get_bundle_uid(SHAREFS_SB(dentry->d_sb),
 					 dentry->d_name.name);

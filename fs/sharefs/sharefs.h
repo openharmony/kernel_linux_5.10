@@ -54,7 +54,7 @@ struct sharefs_inode_info {
 
 /* sharefs dentry data in memory */
 struct sharefs_dentry_info {
-	spinlock_t lock;	/* protects lower_path */
+	spinlock_t lock; /* protects lower_path */
 	struct path lower_path;
 };
 
@@ -239,4 +239,4 @@ __printf(4, 5) void __sharefs_log(const char *level, const bool ratelimited,
 #define sharefs_info_ratelimited(fmt, ...) \
 	__sharefs_log(KERN_INFO, true, __func__, fmt, ##__VA_ARGS__)
 
-#endif	/* not _SHAREFS_H_ */
+#endif /* not _SHAREFS_H_ */

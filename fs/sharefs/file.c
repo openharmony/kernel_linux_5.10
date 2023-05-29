@@ -45,9 +45,9 @@ static int sharefs_open(struct inode *inode, struct file *file)
 		sharefs_set_lower_file(file, lower_file);
 	}
 
-	if (err)
+	if (err) {
 		kfree(SHAREFS_F(file));
-	else {
+	} else {
 		kuid_t uid = inode->i_uid;
 		kgid_t gid = inode->i_gid;
 		mode_t mode = inode->i_mode;
@@ -149,7 +149,8 @@ ssize_t
 sharefs_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 {
 	int err;
-	struct file *file = iocb->ki_filp, *lower_file;
+	struct file *file = iocb->ki_filp;
+	struct file *lower_file;
 
 	lower_file = sharefs_lower_file(file);
 	if (!lower_file->f_op->read_iter) {
@@ -179,7 +180,8 @@ ssize_t
 sharefs_write_iter(struct kiocb *iocb, struct iov_iter *iter)
 {
 	int err;
-	struct file *file = iocb->ki_filp, *lower_file;
+	struct file *file = iocb->ki_filp;
+	struct file *lower_file;
 
 	lower_file = sharefs_lower_file(file);
 	if (!lower_file->f_op->write_iter) {

@@ -158,7 +158,7 @@ static struct inode *sharefs_alloc_inode(struct super_block *sb)
 	/* memset everything up to the inode to 0 */
 	memset(i, 0, offsetof(struct sharefs_inode_info, vfs_inode));
 
-        atomic64_set(&i->vfs_inode.i_version, 1);
+	atomic64_set(&i->vfs_inode.i_version, 1);
 	return &i->vfs_inode;
 }
 
