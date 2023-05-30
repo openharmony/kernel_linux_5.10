@@ -83,7 +83,7 @@ struct inode *sharefs_iget(struct super_block *sb, struct inode *lower_inode)
 			      * instead.
 			      */
 			     lower_inode->i_ino, /* hashval */
-			     sharefs_inode_test,	/* inode comparison function */
+			     sharefs_inode_test, /* inode comparison function */
 			     sharefs_inode_set, /* inode init function */
 			     lower_inode); /* data passed to test+set fxns */
 	if (!inode) {
@@ -225,7 +225,6 @@ static struct dentry *__sharefs_lookup(struct dentry *dentry,
 	/* Use vfs_path_lookup to check if the dentry exists or not */
 	err = vfs_path_lookup(lower_dir_dentry, lower_dir_mnt, name, 0,
 			      &lower_path);
-
 	/* no error: handle positive dentries */
 	if (!err) {
 		sharefs_set_lower_path(dentry, &lower_path);

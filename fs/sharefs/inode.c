@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * fs/sharefs/inode.c
- * 
+ *
  * Copyright (c) 1998-2022 Erez Zadok
  * Copyright (c) 2009	   Shrikar Archak
  * Copyright (c) 2003-2022 Stony Brook University
@@ -55,8 +55,8 @@ out:
 	return buf;
 }
 
-static int sharefs_getattr(const struct path *path, struct kstat *stat, 
-                          u32 request_mask, unsigned int flags)
+static int sharefs_getattr(const struct path *path, struct kstat *stat,
+			   u32 request_mask, unsigned int flags)
 {
 	struct path lower_path;
 	int ret;

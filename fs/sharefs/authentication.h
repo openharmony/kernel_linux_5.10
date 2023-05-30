@@ -48,14 +48,16 @@ static inline bool is_read_write_auth(__u16 perm)
 	return (perm & SHAREFS_DIR_TYPE_MASK) == SHAREFS_DIR_TYPE_READWRITE;
 }
 
-static inline void sharefs_set_read_perm(struct inode *inode) {
+static inline void sharefs_set_read_perm(struct inode *inode)
+{
 	if (S_ISDIR(inode->i_mode))
 		inode->i_mode = (inode->i_mode & S_IFMT) | SHAREFS_PERM_READONLY_DIR;
 	else
 		inode->i_mode = (inode->i_mode & S_IFMT) | SHAREFS_PERM_READONLY_FILE;
 }
 
-static inline void sharefs_set_read_write_perm(struct inode *inode) {
+static inline void sharefs_set_read_write_perm(struct inode *inode)
+{
 	if (S_ISDIR(inode->i_mode))
 		inode->i_mode = (inode->i_mode & S_IFMT) | SHAREFS_PERM_READWRITE_DIR;
 	else
