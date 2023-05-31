@@ -694,23 +694,6 @@ int init_hmdfs_dentry_info_merge(struct hmdfs_sb_info *sbi,
 	return 0;
 }
 
-static void update_dm(struct dentry *dst, struct dentry *src)
-{
-	struct hmdfs_dentry_info_merge *dmi_dst = hmdfs_dm(dst);
-	struct hmdfs_dentry_info_merge *dmi_src = hmdfs_dm(src);
-
-	trace_hmdfs_merge_update_dentry_info_enter(src, dst);
-	
-	spin_lock(&dst->d_lock);
-	spin_lock(&src->d_lock);
-	dst->d_fsdata = dmi_src;
-	src->d_fsdata = dmi_dst;
-	spin_unlock(&src->d_lock);
-	spin_unlock(&dst->d_lock);
-
-	trace_hmdfs_merge_update_dentry_info_exit(src, dst);
-}
-
 // do this in a map-reduce manner
 struct dentry *hmdfs_lookup_merge(struct inode *parent_inode,
 				  struct dentry *child_dentry,
@@ -763,7 +746,6 @@ struct dentry *hmdfs_lookup_merge(struct inode *parent_inode,
 			goto out;
 		}
 		if (ret_dentry) {
-			update_dm(ret_dentry, child_dentry);
 			child_dentry = ret_dentry;
 		}
 		info = hmdfs_i(child_inode);
@@ -1198,10 +1180,12 @@ int do_unlink_merge(struct inode *dir, struct dentry *dentry)
 	mutex_lock(&dim->comrade_list_lock);
 	list_for_each_entry(comrade, &(dim->comrade_list), list) {
 		lo_d = comrade->lo_d;
+                dget(lo_d);
 		lo_d_dir = lock_parent(lo_d);
 		lo_i_dir = d_inode(lo_d_dir);
 		ret = vfs_unlink(lo_i_dir, lo_d, NULL); // lo_d GET
 		unlock_dir(lo_d_dir);
+                dput(lo_d);
 		if (ret)
 			break;
 	}
