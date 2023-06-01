@@ -326,8 +326,7 @@ static int hmdfs_remote_statfs(struct dentry *dentry, struct kstatfs *buf)
 	}
 	mutex_lock(&sbi->connections.node_lock);
 	list_for_each_entry(con, &sbi->connections.node_list, list) {
-		if (con->status == NODE_STAT_ONLINE &&
-		    con->version > USERSPACE_MAX_VER) {
+		if (con->status == NODE_STAT_ONLINE) {
 			peer_get(con);
 			mutex_unlock(&sbi->connections.node_lock);
 			hmdfs_debug("send MSG to remote devID %llu",
@@ -838,6 +837,9 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 	struct dentry *root_dentry;
 	char ctrl_path[CTRL_PATH_MAX_LEN];
 	uint64_t ctrl_hash;
+
+	if (!raw_data)
+		return -EINVAL;
 
 	sbi = kzalloc(sizeof(*sbi), GFP_KERNEL);
 	if (!sbi) {

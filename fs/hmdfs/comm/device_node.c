@@ -47,6 +47,11 @@ static void ctrl_cmd_update_socket_handler(const char *buf, size_t len,
 		goto out;
 	}
 	memcpy(&cmd, buf, sizeof(cmd));
+	if (cmd.status != CONNECT_STAT_WAIT_REQUEST &&
+		cmd.status != CONNECT_STAT_WAIT_RESPONSE) {
+		hmdfs_err("invalid status");
+		goto out;
+	}
 
 	node = hmdfs_get_peer(sbi, cmd.cid, cmd.devsl);
 	if (unlikely(!node)) {
@@ -253,12 +258,12 @@ static ssize_t sbi_status_show(struct kobject *kobj, struct sbi_attribute *attr,
 	struct tcp_handle *tcp = NULL;
 
 	sbi = to_sbi(kobj);
-	size += sprintf(buf + size, "peers  version  status\n");
+	size += sprintf(buf + size, "peers status\n");
 
 	mutex_lock(&sbi->connections.node_lock);
 	list_for_each_entry(peer, &sbi->connections.node_list, list) {
-		size += sprintf(buf + size, "%llu  %d  %d\n", peer->device_id,
-				peer->version, peer->status);
+		size += sprintf(buf + size, "%llu %d\n", peer->device_id,
+			peer->status);
 		// connection information
 		size += sprintf(
 			buf + size,

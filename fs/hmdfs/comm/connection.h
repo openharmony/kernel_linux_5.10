@@ -169,7 +169,6 @@ struct hmdfs_peer {
 	int recvbuf_maxsize;
 	struct crypto_aead *tfm;
 	char cid[HMDFS_CID_SIZE + 1];
-	const struct connection_operations *conn_operations;
 	struct hmdfs_sb_info *sbi;
 	struct workqueue_struct *async_wq;
 	struct workqueue_struct *req_handle_wq;

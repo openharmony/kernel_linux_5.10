@@ -147,7 +147,6 @@ static struct hmdfs_node_cb_desc server_cb[] = {
 	{
 		.evt = NODE_EVT_OFFLINE,
 		.sync = true,
-		.min_version = DFS_2_0,
 		.fn = hmdfs_server_offline_notify
 	},
 };

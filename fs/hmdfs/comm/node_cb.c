@@ -68,9 +68,6 @@ void hmdfs_node_call_evt_cb(struct hmdfs_peer *conn, int evt, bool sync,
 		return;
 
 	list_for_each_entry(desc, &cb_head[evt][sync], list) {
-		if (conn->version < desc->min_version)
-			continue;
-
 		desc->fn(conn, evt, seq);
 	}
 }
