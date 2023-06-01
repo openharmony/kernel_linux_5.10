@@ -175,48 +175,40 @@ struct hmdfs_lookup_ret *hmdfs_lookup_by_con(struct hmdfs_peer *con,
 {
 	struct hmdfs_lookup_ret *result = NULL;
 
-	if (con->version > USERSPACE_MAX_VER) {
+	/*
+		* LOOKUP_REVAL means we found stale info from dentry file, thus
+		* we need to use remote getattr.
+		*/
+	if (flags & LOOKUP_REVAL) {
 		/*
-		 * LOOKUP_REVAL means we found stale info from dentry file, thus
-		 * we need to use remote getattr.
-		 */
-		if (flags & LOOKUP_REVAL) {
-			/*
-			 * HMDFS_LOOKUP_REVAL means we need to skip dentry cache
-			 * in lookup, because dentry cache in server might have
-			 * stale data.
-			 */
-			result = get_remote_inode_info(con, dentry,
-						       HMDFS_LOOKUP_REVAL);
-			get_remote_dentry_file_in_wq(dentry->d_parent, con);
-			return result;
-		}
+			* HMDFS_LOOKUP_REVAL means we need to skip dentry cache
+			* in lookup, because dentry cache in server might have
+			* stale data.
+			*/
+		result = get_remote_inode_info(con, dentry,
+						HMDFS_LOOKUP_REVAL);
+		get_remote_dentry_file_in_wq(dentry->d_parent, con);
+		return result;
+	}
 
-		/* If cache file is still valid */
-		if (hmdfs_cache_revalidate(READ_ONCE(con->conn_time),
-					   con->device_id, dentry->d_parent)) {
-			result = lookup_remote_dentry(dentry, qstr,
-						      con->device_id);
-			/*
-			 * If lookup from cache file failed, use getattr to see
-			 * if remote have created the file.
-			 */
-			if (!(flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET)) &&
-			    !result)
-				result = get_remote_inode_info(con, dentry, 0);
-			/* If cache file expired, use getattr directly
-			 * except create and rename opt
-			 */
-		} else {
+	/* If cache file is still valid */
+	if (hmdfs_cache_revalidate(READ_ONCE(con->conn_time),
+					con->device_id, dentry->d_parent)) {
+		result = lookup_remote_dentry(dentry, qstr,
+						con->device_id);
+		/*
+			* If lookup from cache file failed, use getattr to see
+			* if remote have created the file.
+			*/
+		if (!(flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET)) &&
+			!result)
 			result = get_remote_inode_info(con, dentry, 0);
-			get_remote_dentry_file_in_wq(dentry->d_parent, con);
-		}
+		/* If cache file expired, use getattr directly
+			* except create and rename opt
+			*/
 	} else {
-		if (!relative_path)
-			return NULL;
-
-		result = con->conn_operations->remote_lookup(
-			con, relative_path, dentry->d_name.name);
+		result = get_remote_inode_info(con, dentry, 0);
+		get_remote_dentry_file_in_wq(dentry->d_parent, con);
 	}
 
 	return result;
@@ -352,16 +344,15 @@ struct inode *fill_inode_remote(struct super_block *sb, struct hmdfs_peer *con,
 
 	info = hmdfs_i(inode);
 	info->inode_type = HMDFS_LAYER_OTHER_REMOTE;
-	if (con->version > USERSPACE_MAX_VER) {
-		/* the inode was found in cache */
-		if (!(inode->i_state & I_NEW)) {
-			hmdfs_fill_inode_remote(inode, dir, mode);
-			hmdfs_update_inode(inode, res);
-			return inode;
-		}
 
-		hmdfs_remote_init_stash_status(con, inode, mode);
+	/* the inode was found in cache */
+	if (!(inode->i_state & I_NEW)) {
+		hmdfs_fill_inode_remote(inode, dir, mode);
+		hmdfs_update_inode(inode, res);
+		return inode;
 	}
+
+	hmdfs_remote_init_stash_status(con, inode, mode);
 
 	inode->i_ctime.tv_sec = 0;
 	inode->i_ctime.tv_nsec = 0;
@@ -383,8 +374,8 @@ struct inode *fill_inode_remote(struct super_block *sb, struct hmdfs_peer *con,
 	}
 
 	if (S_ISREG(mode) || S_ISLNK(mode)) {
-		inode->i_op = con->conn_operations->remote_file_iops;
-		inode->i_fop = con->conn_operations->remote_file_fops;
+		inode->i_op = &hmdfs_dev_file_iops_remote;
+		inode->i_fop = &hmdfs_dev_file_fops_remote;
 		inode->i_size = res->i_size;
 		set_nlink(inode, 1);
 	} else if (S_ISDIR(mode)) {
@@ -396,7 +387,7 @@ struct inode *fill_inode_remote(struct super_block *sb, struct hmdfs_peer *con,
 		goto bad_inode;
 	}
 
-	inode->i_mapping->a_ops = con->conn_operations->remote_file_aops;
+	inode->i_mapping->a_ops = &hmdfs_dev_file_aops_remote;
 
 	hmdfs_fill_inode_remote(inode, dir, mode);
 	unlock_new_inode(inode);
@@ -590,10 +581,7 @@ int hmdfs_mkdir_remote(struct inode *dir, struct dentry *dentry, umode_t mode)
 		hmdfs_warning("qpb_debug: con is null!");
 		goto out;
 	}
-	if (con->version <= USERSPACE_MAX_VER) {
-		err = -EPERM;
-		goto out;
-	}
+
 	err = hmdfs_mkdir_remote_dentry(con, dentry, mode);
 	if (!err)
 		create_in_cache_file(con->device_id, dentry);
@@ -664,10 +652,7 @@ int hmdfs_create_remote(struct inode *dir, struct dentry *dentry, umode_t mode,
 		hmdfs_warning("qpb_debug: con is null!");
 		goto out;
 	}
-	if (con->version <= USERSPACE_MAX_VER) {
-		err = -EPERM;
-		goto out;
-	}
+
 	err = hmdfs_create_remote_dentry(con, dentry, mode, want_excl);
 	if (!err)
 		create_in_cache_file(con->device_id, dentry);
@@ -713,10 +698,7 @@ int hmdfs_rmdir_remote(struct inode *dir, struct dentry *dentry)
 		err = -EACCES;
 		goto out;
 	}
-	if (con->version <= USERSPACE_MAX_VER) {
-		err = -EPERM;
-		goto out;
-	}
+
 	err = hmdfs_rmdir_remote_dentry(con, dentry);
 	/* drop dentry even remote failed
 	 * it maybe cause that one remote devices disconnect
@@ -765,7 +747,7 @@ int hmdfs_unlink_remote(struct inode *dir, struct dentry *dentry)
 	if (conn->status != NODE_STAT_ONLINE)
 		return 0;
 
-	return conn->conn_operations->remote_unlink(conn, dentry);
+	return hmdfs_dev_unlink_from_con(conn, dentry);
 }
 
 /* rename dentry in cache file */
@@ -835,20 +817,17 @@ int hmdfs_rename_remote(struct inode *old_dir, struct dentry *old_dentry,
 		goto rename_out;
 	}
 	if (S_ISREG(old_dentry->d_inode->i_mode)) {
-		if (con->version > USERSPACE_MAX_VER) {
-			hmdfs_debug("send MSG to remote devID %llu",
-				    con->device_id);
-			err = hmdfs_client_start_rename(
-				con, relative_old_dir_path, old_dentry_d_name,
-				relative_new_dir_path, new_dentry_d_name,
-				flags);
-			if (!err)
-				rename_in_cache_file(con->device_id, old_dentry,
-						     new_dentry);
-		}
+		hmdfs_debug("send MSG to remote devID %llu",
+				con->device_id);
+		err = hmdfs_client_start_rename(
+			con, relative_old_dir_path, old_dentry_d_name,
+			relative_new_dir_path, new_dentry_d_name,
+			flags);
+		if (!err)
+			rename_in_cache_file(con->device_id, old_dentry,
+						new_dentry);
 	} else if (S_ISDIR(old_dentry->d_inode->i_mode)) {
-		if ((con->status == NODE_STAT_ONLINE) &&
-		    (con->version > USERSPACE_MAX_VER)) {
+		if ((con->status == NODE_STAT_ONLINE)) {
 			ret = hmdfs_client_start_rename(
 				con, relative_old_dir_path, old_dentry_d_name,
 				relative_new_dir_path, new_dentry_d_name,

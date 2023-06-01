@@ -250,7 +250,7 @@ static int tcp_recvpage_tls(struct connection *connect,
 		if (ret)
 			rd_err = ret;
 	}
-	node->conn_operations->recvpage(node, recv, rd_err, async_work);
+	hmdfs_client_recv_readpage(recv, rd_err, async_work);
 	asw_put(async_work);
 	return ret;
 
@@ -519,7 +519,7 @@ static int tcp_receive_from_sock(struct tcp_handle *tcp)
 	tcp->connect->stat.recv_bytes += sizeof(struct hmdfs_head_cmd);
 	tcp->connect->stat.recv_message_count++;
 
-	if (recv->magic != HMDFS_MSG_MAGIC) {
+	if (recv->magic != HMDFS_MSG_MAGIC || recv->version != HMDFS_VERSION) {
 		hmdfs_info_ratelimited("tcp recv fd %d wrong magic. drop message",
 				       tcp->fd);
 		goto out;
@@ -533,16 +533,14 @@ static int tcp_receive_from_sock(struct tcp_handle *tcp)
 		goto out;
 	}
 
-	if (recv->version > USERSPACE_MAX_VER &&
-	    tcp->connect->status == CONNECT_STAT_WORKING &&
+	if (tcp->connect->status == CONNECT_STAT_WORKING &&
 	    recv->operations.command == F_READPAGE &&
 	    recv->operations.cmd_flag == C_RESPONSE) {
 		ret = tcp_recvpage_tls(tcp->connect, recv);
 		goto out;
 	}
 
-	if (tcp->connect->status == CONNECT_STAT_WORKING &&
-	    recv->version > USERSPACE_MAX_VER)
+	if (tcp->connect->status == CONNECT_STAT_WORKING)
 		ret = tcp_recvbuffer_tls(tcp->connect, recv);
 	else
 		ret = tcp_recvbuffer_cipher(tcp->connect, recv);
@@ -773,7 +771,7 @@ int tcp_send_rekey_request(struct connection *connect)
 	rekey_request_param->update_request = cpu_to_le32(UPDATE_NOT_REQUESTED);
 
 	head->magic = HMDFS_MSG_MAGIC;
-	head->version = DFS_2_0;
+	head->version = HMDFS_VERSION;
 	head->operations = operations;
 	head->data_len =
 		cpu_to_le32(sizeof(*head) + sizeof(*rekey_request_param));
@@ -822,11 +820,9 @@ static int tcp_send_message(struct connection *connect,
 
 	trace_hmdfs_tcp_send_message(msg->head);
 
-	if (connect->status == CONNECT_STAT_WORKING &&
-	    connect->node->version > USERSPACE_MAX_VER)
+	if (connect->status == CONNECT_STAT_WORKING)
 		ret = tcp_send_message_sock_tls(tcp, msg);
 	else
-		// Handshake status or version HMDFS1.0
 		ret = tcp_send_message_sock_cipher(tcp, msg);
 
 	if (ret != 0) {
@@ -835,8 +831,7 @@ static int tcp_send_message(struct connection *connect,
 	}
 #ifdef CONFIG_HMDFS_FS_ENCRYPTION
 	if (nowtime - connect->stat.rekey_time >= REKEY_LIFETIME &&
-	    connect->status == CONNECT_STAT_WORKING &&
-	    connect->node->version >= DFS_2_0) {
+	    connect->status == CONNECT_STAT_WORKING) {
 		hmdfs_info("send rekey message to devid %llu",
 			   connect->node->device_id);
 		ret = tcp_send_rekey_request(connect);
