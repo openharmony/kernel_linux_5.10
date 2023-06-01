@@ -1173,6 +1173,7 @@ int do_unlink_merge(struct inode *dir, struct dentry *dentry)
 	struct hmdfs_dentry_comrade *comrade = NULL;
 	struct dentry *lo_d = NULL;
 	struct dentry *lo_d_dir = NULL;
+	struct dentry *lo_d_lookup = NULL;
 	struct inode *lo_i_dir = NULL;
 
 	wait_event(dim->wait_queue, !has_merge_lookup_work(dim));
@@ -1182,8 +1183,19 @@ int do_unlink_merge(struct inode *dir, struct dentry *dentry)
 		lo_d = comrade->lo_d;
                 dget(lo_d);
 		lo_d_dir = lock_parent(lo_d);
+		/* lo_d could be unhashed, need to lookup again here */
+		lo_d_lookup = lookup_one_len(lo_d->d_name.name, lo_d_dir,
+					     strlen(lo_d->d_name.name));
+		if (IS_ERR(lo_d_lookup)) {
+			ret = PTR_ERR(lo_d_lookup);
+			hmdfs_err("lookup_one_len failed, err = %d", ret);
+			unlock_dir(lo_d_dir);
+			dput(lo_d);
+			break;
+		}
 		lo_i_dir = d_inode(lo_d_dir);
-		ret = vfs_unlink(lo_i_dir, lo_d, NULL); // lo_d GET
+		ret = vfs_unlink(lo_i_dir, lo_d_lookup, NULL);
+		dput(lo_d_lookup);
 		unlock_dir(lo_d_dir);
                 dput(lo_d);
 		if (ret)
