@@ -809,6 +809,8 @@ int hmdfs_rename_remote(struct inode *old_dir, struct dentry *old_dentry,
 	    hmdfs_file_type(new_dentry->d_name.name) != HMDFS_TYPE_COMMON) {
 		return -EACCES;
 	}
+	if (hmdfs_d(old_dentry)->device_id != hmdfs_d(new_dentry)->device_id)
+		return -EXDEV;
 
 	relative_old_dir_path =
 		hmdfs_get_dentry_relative_path(old_dentry->d_parent);
