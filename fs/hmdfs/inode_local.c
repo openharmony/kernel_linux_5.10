@@ -672,6 +672,10 @@ int hmdfs_rename_local(struct inode *old_dir, struct dentry *old_dentry,
 		err = -EACCES;
 		goto rename_out;
 	}
+	if (hmdfs_d(old_dentry)->device_id != hmdfs_d(new_dentry)->device_id) {
+		err = -EXDEV;
+		goto rename_out;
+	}
 
 	if (S_ISREG(old_dentry->d_inode->i_mode)) {
 		err = hmdfs_rename_local_dentry(old_dir, old_dentry, new_dir,
