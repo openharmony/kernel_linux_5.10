@@ -294,7 +294,8 @@ restart:
 	retval = end - 1;
 	*retval = '/';
 	read_seqbegin_or_lock(&rename_lock, &seq);
-	while (mdi->dentry_type != HMDFS_LAYER_FIRST_MERGE) {
+	while (mdi->dentry_type != HMDFS_LAYER_FIRST_MERGE &&
+	       mdi->dentry_type != HMDFS_LAYER_FIRST_MERGE_CLOUD) {
 		struct dentry *parent = dentry->d_parent;
 
 		prefetch(parent);
