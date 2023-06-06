@@ -150,12 +150,14 @@ int hmdfs_root_iterate(struct file *file, struct dir_context *ctx)
 		if (!dir_emit(ctx, MERGE_VIEW_ROOT, sizeof(MERGE_VIEW_ROOT) - 1,
 			      ino_start, DT_DIR))
 			return 0;
+		ino_start++;
 		(ctx->pos)++;
 	}
 	if (sbi->s_merge_switch && ctx->pos == CLOUD_MERGE_VIEW_CTX_POS) {
 		if (!dir_emit(ctx, CLOUD_MERGE_VIEW_ROOT, sizeof(CLOUD_MERGE_VIEW_ROOT) - 1,
 			      ino_start, DT_DIR))
 			return 0;
+		ino_start++;
 		(ctx->pos)++;
 	}
 	return 0;

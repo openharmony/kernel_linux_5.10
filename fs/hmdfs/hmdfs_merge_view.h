@@ -216,7 +216,9 @@ static inline bool is_merge_lookup_end(struct hmdfs_dentry_info_merge *mdi)
 static inline bool hmdfs_i_merge(struct hmdfs_inode_info *hii)
 {
 	__u8 t = hii->inode_type;
-	return t == HMDFS_LAYER_FIRST_MERGE || t == HMDFS_LAYER_OTHER_MERGE;
+	return t == HMDFS_LAYER_FIRST_MERGE || t == HMDFS_LAYER_OTHER_MERGE ||
+	       t == HMDFS_LAYER_FIRST_MERGE_CLOUD ||
+	       t == HMDFS_LAYER_OTHER_MERGE_CLOUD;
 }
 
 struct dentry *hmdfs_get_lo_d(struct dentry *dentry, int dev_id);
