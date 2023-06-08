@@ -197,7 +197,8 @@ static int hmdfs_xattr_set(const struct xattr_handler *handler,
 
 	if (info->inode_type == HMDFS_LAYER_OTHER_LOCAL)
 		return hmdfs_xattr_local_set(dentry, name, value, size, flags);
-	else if (info->inode_type == HMDFS_LAYER_OTHER_MERGE)
+	else if (info->inode_type == HMDFS_LAYER_OTHER_MERGE ||
+		 info->inode_type == HMDFS_LAYER_OTHER_MERGE_CLOUD)
 		return hmdfs_xattr_merge_set(dentry, name, value, size, flags);
 
 	return hmdfs_xattr_remote_set(dentry, name, value, size, flags);

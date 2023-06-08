@@ -246,7 +246,8 @@ static inline bool hmdfs_support_xattr(struct dentry *dentry)
 
 	if (info->inode_type != HMDFS_LAYER_OTHER_LOCAL &&
 	    info->inode_type != HMDFS_LAYER_OTHER_REMOTE &&
-	    info->inode_type != HMDFS_LAYER_OTHER_MERGE)
+	    info->inode_type != HMDFS_LAYER_OTHER_MERGE &&
+	    info->inode_type != HMDFS_LAYER_OTHER_MERGE_CLOUD)
 		return false;
 
 	if (!S_ISREG(inode->i_mode))

@@ -35,7 +35,6 @@ static ssize_t hmdfs_file_read_iter_cloud(struct kiocb *iocb,
 					  struct iov_iter *iter)
 {
 	ssize_t ret = -ENOENT;
-	const struct iovec *iov;
 	struct file *filp = iocb->ki_filp;
 	struct hmdfs_file_info *gfi = filp->private_data;
 	struct file *lower_file = NULL;
@@ -43,14 +42,10 @@ static ssize_t hmdfs_file_read_iter_cloud(struct kiocb *iocb,
 	if (gfi)
 		lower_file = gfi->lower_file;
 
-	if (uaccess_kernel())
-		iov = (struct iovec *)iter->kvec;
-	else
-		iov = iter->iov;
-
-	if (lower_file)
-		ret = vfs_read(lower_file, iov->iov_base, iov->iov_len,
-			       &iocb->ki_pos);
+	if (lower_file) {
+		kiocb_clone(iocb, iocb, lower_file);
+		ret = vfs_iter_read(lower_file, iter, &iocb->ki_pos, 0);
+	}
 
 	return ret;
 }
