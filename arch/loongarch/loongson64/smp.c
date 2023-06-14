@@ -4,6 +4,7 @@
  * Copyright (C) 2020 Loongson Technology Corporation Limited
  */
 
+#include <linux/acpi.h>
 #include <linux/init.h>
 #include <linux/cpu.h>
 #include <linux/sched.h>
@@ -219,10 +220,10 @@ static void loongson3_init_secondary(void)
 	numa_add_cpu(cpu);
 #endif
 	per_cpu(cpu_state, cpu) = CPU_ONLINE;
-	cpu_data[cpu].core =
-		     cpu_logical_map(cpu) % loongson_sysconf.cores_per_package;
 	cpu_data[cpu].package =
 		     cpu_logical_map(cpu) / loongson_sysconf.cores_per_package;
+	cpu_data[cpu].core = pptt_enabled ? cpu_data[cpu].core :
+		     cpu_logical_map(cpu) % loongson_sysconf.cores_per_package;
 }
 
 static void loongson3_smp_finish(void)
@@ -259,8 +260,11 @@ static void __init loongson3_prepare_cpus(unsigned int max_cpus)
 {
 	int i = 0;
 
+	parse_acpi_topology();
+
 	for (i = 0; i < loongson_sysconf.nr_cpus; i++) {
 		set_cpu_present(i, true);
+		cpu_data[i].global_id = __cpu_logical_map[i];
 
 		if (cpu_has_csripi)
 			csr_mail_send(0, __cpu_logical_map[i], 0);

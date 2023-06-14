@@ -35,10 +35,6 @@ EXPORT_SYMBOL(__cpu_number_map);
 int __cpu_logical_map[NR_CPUS];		/* Map logical to physical */
 EXPORT_SYMBOL(__cpu_logical_map);
 
-/* Number of threads (siblings) per CPU core */
-int smp_num_siblings = 1;
-EXPORT_SYMBOL(smp_num_siblings);
-
 /* Representing the threads (siblings) of each logical CPU */
 cpumask_t cpu_sibling_map[NR_CPUS] __read_mostly;
 EXPORT_SYMBOL(cpu_sibling_map);
@@ -69,15 +65,12 @@ static inline void set_cpu_sibling_map(int cpu)
 
 	cpumask_set_cpu(cpu, &cpu_sibling_setup_map);
 
-	if (smp_num_siblings > 1) {
-		for_each_cpu(i, &cpu_sibling_setup_map) {
-			if (cpus_are_siblings(cpu, i)) {
-				cpumask_set_cpu(i, &cpu_sibling_map[cpu]);
-				cpumask_set_cpu(cpu, &cpu_sibling_map[i]);
-			}
+	for_each_cpu(i, &cpu_sibling_setup_map) {
+		if (cpus_are_siblings(cpu, i)) {
+			cpumask_set_cpu(i, &cpu_sibling_map[cpu]);
+			cpumask_set_cpu(cpu, &cpu_sibling_map[i]);
 		}
-	} else
-		cpumask_set_cpu(cpu, &cpu_sibling_map[cpu]);
+	}
 }
 
 static inline void set_cpu_core_map(int cpu)

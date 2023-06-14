@@ -33,6 +33,8 @@ u64 acpi_saved_sp;
 
 #define PREFIX			"ACPI: "
 
+struct acpi_madt_core_pic acpi_core_pic[NR_CPUS];
+
 int acpi_gsi_to_irq(u32 gsi, unsigned int *irqp)
 {
 	if (irqp != NULL)
@@ -163,6 +165,7 @@ acpi_parse_cpuintc(union acpi_subtable_headers *header, const unsigned long end)
 		return -EINVAL;
 
 	acpi_table_print_madt_entry(&header->common);
+	acpi_core_pic[processor->core_id] = *processor;
 	set_processor_mask(processor->core_id, processor->flags);
 
 	return 0;
@@ -329,6 +332,35 @@ static void __init acpi_process_madt(void)
 		pr_err(PREFIX "Invalid BIOS MADT (PCHLPC entries), ACPI disabled\n");
 		return;
 	}
+}
+
+int pptt_enabled;
+
+int __init parse_acpi_topology(void)
+{
+	int cpu, topology_id;
+
+	for_each_possible_cpu(cpu) {
+		topology_id = find_acpi_cpu_topology(cpu, 0);
+		if (topology_id < 0) {
+			pr_warn("Invalid BIOS PPTT\n");
+			return -ENOENT;
+		}
+
+		if (acpi_pptt_cpu_is_thread(cpu) <= 0)
+			cpu_data[cpu].core = topology_id;
+		else {
+			topology_id = find_acpi_cpu_topology(cpu, 1);
+			if (topology_id < 0)
+				return -ENOENT;
+
+			cpu_data[cpu].core = topology_id;
+		}
+	}
+
+	pptt_enabled = 1;
+
+	return 0;
 }
 
 #ifndef CONFIG_SUSPEND
