@@ -118,12 +118,43 @@ static int hmdfs_file_flush_cloud(struct file *file, fl_owner_t id)
 	return 0;
 }
 
+int hmdfs_file_mmap_cloud(struct file *file, struct vm_area_struct *vma)
+{
+	struct hmdfs_file_info *private_data = file->private_data;
+	struct file *realfile = NULL;
+	int ret;
+
+	if (!private_data)
+		return -EINVAL;
+
+	realfile = private_data->lower_file;
+	if (!realfile)
+		return -EINVAL;
+
+	if (!realfile->f_op->mmap)
+		return -ENODEV;
+
+	if (WARN_ON(file != vma->vm_file))
+		return -EIO;
+
+	vma->vm_file = get_file(realfile);
+	ret = call_mmap(vma->vm_file, vma);
+	if (ret)
+		fput(realfile);
+	else
+		fput(file);
+
+	file_accessed(file);
+
+	return ret;
+}
+
 const struct file_operations hmdfs_dev_file_fops_cloud = {
 	.owner = THIS_MODULE,
 	.llseek = generic_file_llseek,
 	.read_iter = hmdfs_file_read_iter_cloud,
 	.write_iter = NULL,
-	.mmap = NULL,
+	.mmap = hmdfs_file_mmap_cloud,
 	.open = hmdfs_file_open_cloud,
 	.release = hmdfs_file_release_cloud,
 	.flush = hmdfs_file_flush_cloud,
