@@ -1181,7 +1181,7 @@ int do_unlink_merge(struct inode *dir, struct dentry *dentry)
 	mutex_lock(&dim->comrade_list_lock);
 	list_for_each_entry(comrade, &(dim->comrade_list), list) {
 		lo_d = comrade->lo_d;
-                dget(lo_d);
+		dget(lo_d);
 		lo_d_dir = lock_parent(lo_d);
 		/* lo_d could be unhashed, need to lookup again here */
 		lo_d_lookup = lookup_one_len(lo_d->d_name.name, lo_d_dir,
@@ -1197,7 +1197,7 @@ int do_unlink_merge(struct inode *dir, struct dentry *dentry)
 		ret = vfs_unlink(lo_i_dir, lo_d_lookup, NULL);
 		dput(lo_d_lookup);
 		unlock_dir(lo_d_dir);
-                dput(lo_d);
+		dput(lo_d);
 		if (ret)
 			break;
 	}
@@ -1333,6 +1333,13 @@ int hmdfs_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 		ret = -EACCES;
 		goto rename_out;
 	}
+
+	if (hmdfs_i(old_dir)->inode_type != hmdfs_i(new_dir)->inode_type) {
+		hmdfs_err("in different view");
+		ret = -EPERM;
+		goto rename_out;
+	}
+
 	old_dir_buf = kmalloc(PATH_MAX, GFP_KERNEL);
 	new_dir_buf = kmalloc(PATH_MAX, GFP_KERNEL);
 	if (!old_dir_buf || !new_dir_buf) {
@@ -1373,7 +1380,6 @@ int hmdfs_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 		d_invalidate(old_dentry);
 
 rename_out:
-	hmdfs_trace_rename_merge(old_dir, old_dentry, new_dir, new_dentry, ret);
 	kfree(old_dir_buf);
 	kfree(new_dir_buf);
 	return ret;
