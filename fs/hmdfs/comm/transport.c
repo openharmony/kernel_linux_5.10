@@ -892,6 +892,21 @@ out:
 	return ret;
 }
 
+static bool is_tcp_socket(struct tcp_handle *tcp)
+{
+	if (!tcp || !tcp->sock || !tcp->sock->sk) {
+		hmdfs_err("invalid tcp handle");
+		return false;
+	}
+
+	if (tcp->sock->sk->sk_protocol != IPPROTO_TCP) {
+		hmdfs_err("invalid socket protocol");
+		return false;
+	}
+
+	return true;
+}
+
 static int tcp_update_socket(struct tcp_handle *tcp, int fd,
 			     uint8_t *master_key, struct socket *socket)
 {
@@ -903,19 +918,20 @@ static int tcp_update_socket(struct tcp_handle *tcp, int fd,
 
 	tcp->sock = socket;
 	tcp->fd = fd;
+
+	if (!is_tcp_socket(tcp)) {
+		err = -EINVAL;
+		goto put_sock;
+	}
+
 	if (!tcp_handle_is_available(tcp)) {
 		err = -EPIPE;
 		goto put_sock;
 	}
 
-        hmdfs_info("socket fd %d, state %d, refcount %ld protocol %d",
-                fd, socket->state, file_count(socket->file),
-                   socket->sk->sk_protocol);
-
-        if (socket->sk->sk_protocol != IPPROTO_TCP) {
-                hmdfs_err("invalid socket protocol");
-                return -EINVAL;
-        }
+	hmdfs_info("socket fd %d, state %d, refcount %ld protocol %d", fd,
+		   socket->state, file_count(socket->file),
+		   socket->sk->sk_protocol);
 
 	tcp->recv_cache = kmem_cache_create("hmdfs_socket",
 					    tcp->recvbuf_maxsize,
