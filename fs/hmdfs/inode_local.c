@@ -487,6 +487,7 @@ int hmdfs_rmdir_local_dentry(struct inode *dir, struct dentry *dentry)
 	kuid_t tmp_uid;
 	struct path lower_path;
 	struct dentry *lower_dentry = NULL;
+	struct dentry *lookup_dentry = NULL;
 	int error = 0;
 
 	hmdfs_clear_cache_dents(dentry, true);
@@ -494,10 +495,20 @@ int hmdfs_rmdir_local_dentry(struct inode *dir, struct dentry *dentry)
 	lower_dentry = lower_path.dentry;
 	lower_dir_dentry = lock_parent(lower_dentry);
 	lower_dir = d_inode(lower_dir_dentry);
+
+	lookup_dentry = lookup_one_len(lower_dentry->d_name.name, lower_dir_dentry,
+				       lower_dentry->d_name.len);
+	if (IS_ERR(lookup_dentry)) {
+		error = PTR_ERR(lookup_dentry);
+		hmdfs_err("lookup_one_len failed, err = %d", error);
+		goto lookup_err;
+	}
 	tmp_uid = hmdfs_override_inode_uid(lower_dir);
 
-	error = vfs_rmdir(lower_dir, lower_dentry);
+	error = vfs_rmdir(lower_dir, lookup_dentry);
 	hmdfs_revert_inode_uid(lower_dir, tmp_uid);
+	dput(lookup_dentry);
+lookup_err:
 	unlock_dir(lower_dir_dentry);
 	hmdfs_put_lower_path(&lower_path);
 	if (error)
@@ -537,10 +548,11 @@ out:
 
 int hmdfs_unlink_local_dentry(struct inode *dir, struct dentry *dentry)
 {
-	struct inode *lower_dir = hmdfs_i(dir)->lower_inode;
 	struct dentry *lower_dir_dentry = NULL;
 	struct path lower_path;
+	struct inode *lower_dir = NULL;
 	struct dentry *lower_dentry = NULL;
+	struct dentry *lookup_dentry = NULL;
 	int error;
 	kuid_t tmp_uid;
 
@@ -548,11 +560,22 @@ int hmdfs_unlink_local_dentry(struct inode *dir, struct dentry *dentry)
 	lower_dentry = lower_path.dentry;
 	dget(lower_dentry);
 	lower_dir_dentry = lock_parent(lower_dentry);
+	lower_dir = d_inode(lower_dir_dentry);
+	lookup_dentry = lookup_one_len(lower_dentry->d_name.name, lower_dir_dentry,
+				       lower_dentry->d_name.len);
+	if (IS_ERR(lookup_dentry)) {
+		error = PTR_ERR(lookup_dentry);
+		hmdfs_err("lookup_one_len failed, err = %d", error);
+		goto lookup_err;
+	}
+
 	tmp_uid = hmdfs_override_inode_uid(lower_dir);
-	error = vfs_unlink(lower_dir, lower_dentry, NULL);
+	error = vfs_unlink(lower_dir, lookup_dentry, NULL);
 	hmdfs_revert_inode_uid(lower_dir, tmp_uid);
 	set_nlink(d_inode(dentry),
 		  hmdfs_i(d_inode(dentry))->lower_inode->i_nlink);
+	dput(lookup_dentry);
+lookup_err:
 	unlock_dir(lower_dir_dentry);
 	dput(lower_dentry);
 	if (error)
