@@ -672,6 +672,13 @@ int hmdfs_rename_local(struct inode *old_dir, struct dentry *old_dentry,
 		err = -EACCES;
 		goto rename_out;
 	}
+
+	if (hmdfs_i(old_dir)->inode_type != hmdfs_i(new_dir)->inode_type) {
+		hmdfs_err("in different view");
+		err = -EPERM;
+		goto rename_out;
+	}
+
 	if (hmdfs_d(old_dentry)->device_id != hmdfs_d(new_dentry)->device_id) {
 		err = -EXDEV;
 		goto rename_out;
