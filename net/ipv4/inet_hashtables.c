@@ -16,6 +16,7 @@
 #include <linux/wait.h>
 #include <linux/vmalloc.h>
 #include <linux/memblock.h>
+#include <linux/hck/lite_hck_inet.h>
 
 #include <net/addrconf.h>
 #include <net/inet_connection_sock.h>
@@ -23,7 +24,6 @@
 #if IS_ENABLED(CONFIG_IPV6)
 #include <net/inet6_hashtables.h>
 #endif
-#include <trace/hooks/inet.h>
 #include <net/secure_seq.h>
 #include <net/ip.h>
 #include <net/tcp.h>
@@ -54,13 +54,11 @@ static u32 sk_ehashfn(const struct sock *sk)
 				     &sk->sk_v6_daddr, sk->sk_dport);
 #endif
 
-	if (trace_vendor_ninet_ehashfn_enabled()) {
-		if (sk->sk_family == AF_NINET) {
-			u32 ret = 0;
+	if (sk->sk_family == AF_NINET) {
+		u32 ret = 0;
 
-			trace_vendor_ninet_ehashfn(sk, &ret);
-			return ret;
-		}
+		CALL_HCK_LITE_HOOK(nip_ninet_ehashfn_lhck, sk, &ret);
+		return ret;
 	}
 
 	return inet_ehashfn(sock_net(sk),

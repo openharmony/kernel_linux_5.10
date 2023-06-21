@@ -10,7 +10,6 @@
 #define CREATE_TRACE_POINTS
 #include <trace/hooks/vendor_hooks.h>
 #include <trace/hooks/mm.h>
-#include <trace/hooks/inet.h>
 
 /*
  * Export tracepoints that act as a bare tracehook(ie: have no trace event
@@ -22,5 +21,3 @@
 
 EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_do_mmap);
 EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_do_mprotect_pkey);
-EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_ninet_ehashfn);
-EXPORT_TRACEPOINT_SYMBOL_GPL(vendor_ninet_gifconf);
