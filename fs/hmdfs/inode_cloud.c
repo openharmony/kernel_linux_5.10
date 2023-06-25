@@ -302,12 +302,13 @@ static struct dentry *hmdfs_lookup_cloud_dentry(struct inode *parent_inode,
 		if (in_share_dir(child_dentry))
 			gdi->file_type = HM_SHARE;
 		inode = fill_inode_cloud(sb, lookup_result, parent_inode);
+
+		check_and_fixup_ownership_remote(parent_inode,
+						 inode,
+						 child_dentry);
 		ret = d_splice_alias(inode, child_dentry);
 		if (!IS_ERR_OR_NULL(ret))
 			child_dentry = ret;
-		if (!IS_ERR(ret))
-			check_and_fixup_ownership_remote(parent_inode,
-							 child_dentry);
 	} else {
 		ret = ERR_PTR(-ENOENT);
 	}

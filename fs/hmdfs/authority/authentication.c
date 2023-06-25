@@ -358,13 +358,16 @@ void check_and_fixup_ownership(struct inode *parent_inode, struct inode *child)
 }
 
 void check_and_fixup_ownership_remote(struct inode *dir,
+				      struct inode *dinode,
 				      struct dentry *dentry)
 {
 	struct hmdfs_inode_info *hii = hmdfs_i(dir);
-	struct inode *dinode = d_inode(dentry);
 	struct hmdfs_inode_info *dinfo = hmdfs_i(dinode);
 	__u16 level = hmdfs_perm_get_next_level(hii->perm);
 	__u16 perm = 0;
+
+	if (IS_ERR_OR_NULL(dinode))
+		return;
 
 	hmdfs_debug("level:0x%X", level);
 	switch (level) {
