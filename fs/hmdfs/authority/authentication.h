@@ -261,6 +261,7 @@ int hmdfs_override_dir_id_fs(struct cache_fs_override *or,
 			__u16 *perm);
 void hmdfs_revert_dir_id_fs(struct cache_fs_override *or);
 void check_and_fixup_ownership_remote(struct inode *dir,
+				      struct inode *dinode,
 				      struct dentry *dentry);
 extern int get_bid(const char *bname);
 extern int __init hmdfs_init_configfs(void);
@@ -322,6 +323,7 @@ void hmdfs_revert_creds(const struct cred *old)
 
 static inline
 void check_and_fixup_ownership_remote(struct inode *dir,
+				      struct inode *inode,
 				      struct dentry *dentry)
 {
 }

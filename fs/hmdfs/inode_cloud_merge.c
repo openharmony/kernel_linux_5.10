@@ -293,6 +293,14 @@ struct dentry *hmdfs_lookup_cloud_merge(struct inode *parent_inode,
 
 		child_inode = fill_inode_merge(parent_inode->i_sb, parent_inode,
 					       child_dentry, NULL);
+		info = hmdfs_i(child_inode);
+		if (info->inode_type == HMDFS_LAYER_FIRST_MERGE)
+			hmdfs_root_inode_perm_init(child_inode);
+		else
+			check_and_fixup_ownership_remote(parent_inode,
+							 child_inode,
+							 child_dentry);
+
 		ret_dentry = d_splice_alias(child_inode, child_dentry);
 		if (IS_ERR(ret_dentry)) {
 			clear_comrades(child_dentry);
@@ -303,13 +311,6 @@ struct dentry *hmdfs_lookup_cloud_merge(struct inode *parent_inode,
 			update_dm(ret_dentry, child_dentry);
 			child_dentry = ret_dentry;
 		}
-		info = hmdfs_i(child_inode);
-		if (info->inode_type == HMDFS_LAYER_FIRST_MERGE_CLOUD)
-			hmdfs_root_inode_perm_init(child_inode);
-		else
-			check_and_fixup_ownership_remote(parent_inode,
-							 child_dentry);
-
 		goto out;
 	}
 
@@ -317,8 +318,6 @@ struct dentry *hmdfs_lookup_cloud_merge(struct inode *parent_inode,
 		err = 0;
 
 out:
-	hmdfs_trace_merge(trace_hmdfs_lookup_merge_end, parent_inode,
-			  child_dentry, err);
 	return err ? ERR_PTR(err) : ret_dentry;
 }
 
