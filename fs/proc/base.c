@@ -1510,8 +1510,16 @@ static const struct file_operations proc_pid_sched_operations = {
 #ifdef CONFIG_QOS_CTRL
 long proc_qos_ctrl_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	return do_qos_ctrl_ioctl(file, cmd, arg);
+	return do_qos_ctrl_ioctl(QOS_IOCTL_ABI_AARCH64, file, cmd, arg);
 }
+
+#ifdef CONFIG_COMPAT
+long proc_qos_ctrl_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	return do_qos_ctrl_ioctl(QOS_IOCTL_ABI_ARM32, file, cmd,
+				(unsigned long)(compat_ptr((compat_uptr_t)arg)));
+}
+#endif
 
 int proc_qos_ctrl_open(struct inode *inode, struct file *filp)
 {
@@ -1521,6 +1529,9 @@ int proc_qos_ctrl_open(struct inode *inode, struct file *filp)
 static const struct file_operations proc_qos_ctrl_operations = {
 	.open   = proc_qos_ctrl_open,
 	.unlocked_ioctl = proc_qos_ctrl_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = proc_qos_ctrl_compat_ioctl,
+#endif
 };
 #endif
 
