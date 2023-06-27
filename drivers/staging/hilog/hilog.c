@@ -153,6 +153,11 @@ static ssize_t hilog_read(struct file *file,
 
 	(void)mutex_lock(&hilog_dev.mtx);
 
+	if (hilog_dev.size == 0) {
+		retval = 0;
+		goto out;
+	}
+
 	retval = hilog_read_ring_head_buffer((unsigned char *)&header,
 					     sizeof(header));
 	if (retval < 0) {
