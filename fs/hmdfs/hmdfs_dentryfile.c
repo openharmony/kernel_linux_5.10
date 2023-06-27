@@ -432,7 +432,7 @@ __u64 get_bucketaddr(unsigned int level, __u64 buckoffset)
 	}
 	curlevelmaxbucks = ((__u64)1 << level);
 	if (buckoffset >= curlevelmaxbucks) {
-		hmdfs_err("buckoffset %d overflow, level %d has %d buckets max",
+		hmdfs_err("buckoffset %lu overflow, level %d has %lu buckets max",
 			  buckoffset, level, curlevelmaxbucks);
 		return all_level_bucketaddr;
 	}
