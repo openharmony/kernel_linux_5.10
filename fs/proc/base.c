@@ -1517,7 +1517,7 @@ long proc_qos_ctrl_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 long proc_qos_ctrl_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	return do_qos_ctrl_ioctl(QOS_IOCTL_ABI_ARM32, file, cmd,
-				(unsigned long)(compat_ptr((compat_uptr_t)arg)));
+			(unsigned long)(compat_ptr((compat_uptr_t)arg)));
 }
 #endif
 
