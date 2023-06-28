@@ -130,6 +130,11 @@ static ssize_t hievent_read(struct file *file, char __user *user_buf,
 
 	(void)mutex_lock(&hievent_dev.mtx);
 
+	if (hievent_dev.size == 0) {
+		retval = 0;
+		goto out;
+	}
+
 	retval = hievent_read_ring_head_buffer((unsigned char *)&header,
 					       sizeof(header));
 	if (retval < 0) {
