@@ -45,12 +45,12 @@ struct hmdfs_dcache_lookup_ctx_cloud {
 	__u32 hash;
 
 	/* for case sensitive */
-	unsigned int bidx;
+	unsigned long bidx;
 	struct hmdfs_dentry_group_cloud *page;
 
 	/* for case insensitive */
 	struct hmdfs_dentry_cloud *insense_de;
-	unsigned int insense_bidx;
+	unsigned long insense_bidx;
 	struct hmdfs_dentry_group_cloud *insense_page;
 };
 

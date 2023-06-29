@@ -421,18 +421,18 @@ int hmdfs_metainfo_write(struct hmdfs_sb_info *sbi, struct file *filp,
  * level2  bucket0(3) bucket1(4) bucket2(5) bucket3(6)
  * return bucket number.
  */
-__u32 get_bucketaddr(int level, int buckoffset)
+__u64 get_bucketaddr(unsigned int level, __u64 buckoffset)
 {
-	int all_level_bucketaddr = 0;
-	__u32 curlevelmaxbucks;
+	__u64 all_level_bucketaddr = 0;
+	__u64 curlevelmaxbucks;
 
 	if (level >= MAX_BUCKET_LEVEL) {
 		hmdfs_err("level = %d overflow", level);
 		return all_level_bucketaddr;
 	}
-	curlevelmaxbucks = (1 << level);
+	curlevelmaxbucks = ((__u64)1 << level);
 	if (buckoffset >= curlevelmaxbucks) {
-		hmdfs_err("buckoffset %d overflow, level %d has %d buckets max",
+		hmdfs_err("buckoffset %llu overflow, level %d has %llu buckets max",
 			  buckoffset, level, curlevelmaxbucks);
 		return all_level_bucketaddr;
 	}
@@ -441,32 +441,32 @@ __u32 get_bucketaddr(int level, int buckoffset)
 	return all_level_bucketaddr;
 }
 
-__u32 get_bucket_by_level(int level)
+__u64 get_bucket_by_level(unsigned int level)
 {
-	int buckets = 0;
+	__u64 buckets = 0;
 
 	if (level >= MAX_BUCKET_LEVEL) {
 		hmdfs_err("level = %d overflow", level);
 		return buckets;
 	}
 
-	buckets = (1 << level);
+	buckets = ((__u64)1 << level);
 	return buckets;
 }
 
-static __u32 get_overall_bucket(int level)
+static __u64 get_overall_bucket(unsigned int level)
 {
-	int buckets = 0;
+	__u64 buckets = 0;
 
 	if (level >= MAX_BUCKET_LEVEL) {
 		hmdfs_err("level = %d overflow", level);
 		return buckets;
 	}
-	buckets = (1 << (level + 1)) - 1;
+	buckets = ((__u64)1 << (level + 1)) - 1;
 	return buckets;
 }
 
-static inline loff_t get_dcache_file_size(int level)
+static inline loff_t get_dcache_file_size(unsigned int level)
 {
 	loff_t buckets = get_overall_bucket(level);
 
@@ -697,8 +697,8 @@ static struct hmdfs_dentry *hmdfs_in_level(struct dentry *child_dentry,
 					   unsigned int level,
 					   struct hmdfs_dcache_lookup_ctx *ctx)
 {
-	unsigned int nbucket;
-	unsigned int bidx, end_block;
+	unsigned long nbucket;
+	unsigned long bidx, end_block;
 	struct hmdfs_dentry *de = NULL;
 	struct hmdfs_dentry *tmp_insense_de = NULL;
 	struct hmdfs_dentry_group *dentry_blk;

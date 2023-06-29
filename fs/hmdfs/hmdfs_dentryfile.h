@@ -341,7 +341,7 @@ static inline bool cache_item_revalidate(unsigned long conn_time,
 }
 
 __u32 hmdfs_dentry_hash(const struct qstr *qstr, bool case_sense);
-__u32 get_bucketaddr(int level, int buckoffset);
-__u32 get_bucket_by_level(int level);
+__u64 get_bucketaddr(unsigned int level, __u64 buckoffset);
+__u64 get_bucket_by_level(unsigned int level);
 unsigned int get_max_depth(struct file *filp);
 #endif

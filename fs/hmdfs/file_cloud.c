@@ -56,16 +56,17 @@ int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 	struct hmdfs_sb_info *sbi = inode->i_sb->s_fs_info;
 	struct path root_path;
 	struct file *lower_file;
-	struct hmdfs_file_info *gfi = kzalloc(sizeof(*gfi), GFP_KERNEL);
 	int err = 0;
+
+	struct hmdfs_file_info *gfi = kzalloc(sizeof(*gfi), GFP_KERNEL);
+	if (!gfi)
+		return -ENOMEM;
 
 	if (!sbi->cloud_dir) {
 		hmdfs_info("no cloud_dir");
+		kfree(gfi);
 		return -EPERM;
 	}
-
-	if (!gfi)
-		return -ENOMEM;
 
 	err = kern_path(sbi->cloud_dir, 0, &root_path);
 	if (err) {

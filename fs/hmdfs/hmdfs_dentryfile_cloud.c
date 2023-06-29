@@ -95,8 +95,8 @@ static struct hmdfs_dentry_cloud *
 hmdfs_in_level(struct dentry *child_dentry, unsigned int level,
 	       struct hmdfs_dcache_lookup_ctx_cloud *ctx)
 {
-	unsigned int nbucket;
-	unsigned int bidx, end_block;
+	unsigned long nbucket;
+	unsigned long bidx, end_block;
 	struct hmdfs_dentry_cloud *de = NULL;
 	struct hmdfs_dentry_cloud *tmp_insense_de = NULL;
 	struct hmdfs_dentry_group_cloud *dentry_blk;
