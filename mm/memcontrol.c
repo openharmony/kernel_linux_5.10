@@ -4127,10 +4127,15 @@ static int memcg_stat_show(struct seq_file *m, void *v)
 		seq_printf(m, "%s %lu\n", vm_event_name(memcg1_events[i]),
 			   memcg_events_local(memcg, memcg1_events[i]));
 
-	for (i = 0; i < NR_LRU_LISTS; i++)
+	for (i = 0; i < NR_LRU_LISTS; i++) {
+#ifdef CONFIG_MEM_PURGEABLE
+		if (i == LRU_INACTIVE_PURGEABLE || i == LRU_ACTIVE_PURGEABLE)
+			continue;
+#endif
 		seq_printf(m, "%s %lu\n", lru_list_name(i),
 			   memcg_page_state_local(memcg, NR_LRU_BASE + i) *
 			   PAGE_SIZE);
+	}
 
 	/* Hierarchical information */
 	memory = memsw = PAGE_COUNTER_MAX;
@@ -4163,10 +4168,15 @@ static int memcg_stat_show(struct seq_file *m, void *v)
 			   vm_event_name(memcg1_events[i]),
 			   (u64)memcg_events(memcg, memcg1_events[i]));
 
-	for (i = 0; i < NR_LRU_LISTS; i++)
+	for (i = 0; i < NR_LRU_LISTS; i++) {
+#ifdef CONFIG_MEM_PURGEABLE
+		if (i == LRU_INACTIVE_PURGEABLE || i == LRU_ACTIVE_PURGEABLE)
+			continue;
+#endif
 		seq_printf(m, "total_%s %llu\n", lru_list_name(i),
 			   (u64)memcg_page_state(memcg, NR_LRU_BASE + i) *
 			   PAGE_SIZE);
+	}
 
 #ifdef CONFIG_DEBUG_VM
 	{
