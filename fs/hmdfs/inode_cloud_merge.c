@@ -632,6 +632,13 @@ static int hmdfs_rename_cloud_merge(struct inode *old_dir,
 		ret = -EACCES;
 		goto rename_out;
 	}
+
+	if (hmdfs_i(old_dir)->inode_type != hmdfs_i(new_dir)->inode_type) {
+		hmdfs_err("in different view");
+		ret = -EPERM;
+		goto rename_out;
+	}
+
 	if (hmdfs_d(old_dentry)->device_id != hmdfs_d(new_dentry)->device_id) {
 		ret = -EXDEV;
 		goto rename_out;
@@ -653,7 +660,6 @@ static int hmdfs_rename_cloud_merge(struct inode *old_dir,
 	if (S_ISREG(old_dentry->d_inode->i_mode) && !ret)
 		d_invalidate(old_dentry);
 rename_out:
-	hmdfs_trace_rename_merge(old_dir, old_dentry, new_dir, new_dentry, ret);
 	kfree(rec_op_para);
 	return ret;
 }

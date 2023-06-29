@@ -203,23 +203,6 @@ static inline bool is_merge_lookup_end(struct hmdfs_dentry_info_merge *mdi)
 		}                                                              \
 	}
 
-#define hmdfs_trace_rename_merge(olddir, olddentry, newdir, newdentry, err)    \
-	{                                                                      \
-		struct hmdfs_dentry_comrade *comrade;                          \
-		trace_hmdfs_rename_merge(olddir, olddentry, newdir, newdentry, \
-					 err);                                 \
-		mutex_lock(&hmdfs_dm(olddentry)->comrade_list_lock);           \
-		for_each_comrade_locked(olddentry, comrade)                    \
-			trace_hmdfs_show_comrade(olddentry, comrade->lo_d,     \
-						 comrade->dev_id);             \
-		mutex_unlock(&hmdfs_dm(olddentry)->comrade_list_lock);         \
-		mutex_lock(&hmdfs_dm(newdentry)->comrade_list_lock);           \
-		for_each_comrade_locked(newdentry, comrade)                    \
-			trace_hmdfs_show_comrade(newdentry, comrade->lo_d,     \
-						 comrade->dev_id);             \
-		mutex_unlock(&hmdfs_dm(newdentry)->comrade_list_lock);         \
-	}
-
 /*****************************************************************************
  * Helper functions abstarcting out comrade
  *****************************************************************************/
