@@ -449,6 +449,8 @@ int hmdfs_create_lower_cloud_dentry(struct inode *i_parent, struct dentry *d_chi
 		link_comrade_unlocked(d_child, new_comrade);
 	}
 
+	update_inode_attr(d_inode(d_child), d_child);
+
 out_put:
 	done_path_create(&path, lo_d_child);
 out:
