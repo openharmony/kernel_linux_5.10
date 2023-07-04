@@ -582,11 +582,50 @@ static long hmdfs_ioc_get_writeopen_cnt(struct file *filp, unsigned long arg)
 	return put_user(wo_cnt, (int __user *)arg);
 }
 
+static long hmdfs_ioc_get_drag_path(struct file *filp, unsigned long arg)
+{
+	int error = 0;
+	char localPath[NAME_MAX];
+	char cloudPath[NAME_MAX];
+	struct dentry *dentry;
+	struct path path;
+	struct hmdfs_drag_info hdi;
+
+	if (!access_ok((struct hmdfs_drag_info __user *)arg, 
+			sizeof(struct hmdfs_drag_info)))
+		return -EFAULT;
+	
+	if (copy_from_user(&hdi, (struct hmdfs_drag_info __user *)arg,
+			sizeof(hdi)))
+		return -EFAULT;
+
+	if (!access_ok((char *)hdi.localPath, hdi.localLen))
+		return -EFAULT;
+	if (!access_ok((char *)hdi.cloudPath, hdi.cloudLen))
+		return -EFAULT;
+	if (copy_from_user(localPath, (char __user *)hdi.localPath, 
+			hdi.localLen))
+		return -EFAULT;
+	if (copy_from_user(cloudPath, (char __user *)hdi.cloudPath, 
+			hdi.cloudLen))
+		return -EFAULT;
+
+	dentry = kern_path_create(AT_FDCWD, cloudPath, &path, 0);
+	if (IS_ERR(dentry))
+		return PTR_ERR(dentry);
+	error = vfs_symlink(path.dentry->d_inode, dentry, localPath);
+	done_path_create(&path, dentry);
+	hmdfs_info("error: %d", error);
+	return error;
+}
+
 static long hmdfs_file_ioctl_merge(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
 	case HMDFS_IOC_GET_WRITEOPEN_CNT:
 		return hmdfs_ioc_get_writeopen_cnt(filp, arg);
+	case HMDFS_IOC_GET_DRAG_PATH:
+	    return hmdfs_ioc_get_drag_path(filp, arg);
 	default:
 		return -ENOTTY;
 	}
@@ -606,6 +645,7 @@ const struct file_operations hmdfs_file_fops_merge = {
 	.release = hmdfs_file_release_local,
 	.fsync = hmdfs_fsync_local,
 	.unlocked_ioctl	= hmdfs_file_ioctl_merge,
+	.compat_ioctl = hmdfs_file_ioctl_merge,
 	.splice_read = generic_file_splice_read,
 	.splice_write = iter_file_splice_write,
 };

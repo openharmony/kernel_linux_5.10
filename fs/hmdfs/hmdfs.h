@@ -30,6 +30,7 @@
 #define HMDFS_IOC 0xf2
 #define HMDFS_IOC_SET_SHARE_PATH _IOW(HMDFS_IOC, 1, struct hmdfs_share_control)
 #define HMDFS_IOC_GET_WRITEOPEN_CNT _IOR(HMDFS_IOC, 2, __u32)
+#define HMDFS_IOC_GET_DRAG_PATH _IOR(HMDFS_IOC, 3, __u32)
 
 #define HMDFS_PAGE_SIZE	  4096
 #define HMDFS_PAGE_OFFSET 12
@@ -221,6 +222,13 @@ static inline bool hmdfs_is_stash_enabled(const struct hmdfs_sb_info *sbi)
 {
 	return sbi->s_offline_stash;
 }
+
+struct hmdfs_drag_info{
+	uint64_t localLen;
+	uint64_t localPath;
+	uint64_t cloudLen;
+	uint64_t cloudPath;
+};
 
 struct setattr_info {
 	loff_t size;
