@@ -21,10 +21,11 @@ int access_tokenid_get_tokenid(struct file *file, void __user *uarg)
 			    sizeof(current->token)) ? -EFAULT : 0;
 }
 
-static bool check_permission_for_set_tokenid(struct file *file)
+static bool check_permission_for_set_tokenid(struct file *file, unsigned long long tokenid)
 {
 	kuid_t uid = current_uid();
 	struct inode *inode = file->f_inode;
+	access_tokenid_inner *tokenid_inner = (access_tokenid_inner *)&tokenid;
 
 	if (inode == NULL) {
 		pr_err("%s: file inode is null\n", __func__);
@@ -33,6 +34,8 @@ static bool check_permission_for_set_tokenid(struct file *file)
 
 	if (uid_eq(uid, GLOBAL_ROOT_UID) ||
 	    uid_eq(uid, inode->i_uid)) {
+		return true;
+	} else if (uid_eq(uid, NWEBSPAWN_UID) && (tokenid_inner->render_flag == 1)) {
 		return true;
 	}
 
@@ -43,11 +46,11 @@ int access_tokenid_set_tokenid(struct file *file, void __user *uarg)
 {
 	unsigned long long tmp = 0;
 
-	if (!check_permission_for_set_tokenid(file))
-		return -EPERM;
-
 	if (copy_from_user(&tmp, uarg, sizeof(tmp)))
 		return -EFAULT;
+
+	if (!check_permission_for_set_tokenid(file, tmp))
+		return -EPERM;
 
 	current->token = tmp;
 	return 0;

@@ -55,6 +55,8 @@ static inline gid_t __kgid_val(kgid_t gid)
 #define GLOBAL_ROOT_UID KUIDT_INIT(0)
 #define GLOBAL_ROOT_GID KGIDT_INIT(0)
 
+#define NWEBSPAWN_UID KUIDT_INIT(3081)
+
 #ifdef CONFIG_HYPERHOLD
 #define GLOBAL_MEMMGR_UID KUIDT_INIT(1111)
 #endif
