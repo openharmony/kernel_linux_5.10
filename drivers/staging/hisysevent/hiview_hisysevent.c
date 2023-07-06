@@ -122,6 +122,11 @@ int hisysevent_write(struct hiview_hisysevent *event)
 		goto event_wrote_err;
 	}
 
+	if (!current->fs) {
+		pr_err("file system is null");
+		goto event_wrote_err;
+	}
+
 	filp = filp_open(HISYSEVENT_WRITER_DEV, O_WRONLY, 0);
 
 	if (!filp || IS_ERR(filp)) {
