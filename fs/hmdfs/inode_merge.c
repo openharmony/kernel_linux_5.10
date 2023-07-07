@@ -753,9 +753,9 @@ struct dentry *hmdfs_lookup_merge(struct inode *parent_inode,
 			err = PTR_ERR(ret_dentry);
 			goto out;
 		}
-		if (ret_dentry) {
+		if (ret_dentry)
 			child_dentry = ret_dentry;
-		}
+
 		goto out;
 	}
 
