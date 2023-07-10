@@ -464,6 +464,8 @@ int hmdfs_dir_release_merge(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static long hmdfs_ioc_get_dst_path(struct file *filp, unsigned long arg);
+
 long hmdfs_dir_unlocked_ioctl_merge(struct file *file, unsigned int cmd,
 							unsigned long arg)
 {
@@ -473,8 +475,10 @@ long hmdfs_dir_unlocked_ioctl_merge(struct file *file, unsigned int cmd,
 	struct file *lower_file = NULL;
 	int error = -ENOTTY;
 
+	hmdfs_info("hmdfs_dir_unlocked_ioctl_merge");
 	if (cmd == HMDFS_IOC_GET_DST_PATH) {
-		return hmdfs_ioc_get_dst_path(filp, arg);
+		hmdfs_info("HMDFS_IOC_GET_DST_PATH");
+		return hmdfs_ioc_get_dst_path(file, arg);
 	}
 	mutex_lock(&fi_head->comrade_list_lock);
 	list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
@@ -501,7 +505,7 @@ long hmdfs_dir_compat_ioctl_merge(struct file *file, unsigned int cmd,
 	int error = -ENOTTY;
 
 	if (cmd == HMDFS_IOC_GET_DST_PATH) {
-		return hmdfs_ioc_get_dst_path(filp, arg);
+		return hmdfs_ioc_get_dst_path(file, arg);
 	}
 	mutex_lock(&fi_head->comrade_list_lock);
 	list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
@@ -596,41 +600,52 @@ static long hmdfs_ioc_get_writeopen_cnt(struct file *filp, unsigned long arg)
 	return put_user(wo_cnt, (int __user *)arg);
 }
 
+static int copy_string_from_user(unsigned long pos, unsigned long len, char **data)
+{
+	char *tmp_data;
+
+	if (!access_ok((char *)pos, len))
+		return -ENOMEM;
+
+	tmp_data = kmalloc(len, GFP_KERNEL);
+	if (!tmp_data)
+		return -ENOMEM;
+	*data = tmp_data;
+
+	if (copy_from_user(tmp_data, (char __user *)pos, len)){
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
 static int hmdfs_get_info_from_user(unsigned long pos, struct hmdfs_dst_info *hdi, struct hmdfs_user_info *data)
 {
+	int ret = 0;
+	hmdfs_info("hmdfs_get_info_from_user");
 	if (!access_ok((struct hmdfs_dst_info __user *)pos, 
 			sizeof(struct hmdfs_dst_info)))
 		return -ENOMEM;
 	if (copy_from_user(hdi, (struct hmdfs_dst_info __user *)pos,
 			sizeof(struct hmdfs_dst_info)))
 		return -EFAULT;
-
-	if (!access_ok((char *)hdi->local_path_pos, hdi->local_path_len))
-		return -ENOMEM;
-	if (!access_ok((char *)hdi->distributed_path_pos, hdi->distributed_path_len))
-		return -ENOMEM;
-	if (!access_ok((char *)hdi->bundle_name_pos, hdi->bundle_name_len))
-		return -ENOMEM;
-
-	data->local_path = kmalloc(hdi->local_path_len, GFP_KERNEL);
-	if (!data->local_path)
-		return -ENOMEM;
-	data->distributed_path = kmalloc(hdi->distributed_path_len, GFP_KERNEL);
-	if (!data->distributed_path)
-		return -ENOMEM;
-	data->bundle_name = kmalloc(hdi->bundle_name_len, GFP_KERNEL);
-	if (!data->bundle_name)
-		return -ENOMEM;
-
-	if (copy_from_user(data->local_path, (char __user *)hdi->local_path_pos, 
-			hdi->local_path_len))
-		return -EFAULT;
-	if (copy_from_user(data->distributed_path, (char __user *)hdi->distributed_path_pos, 
-			hdi->distributed_path_len))
-		return -EFAULT;
-	if (copy_from_user(data->bundle_name, (char __user *)hdi->bundle_name_pos, 
-			hdi->bundle_name_len))
-		return -EFAULT;
+	
+	ret = copy_string_from_user(hdi->local_path_pos, hdi->local_path_len,
+								&data->local_path);
+	hmdfs_info("local_path: %s", data->local_path);
+	if (ret != 0)
+		return ret;
+	ret = copy_string_from_user(hdi->distributed_path_pos, hdi->distributed_path_len,
+								&data->distributed_path);
+	hmdfs_info("distributed_path: %s", data->distributed_path);
+	if (ret != 0)
+		return ret;
+	ret = copy_string_from_user(hdi->bundle_name_pos, hdi->bundle_name_len,
+							    &data->bundle_name);
+	hmdfs_info("bundle_name: %s", data->bundle_name);
+	if (ret != 0)
+		return ret;
+	hmdfs_info("hmdfs_get_info_from_user");
 	return 0;
 }
 
@@ -644,8 +659,7 @@ static const struct cred *change_cred(struct dentry *dentry, const char *bundle_
 	if (!cred) {
 		return NULL;
 	}
-	bid = get_bundle_uid(hmdfs_sb(dentry->d_sb),
-					     bundle_name);
+	bid = get_bundle_uid(hmdfs_sb(dentry->d_sb), bundle_name);
 	if (bid != 0) {
 		cred->fsuid = KUIDT_INIT(bid);
 		cred->fsgid = KGIDT_INIT(bid);
@@ -673,7 +687,6 @@ static int get_file_size(const char *path_value, uint64_t pos)
 	}
 
 	size = buf.size;
-	
 	ret = copy_to_user((void __user *)pos, &size, sizeof(uint64_t));
 	return ret;
 }
@@ -697,13 +710,32 @@ static int create_link_file(struct hmdfs_user_info *data)
 	return ret;
 }
 
+static int create_dir(const char *path_value, mode_t mode)
+{
+	int err = 0;
+	struct path path;
+	struct dentry *dentry;
+
+	dentry = kern_path_create(AT_FDCWD, path_value, &path, LOOKUP_DIRECTORY);
+	if(PTR_ERR(dentry) == -EEXIST)
+		return 0;
+	if (IS_ERR(dentry))
+		return PTR_ERR(dentry);
+
+	err = vfs_mkdir(d_inode(path.dentry), dentry, mode);
+	if (err && err != -EEXIST)
+		hmdfs_err("vfs_mkdir failed, err = %d", err);
+	done_path_create(&path, dentry);
+	
+	return err;
+}
+
 static int create_dir_recursive(const char *path_value, mode_t mode)
 {
+	int err = 0;
 	char *tmp_path = kstrdup(path_value, GFP_KERNEL);
 	char *p = tmp_path;
-	struct dentry *dentry;
-	struct path path;
-	int err = 0;
+
 	if (!tmp_path)
 		return -ENOMEM;
 
@@ -713,22 +745,9 @@ static int create_dir_recursive(const char *path_value, mode_t mode)
 	while (*p) {
 		if (*p == '/') {
 			*p = '\0';
-			dentry = kern_path_create(AT_FDCWD, tmp_path, &path, LOOKUP_DIRECTORY);
-			if (PTR_ERR(dentry) == -EEXIST) {
-				*p = '/';
-				p++;
-				continue;
-			}
-			if (IS_ERR(dentry) )
-				return PTR_ERR(dentry);
-
-			err = vfs_mkdir(d_inode(path.dentry), dentry, mode);
-			if (err && err != -EEXIST)
-				hmdfs_err("vfs_mkdir failed, err = %d", err);
-			done_path_create(&path, dentry);
-			if (err && err != -EEXIST) {
+			err = create_dir(tmp_path, mode);
+			if (err != 0)
 				break;
-			}
 			*p = '/';
 		}
 		p++;
@@ -745,32 +764,41 @@ static long hmdfs_ioc_get_dst_path(struct file *filp, unsigned long arg)
 	struct hmdfs_dst_info hdi;
 	struct hmdfs_user_info *data;
 
+	hmdfs_info("hmdfs_ioc_get_dst_path");
+
 	data = kmalloc(sizeof(*data), GFP_KERNEL);
-	if (!data)
-		return -ENOMEM;
+	if (!data) {
+		ret = -ENOMEM;
+		goto err_free_data;
+	}
 
 	ret = hmdfs_get_info_from_user(arg, &hdi, data);
-	if (ret)
-		return ret;
+	if (ret != 0)
+		goto err_free_all;
 
 	old_cred = change_cred(filp->f_path.dentry, data->bundle_name);
-	if (!old_cred)
-		return -ENOMEM;
+	if (!old_cred) {
+		ret = -ENOMEM;
+		goto err_revert;
+	}
 
-	ret = create_dir_recursive(data->distributed_path, 0771);
-	if (ret)
-		return ret;
+	ret = create_dir_recursive(data->distributed_path, DIR_MODE);
+	if (ret != 0)
+		goto err_revert;
 
 	ret = create_link_file(data);
-	if (ret && ret != -EEXIST)
-		return ret;
+	if (ret != 0 && ret != -EEXIST)
+		goto err_revert;
 
 	ret = get_file_size(data->local_path, hdi.size);
 
+err_revert:
 	revert_creds(old_cred);
+err_free_all:
 	kfree(data->local_path);
 	kfree(data->distributed_path);
 	kfree(data->bundle_name);
+err_free_data:
 	kfree(data);
 	return ret;
 }
