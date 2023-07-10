@@ -103,6 +103,9 @@ struct inode *fill_inode_local(struct super_block *sb,
 	else if (S_ISREG(lower_inode->i_mode))
 		inode->i_mode = (lower_inode->i_mode & S_IFMT) | S_IRUSR |
 				S_IWUSR | S_IRGRP | S_IWGRP;
+	else if (S_ISLNK(lower_inode->i_mode))
+		inode->i_mode =
+			S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 
 #ifdef CONFIG_HMDFS_FS_PERMISSION
 	inode->i_uid = lower_inode->i_uid;
@@ -124,6 +127,10 @@ struct inode *fill_inode_local(struct super_block *sb,
 	} else if (S_ISREG(lower_inode->i_mode)) {
 		inode->i_op = &hmdfs_file_iops_local;
 		inode->i_fop = &hmdfs_file_fops_local;
+	} else if (S_ISLNK(lower_inode->i_mode)) {
+		inode->i_op = &hmdfs_symlink_iops_local;
+		inode->i_fop = &hmdfs_file_fops_local;
+		inode->i_size = i_size_read(lower_inode);
 	} else {
 		ret = -EIO;
 		goto bad_inode;
@@ -217,6 +224,11 @@ out:
 	return err;
 }
 
+static inline void set_symlink_flag(struct hmdfs_dentry_info *gdi)
+{
+	gdi->file_type = HM_SYMLINK;
+}
+
 struct dentry *hmdfs_lookup_local(struct inode *parent_inode,
 				  struct dentry *child_dentry,
 				  unsigned int flags)
@@ -262,6 +274,8 @@ struct dentry *hmdfs_lookup_local(struct inode *parent_inode,
 					       d_inode(lower_path.dentry),
 						   child_dentry->d_name.name);
 
+		if (S_ISLNK(d_inode(lower_path.dentry)->i_mode))
+			set_symlink_flag(gdi);
 		if (IS_ERR(child_inode)) {
 			err = PTR_ERR(child_inode);
 			ret = ERR_PTR(err);
@@ -726,6 +740,40 @@ rename_out:
 	return err;
 }
 
+static const char *hmdfs_get_link_local(struct dentry *dentry, 
+					struct inode *inode, 
+					struct delayed_call *done)
+{
+	const char *link = NULL;
+	struct dentry *lower_dentry = NULL;
+	struct inode *lower_inode = NULL;
+	struct path lower_path;
+
+	if(!dentry) {
+		hmdfs_err("dentry MULL");
+		link = ERR_PTR(-ECHILD);
+		goto link_out;
+	}
+
+	hmdfs_get_lower_path(dentry, &lower_path);
+	lower_dentry = lower_path.dentry;
+	lower_inode = d_inode(lower_dentry);
+	if(!lower_inode->i_op || !lower_inode->i_op->get_link) {
+		hmdfs_err("The lower inode doesn't support get_link i_op");
+		link = ERR_PTR(-EINVAL);
+		goto out;
+	}
+
+	link = lower_inode->i_op->get_link(lower_dentry, lower_inode, done);
+	if(IS_ERR_OR_NULL(link))
+		goto out;
+	fsstack_copy_attr_atime(inode, lower_inode);
+out:
+	hmdfs_put_lower_path(&lower_path);
+link_out:
+	return link;
+}
+
 static int hmdfs_setattr_local(struct dentry *dentry, struct iattr *ia)
 {
 	struct inode *inode = d_inode(dentry);
@@ -897,6 +945,12 @@ const struct inode_operations hmdfs_dir_inode_ops_local = {
 	.permission = hmdfs_permission,
 	.setattr = hmdfs_setattr_local,
 	.getattr = hmdfs_getattr_local,
+};
+
+const struct inode_operations hmdfs_symlink_iops_local = {
+	.get_link = hmdfs_get_link_local,
+	.permission = hmdfs_permission,
+	.setattr = hmdfs_setattr_local,
 };
 
 const struct inode_operations hmdfs_dir_inode_ops_share = {
