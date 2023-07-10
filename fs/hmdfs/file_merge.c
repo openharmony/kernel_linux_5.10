@@ -475,22 +475,20 @@ long hmdfs_dir_unlocked_ioctl_merge(struct file *file, unsigned int cmd,
 
 	if (cmd == HMDFS_IOC_GET_DST_PATH) {
 		return hmdfs_ioc_get_dst_path(filp, arg);
-	} else {
-		mutex_lock(&fi_head->comrade_list_lock);
-		list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
-					  comrade_list) {
-			if (fi_iter->device_id == 0) {
-				lower_file = fi_iter->lower_file;
-    	                    if (lower_file->f_op->unlocked_ioctl)
-				        error = lower_file->f_op->unlocked_ioctl(
-    	                                    lower_file, cmd, arg);
-				break;
-			}
-		}
-		mutex_unlock(&fi_head->comrade_list_lock);
-		return error;
 	}
-
+	mutex_lock(&fi_head->comrade_list_lock);
+	list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
+				  comrade_list) {
+		if (fi_iter->device_id == 0) {
+			lower_file = fi_iter->lower_file;
+                        if (lower_file->f_op->unlocked_ioctl)
+			        error = lower_file->f_op->unlocked_ioctl(
+                                        lower_file, cmd, arg);
+			break;
+		}
+	}
+	mutex_unlock(&fi_head->comrade_list_lock);
+	return error;
 }
 
 long hmdfs_dir_compat_ioctl_merge(struct file *file, unsigned int cmd,
@@ -503,21 +501,20 @@ long hmdfs_dir_compat_ioctl_merge(struct file *file, unsigned int cmd,
 	int error = -ENOTTY;
 	if (cmd == HMDFS_IOC_GET_DST_PATH) {
 		return hmdfs_ioc_get_dst_path(filp, arg);
-	} else {
-		mutex_lock(&fi_head->comrade_list_lock);
-		list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
-					  comrade_list) {
-			if (fi_iter->device_id == 0) {
-				lower_file = fi_iter->lower_file;
-    	                    if (lower_file->f_op->compat_ioctl)
-				        error = lower_file->f_op->compat_ioctl(
-    	                                    lower_file, cmd, arg);
-				break;
-			}
-		}
-		mutex_unlock(&fi_head->comrade_list_lock);
-		return error;
 	}
+	mutex_lock(&fi_head->comrade_list_lock);
+	list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
+				  comrade_list) {
+		if (fi_iter->device_id == 0) {
+			lower_file = fi_iter->lower_file;
+                        if (lower_file->f_op->compat_ioctl)
+			        error = lower_file->f_op->compat_ioctl(
+                                        lower_file, cmd, arg);
+			break;
+		}
+	}
+	mutex_unlock(&fi_head->comrade_list_lock);
+	return error;
 }
 
 const struct file_operations hmdfs_dir_fops_merge = {
