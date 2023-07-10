@@ -475,9 +475,7 @@ long hmdfs_dir_unlocked_ioctl_merge(struct file *file, unsigned int cmd,
 	struct file *lower_file = NULL;
 	int error = -ENOTTY;
 
-	hmdfs_info("hmdfs_dir_unlocked_ioctl_merge");
 	if (cmd == HMDFS_IOC_GET_DST_PATH) {
-		hmdfs_info("HMDFS_IOC_GET_DST_PATH");
 		return hmdfs_ioc_get_dst_path(file, arg);
 	}
 	mutex_lock(&fi_head->comrade_list_lock);
@@ -622,7 +620,7 @@ static int copy_string_from_user(unsigned long pos, unsigned long len, char **da
 static int hmdfs_get_info_from_user(unsigned long pos, struct hmdfs_dst_info *hdi, struct hmdfs_user_info *data)
 {
 	int ret = 0;
-	hmdfs_info("hmdfs_get_info_from_user");
+
 	if (!access_ok((struct hmdfs_dst_info __user *)pos, 
 			sizeof(struct hmdfs_dst_info)))
 		return -ENOMEM;
@@ -632,20 +630,19 @@ static int hmdfs_get_info_from_user(unsigned long pos, struct hmdfs_dst_info *hd
 	
 	ret = copy_string_from_user(hdi->local_path_pos, hdi->local_path_len,
 								&data->local_path);
-	hmdfs_info("local_path: %s", data->local_path);
 	if (ret != 0)
 		return ret;
+
 	ret = copy_string_from_user(hdi->distributed_path_pos, hdi->distributed_path_len,
 								&data->distributed_path);
-	hmdfs_info("distributed_path: %s", data->distributed_path);
 	if (ret != 0)
 		return ret;
+
 	ret = copy_string_from_user(hdi->bundle_name_pos, hdi->bundle_name_len,
 							    &data->bundle_name);
-	hmdfs_info("bundle_name: %s", data->bundle_name);
 	if (ret != 0)
 		return ret;
-	hmdfs_info("hmdfs_get_info_from_user");
+
 	return 0;
 }
 
@@ -763,8 +760,6 @@ static long hmdfs_ioc_get_dst_path(struct file *filp, unsigned long arg)
 	const struct cred *old_cred;
 	struct hmdfs_dst_info hdi;
 	struct hmdfs_user_info *data;
-
-	hmdfs_info("hmdfs_ioc_get_dst_path");
 
 	data = kmalloc(sizeof(*data), GFP_KERNEL);
 	if (!data) {
