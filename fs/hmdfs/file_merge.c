@@ -11,6 +11,8 @@
 
 #include "hmdfs.h"
 #include "hmdfs_trace.h"
+#include "authority/authentication.h"
+
 
 struct hmdfs_iterate_callback_merge {
 	struct dir_context ctx;
@@ -33,6 +35,12 @@ struct hmdfs_cache_entry {
 	int name_len;
 	char *name;
 	int file_type;
+};
+
+struct hmdfs_user_info {
+	char *local_path;
+	char *distributed_path;
+	char *bundle_name;
 };
 
 struct hmdfs_cache_entry *allocate_entry(const char *name, int namelen,
@@ -582,41 +590,183 @@ static long hmdfs_ioc_get_writeopen_cnt(struct file *filp, unsigned long arg)
 	return put_user(wo_cnt, (int __user *)arg);
 }
 
-static long hmdfs_ioc_get_drag_path(struct file *filp, unsigned long arg)
+static int hmdfs_get_info_from_user(unsigned long pos, struct hmdfs_dst_info *hdi, struct hmdfs_user_info *data)
 {
-	int error = 0;
-	char localPath[NAME_MAX];
-	char cloudPath[NAME_MAX];
+	if (!access_ok((struct hmdfs_dst_info __user *)pos, 
+			sizeof(struct hmdfs_dst_info)))
+		return -ENOMEM;
+	if (copy_from_user(hdi, (struct hmdfs_dst_info __user *)pos,
+			sizeof(struct hmdfs_dst_info)))
+		return -EFAULT;
+
+	if (!access_ok((char *)hdi->local_path_pos, hdi->local_path_len))
+		return -ENOMEM;
+	if (!access_ok((char *)hdi->distributed_path_pos, hdi->distributed_path_len))
+		return -ENOMEM;
+	if (!access_ok((char *)hdi->bundle_name_pos, hdi->bundle_name_len))
+		return -ENOMEM;
+
+	data->local_path = kmalloc(hdi->local_path_len, GFP_KERNEL);
+	if (!data->local_path)
+		return -ENOMEM;
+	data->distributed_path = kmalloc(hdi->distributed_path_len, GFP_KERNEL);
+	if (!data->distributed_path)
+		return -ENOMEM;
+	data->bundle_name = kmalloc(hdi->bundle_name_len, GFP_KERNEL);
+	if (!data->bundle_name)
+		return -ENOMEM;
+
+	if (copy_from_user(data->local_path, (char __user *)hdi->local_path_pos, 
+			hdi->local_path_len))
+		return -EFAULT;
+	if (copy_from_user(data->distributed_path, (char __user *)hdi->distributed_path_pos, 
+			hdi->distributed_path_len))
+		return -EFAULT;
+	if (copy_from_user(data->bundle_name, (char __user *)hdi->bundle_name_pos, 
+			hdi->bundle_name_len))
+		return -EFAULT;
+	return 0;
+}
+
+static const struct cred *change_cred(struct dentry *dentry, const char *bundle_name)
+{
+	int bid;
+	struct cred *cred = NULL;
+	const struct cred *old_cred;
+
+	cred = prepare_creds();
+	if (!cred) {
+		return NULL;
+	}
+	bid = get_bundle_uid(hmdfs_sb(dentry->d_sb),
+					     bundle_name);
+	if (bid != 0) {
+		cred->fsuid = KUIDT_INIT(bid);
+		cred->fsgid = KGIDT_INIT(bid);
+	} else {
+		return NULL;
+	}
+	old_cred = override_creds(cred);
+	return old_cred;
+}
+
+static int get_file_size(const char *path_value, uint64_t pos)
+{
+	int ret;
+	uint64_t size;
+	struct path path;
+	struct kstat buf;
+
+	ret = kern_path(path_value, 0, &path);
+	if (ret)
+		return ret;
+	ret = vfs_getattr(&path, &buf, STATX_BASIC_STATS | STATX_BTIME, 0);
+	if (ret) {
+		hmdfs_err("call vfs_getattr failed, err %d", ret);
+		return ret;
+	}
+
+	size = buf.size;
+	
+	ret = copy_to_user((void __user *)pos, &size, sizeof(uint64_t));
+	return ret;
+}
+
+static int create_link_file(struct hmdfs_user_info *data)
+{
+	int ret;
 	struct dentry *dentry;
 	struct path path;
-	struct hmdfs_drag_info hdi;
 
-	if (!access_ok((struct hmdfs_drag_info __user *)arg, 
-			sizeof(struct hmdfs_drag_info)))
-		return -EFAULT;
+	ret = kern_path(data->distributed_path, 0, &path);
+	if (ret == 0)
+		return ret;
 	
-	if (copy_from_user(&hdi, (struct hmdfs_drag_info __user *)arg,
-			sizeof(hdi)))
-		return -EFAULT;
-
-	if (!access_ok((char *)hdi.localPath, hdi.localLen))
-		return -EFAULT;
-	if (!access_ok((char *)hdi.cloudPath, hdi.cloudLen))
-		return -EFAULT;
-	if (copy_from_user(localPath, (char __user *)hdi.localPath, 
-			hdi.localLen))
-		return -EFAULT;
-	if (copy_from_user(cloudPath, (char __user *)hdi.cloudPath, 
-			hdi.cloudLen))
-		return -EFAULT;
-
-	dentry = kern_path_create(AT_FDCWD, cloudPath, &path, 0);
+	dentry = kern_path_create(AT_FDCWD, data->distributed_path, &path, 0);
 	if (IS_ERR(dentry))
 		return PTR_ERR(dentry);
-	error = vfs_symlink(path.dentry->d_inode, dentry, localPath);
+	ret = vfs_symlink(path.dentry->d_inode, dentry, data->local_path);
 	done_path_create(&path, dentry);
-	hmdfs_info("error: %d", error);
-	return error;
+
+	return ret;
+}
+
+static int create_dir_recursive(const char *path_value, mode_t mode)
+{
+	char *tmp_path = kstrdup(path_value, GFP_KERNEL);
+	char *p = tmp_path;
+	struct dentry *dentry;
+	struct path path;
+	int err = 0;
+	if (!tmp_path)
+		return -ENOMEM;
+
+	if (*p == '/')
+		p++;
+
+	while (*p) {
+		if (*p == '/') {
+			*p = '\0';
+			dentry = kern_path_create(AT_FDCWD, tmp_path, &path, LOOKUP_DIRECTORY);
+			if (PTR_ERR(dentry) == -EEXIST) {
+				*p = '/';
+				p++;
+				continue;
+			}
+			if (IS_ERR(dentry) )
+				return PTR_ERR(dentry);
+
+			err = vfs_mkdir(d_inode(path.dentry), dentry, mode);
+			if (err && err != -EEXIST)
+				hmdfs_err("vfs_mkdir failed, err = %d", err);
+			done_path_create(&path, dentry);
+			if (err && err != -EEXIST) {
+				break;
+			}
+			*p = '/';
+		}
+		p++;
+	}
+
+	kfree(tmp_path);
+	return err;
+}
+
+static long hmdfs_ioc_get_dst_path(struct file *filp, unsigned long arg)
+{
+	int ret = 0;
+	const struct cred *old_cred;
+	struct hmdfs_dst_info hdi;
+	struct hmdfs_user_info *data;
+
+	data = kmalloc(sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
+	ret = hmdfs_get_info_from_user(arg, &hdi, data);
+	if (ret)
+		return ret;
+
+	old_cred = change_cred(filp->f_path.dentry, data->bundle_name);
+	if (!old_cred)
+		return -ENOMEM;
+
+	ret = create_dir_recursive(data->distributed_path, 0771);
+	if (ret)
+		return ret;
+
+	ret = create_link_file(data);
+	if (ret && ret != -EEXIST)
+		return ret;
+
+	ret = get_file_size(data->local_path, hdi.size);
+
+	revert_creds(old_cred);
+	kfree(data->local_path);
+	kfree(data->distributed_path);
+	kfree(data->bundle_name);
+	kfree(data);
+	return ret;
 }
 
 static long hmdfs_file_ioctl_merge(struct file *filp, unsigned int cmd, unsigned long arg)
@@ -624,8 +774,8 @@ static long hmdfs_file_ioctl_merge(struct file *filp, unsigned int cmd, unsigned
 	switch (cmd) {
 	case HMDFS_IOC_GET_WRITEOPEN_CNT:
 		return hmdfs_ioc_get_writeopen_cnt(filp, arg);
-	case HMDFS_IOC_GET_DRAG_PATH:
-	    return hmdfs_ioc_get_drag_path(filp, arg);
+	case HMDFS_IOC_GET_DST_PATH:
+	    return hmdfs_ioc_get_dst_path(filp, arg);
 	default:
 		return -ENOTTY;
 	}
