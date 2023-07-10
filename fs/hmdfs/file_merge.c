@@ -499,6 +499,7 @@ long hmdfs_dir_compat_ioctl_merge(struct file *file, unsigned int cmd,
 	struct hmdfs_file_info *fi_temp = NULL;
 	struct file *lower_file = NULL;
 	int error = -ENOTTY;
+
 	if (cmd == HMDFS_IOC_GET_DST_PATH) {
 		return hmdfs_ioc_get_dst_path(filp, arg);
 	}
