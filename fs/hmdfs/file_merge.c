@@ -686,7 +686,7 @@ static int get_file_size(const char *path_value, uint64_t pos)
 	}
 
 	size = buf.size;
-	ret = copy_to_user((void __user *)pos, &size, sizeof(uint64_t));
+	ret = copy_to_user((uint64_t __user *)pos, &size, sizeof(uint64_t));
 	return ret;
 }
 
