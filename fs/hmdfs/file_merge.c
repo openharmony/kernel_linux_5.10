@@ -679,12 +679,12 @@ static int get_file_size(const char *path_value, uint64_t pos)
 	if (ret)
 		return ret;
 	ret = vfs_getattr(&path, &buf, STATX_BASIC_STATS | STATX_BTIME, 0);
+	path_put(&path);
 	if (ret) {
 		hmdfs_err("call vfs_getattr failed, err %d", ret);
 		return ret;
 	}
 
-	path_put(&path);
 	size = buf.size;
 	ret = copy_to_user((void __user *)pos, &size, sizeof(uint64_t));
 	return ret;
@@ -697,8 +697,10 @@ static int create_link_file(struct hmdfs_user_info *data)
 	struct path path;
 
 	ret = kern_path(data->distributed_path, 0, &path);
-	if (ret == 0)
+	if (ret == 0){
+		path_put(&path);
 		return ret;
+	}
 	
 	dentry = kern_path_create(AT_FDCWD, data->distributed_path, &path, 0);
 	if (IS_ERR(dentry))
