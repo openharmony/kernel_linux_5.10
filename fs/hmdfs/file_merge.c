@@ -776,7 +776,7 @@ static long hmdfs_ioc_get_dst_path(struct file *filp, unsigned long arg)
 
 	old_cred = change_cred(filp->f_path.dentry, data->bundle_name);
 	if (!old_cred) {
-		ret = -ENOMEM;
+		ret = -EACCES;
 		goto err_free_all;
 	}
 
