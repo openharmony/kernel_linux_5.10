@@ -475,9 +475,8 @@ long hmdfs_dir_unlocked_ioctl_merge(struct file *file, unsigned int cmd,
 	struct file *lower_file = NULL;
 	int error = -ENOTTY;
 
-	if (cmd == HMDFS_IOC_GET_DST_PATH) {
+	if (cmd == HMDFS_IOC_GET_DST_PATH)
 		return hmdfs_ioc_get_dst_path(file, arg);
-	}
 	mutex_lock(&fi_head->comrade_list_lock);
 	list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
 				  comrade_list) {
@@ -502,9 +501,8 @@ long hmdfs_dir_compat_ioctl_merge(struct file *file, unsigned int cmd,
 	struct file *lower_file = NULL;
 	int error = -ENOTTY;
 
-	if (cmd == HMDFS_IOC_GET_DST_PATH) {
+	if (cmd == HMDFS_IOC_GET_DST_PATH)
 		return hmdfs_ioc_get_dst_path(file, arg);
-	}
 	mutex_lock(&fi_head->comrade_list_lock);
 	list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
 				  comrade_list) {
@@ -598,12 +596,13 @@ static long hmdfs_ioc_get_writeopen_cnt(struct file *filp, unsigned long arg)
 	return put_user(wo_cnt, (int __user *)arg);
 }
 
-static int copy_string_from_user(unsigned long pos, unsigned long len, char **data)
+static int copy_string_from_user(unsigned long pos, unsigned long len,
+								 char **data)
 {
 	char *tmp_data;
 
 	if (!access_ok((char *)pos, len))
-		return -ENOMEM;
+		return -EFAULT;
 
 	tmp_data = kmalloc(len, GFP_KERNEL);
 	if (!tmp_data)
@@ -617,7 +616,8 @@ static int copy_string_from_user(unsigned long pos, unsigned long len, char **da
 	return 0;
 }
 
-static int hmdfs_get_info_from_user(unsigned long pos, struct hmdfs_dst_info *hdi, struct hmdfs_user_info *data)
+static int hmdfs_get_info_from_user(unsigned long pos, 
+					struct hmdfs_dst_info *hdi, struct hmdfs_user_info *data)
 {
 	int ret = 0;
 
@@ -633,7 +633,8 @@ static int hmdfs_get_info_from_user(unsigned long pos, struct hmdfs_dst_info *hd
 	if (ret != 0)
 		return ret;
 
-	ret = copy_string_from_user(hdi->distributed_path_pos, hdi->distributed_path_len,
+	ret = copy_string_from_user(hdi->distributed_path_pos, 
+								hdi->distributed_path_len,
 								&data->distributed_path);
 	if (ret != 0)
 		return ret;
@@ -646,11 +647,12 @@ static int hmdfs_get_info_from_user(unsigned long pos, struct hmdfs_dst_info *hd
 	return 0;
 }
 
-static const struct cred *change_cred(struct dentry *dentry, const char *bundle_name)
+static const struct cred *change_cred(struct dentry *dentry, 
+									  const char *bundle_name)
 {
 	int bid;
 	struct cred *cred = NULL;
-	const struct cred *old_cred;
+	const struct cred *old_cred = NULL;
 
 	cred = prepare_creds();
 	if (!cred) {
@@ -660,10 +662,9 @@ static const struct cred *change_cred(struct dentry *dentry, const char *bundle_
 	if (bid != 0) {
 		cred->fsuid = KUIDT_INIT(bid);
 		cred->fsgid = KGIDT_INIT(bid);
-	} else {
-		return NULL;
+		old_cred = override_creds(cred);
 	}
-	old_cred = override_creds(cred);
+	
 	return old_cred;
 }
 
@@ -683,6 +684,7 @@ static int get_file_size(const char *path_value, uint64_t pos)
 		return ret;
 	}
 
+	path_put(&path);
 	size = buf.size;
 	ret = copy_to_user((void __user *)pos, &size, sizeof(uint64_t));
 	return ret;
@@ -759,7 +761,7 @@ static long hmdfs_ioc_get_dst_path(struct file *filp, unsigned long arg)
 	int ret = 0;
 	const struct cred *old_cred;
 	struct hmdfs_dst_info hdi;
-	struct hmdfs_user_info *data;
+	struct hmdfs_user_info *data = NULL;
 
 	data = kmalloc(sizeof(*data), GFP_KERNEL);
 	if (!data) {
@@ -774,7 +776,7 @@ static long hmdfs_ioc_get_dst_path(struct file *filp, unsigned long arg)
 	old_cred = change_cred(filp->f_path.dentry, data->bundle_name);
 	if (!old_cred) {
 		ret = -ENOMEM;
-		goto err_revert;
+		goto err_free_all;
 	}
 
 	ret = create_dir_recursive(data->distributed_path, DIR_MODE);
