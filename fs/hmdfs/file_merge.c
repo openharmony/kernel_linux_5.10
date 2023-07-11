@@ -13,7 +13,6 @@
 #include "hmdfs_trace.h"
 #include "authority/authentication.h"
 
-
 struct hmdfs_iterate_callback_merge {
 	struct dir_context ctx;
 	struct dir_context *caller;
@@ -127,7 +126,7 @@ static void destroy_tree(struct rb_root *root)
 }
 
 static void delete_filename(struct rb_root *root,
-				struct hmdfs_cache_entry *data)
+			    struct hmdfs_cache_entry *data)
 {
 	struct rb_node **node = &(root->rb_node);
 	struct hmdfs_cache_entry *entry = NULL;
@@ -160,7 +159,7 @@ found:
 }
 
 static void rename_conflicting_file(char *dentry_name, int *len,
-					unsigned int dev_id)
+				    unsigned int dev_id)
 {
 	int i = *len - 1;
 	int dot_pos = -1;
@@ -208,8 +207,8 @@ static void rename_conflicting_directory(char *dentry_name, int *len)
 }
 
 static int hmdfs_actor_merge(struct dir_context *ctx, const char *name,
-				 int namelen, loff_t offset, u64 ino,
-				 unsigned int d_type)
+			     int namelen, loff_t offset, u64 ino,
+			     unsigned int d_type)
 {
 	int ret = 0;
 	int insert_res = 0;
@@ -252,7 +251,7 @@ static int hmdfs_actor_merge(struct dir_context *ctx, const char *name,
 		cache_entry->file_type = DT_DIR;
 	} else if (d_type == DT_REG && insert_res > 0) {
 		if (strlen(CONFLICTING_FILE_SUFFIX) + max_devid_len >
-			NAME_MAX - dentry_len) {
+		    NAME_MAX - dentry_len) {
 			ret = -ENAMETOOLONG;
 			goto delete;
 		}
@@ -262,7 +261,7 @@ static int hmdfs_actor_merge(struct dir_context *ctx, const char *name,
 
 	org_ctx = iterate_callback_merge->caller;
 	ret = org_ctx->actor(org_ctx, dentry_name, dentry_len, org_ctx->pos,
-				 ino, d_type);
+			     ino, d_type);
 	/*
 	 * Record original return value, so that the caller can be aware of
 	 * different situations.
@@ -270,7 +269,7 @@ static int hmdfs_actor_merge(struct dir_context *ctx, const char *name,
 	iterate_callback_merge->result = ret;
 	ret = ret == 0 ? 0 : 1;
 	if (ret && d_type == DT_DIR && insert_res == DT_REG &&
-		cache_entry->file_type == DT_DIR)
+	    cache_entry->file_type == DT_DIR)
 		cache_entry->file_type = DT_REG;
 
 delete:
@@ -299,7 +298,7 @@ get_next_hmdfs_file_info(struct hmdfs_file_info *fi_head, int device_id)
 }
 
 struct hmdfs_file_info *get_hmdfs_file_info(struct hmdfs_file_info *fi_head,
-						int device_id)
+					    int device_id)
 {
 	struct hmdfs_file_info *fi_iter = NULL;
 
@@ -375,7 +374,7 @@ done:
 }
 
 int do_dir_open_merge(struct file *file, const struct cred *cred,
-			  struct hmdfs_file_info *fi_head)
+		      struct hmdfs_file_info *fi_head)
 {
 	int ret = -EINVAL;
 	struct hmdfs_dentry_info_merge *dim = hmdfs_dm(file->f_path.dentry);
@@ -484,7 +483,7 @@ long hmdfs_dir_unlocked_ioctl_merge(struct file *file, unsigned int cmd,
 			lower_file = fi_iter->lower_file;
 			if (lower_file->f_op->unlocked_ioctl)
 				error = lower_file->f_op->unlocked_ioctl(
-						lower_file, cmd, arg);
+					lower_file, cmd, arg);
 			break;
 		}
 	}
@@ -510,7 +509,7 @@ long hmdfs_dir_compat_ioctl_merge(struct file *file, unsigned int cmd,
 			lower_file = fi_iter->lower_file;
 			if (lower_file->f_op->compat_ioctl)
 				error = lower_file->f_op->compat_ioctl(
-						lower_file, cmd, arg);
+					lower_file, cmd, arg);
 			break;
 		}
 	}
@@ -629,18 +628,18 @@ static int hmdfs_get_info_from_user(unsigned long pos,
 		return -EFAULT;
 	
 	ret = copy_string_from_user(hdi->local_path_pos, hdi->local_path_len,
-				&data->local_path);
+				    &data->local_path);
 	if (ret != 0)
 		return ret;
 
 	ret = copy_string_from_user(hdi->distributed_path_pos, 
-				hdi->distributed_path_len,
-				&data->distributed_path);
+				    hdi->distributed_path_len,
+				    &data->distributed_path);
 	if (ret != 0)
 		return ret;
 
 	ret = copy_string_from_user(hdi->bundle_name_pos, hdi->bundle_name_len,
-				&data->bundle_name);
+				    &data->bundle_name);
 	if (ret != 0)
 		return ret;
 
@@ -648,7 +647,7 @@ static int hmdfs_get_info_from_user(unsigned long pos,
 }
 
 static const struct cred *change_cred(struct dentry *dentry, 
-					const char *bundle_name)
+				      const char *bundle_name)
 {
 	int bid;
 	struct cred *cred = NULL;
