@@ -763,9 +763,9 @@ static long hmdfs_ioc_get_dst_path(struct file *filp, unsigned long arg)
 	int ret = 0;
 	const struct cred *old_cred;
 	struct hmdfs_dst_info hdi;
-	struct hmdfs_user_info *data = NULL;
+	struct hmdfs_user_info *data;
 
-	data = kmalloc(sizeof(*data), GFP_KERNEL);
+	data = kzalloc(sizeof(*data), GFP_KERNEL);
 	if (!data) {
 		ret = -ENOMEM;
 		goto err_free_data;
