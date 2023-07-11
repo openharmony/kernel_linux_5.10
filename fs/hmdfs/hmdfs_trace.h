@@ -203,6 +203,7 @@ define_hmdfs_lookup_op_end_event(hmdfs_mkdir_merge);
 define_hmdfs_lookup_op_end_event(hmdfs_rmdir_merge);
 define_hmdfs_lookup_op_end_event(hmdfs_create_merge);
 
+define_hmdfs_lookup_op_end_event(hmdfs_get_link_local);
 define_hmdfs_lookup_op_end_event(hmdfs_lookup_share);
 define_hmdfs_lookup_op_end_event(hmdfs_lookup_share_end);
 

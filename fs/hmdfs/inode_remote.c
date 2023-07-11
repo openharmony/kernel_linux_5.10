@@ -375,12 +375,14 @@ struct inode *fill_inode_remote(struct super_block *sb, struct hmdfs_peer *con,
 		inode->i_mode = S_IFDIR | S_IRWXU | S_IRWXG | S_IXOTH;
 	else if (S_ISREG(mode))
 		inode->i_mode = S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+	else if (S_ISLNK(mode))
+		inode->i_mode = S_IFREG | S_IRWXU | S_IRWXG;
 	else {
 		ret = -EIO;
 		goto bad_inode;
 	}
 
-	if (S_ISREG(mode)) {
+	if (S_ISREG(mode) || S_ISLNK(mode)) {
 		inode->i_op = con->conn_operations->remote_file_iops;
 		inode->i_fop = con->conn_operations->remote_file_fops;
 		inode->i_size = res->i_size;
@@ -446,7 +448,9 @@ static struct dentry *hmdfs_lookup_remote_dentry(struct inode *parent_inode,
 	lookup_result = hmdfs_lookup_by_con(con, child_dentry, &qstr, flags,
 					    relative_path);
 	if (lookup_result != NULL) {
-		if (in_share_dir(child_dentry))
+		if (S_ISLNK(lookup_result->i_mode))
+			gdi->file_type = HM_SYMLINK;
+		else if (in_share_dir(child_dentry))
 			gdi->file_type = HM_SHARE;
 		inode = fill_inode_remote(sb, con, lookup_result, parent_inode);
 		check_and_fixup_ownership_remote(parent_inode,

@@ -73,6 +73,39 @@ void remove_file_from_conn(struct hmdfs_peer *conn, __u32 file_id)
 	spin_unlock(lock);
 }
 
+struct file *hmdfs_open_link(struct hmdfs_sb_info *sbi,
+					 const char *path)
+{
+	struct file *file;
+	int err;
+	const char *root_name = sbi->local_dst;
+	char *real_path;
+	int path_len;
+
+	path_len = strlen(root_name) + strlen(path) + 2;
+	if (path_len > PATH_MAX) {
+		err = -EINVAL;
+		return ERR_PTR(err);
+	}
+	real_path = kzalloc(path_len, GFP_KERNEL);
+	if (!real_path) {
+		err = -ENOMEM;
+		return ERR_PTR(err);
+	}
+
+	sprintf(real_path, "%s%s", root_name, path);
+	file = filp_open(real_path, O_RDWR | O_LARGEFILE, 0644);
+	if (IS_ERR(file)) {
+		hmdfs_info("filp_open failed: %ld", PTR_ERR(file));
+	} else {
+		hmdfs_info("get file with magic %lu", 
+				file->f_inode->i_sb->s_magic);
+	}
+
+	kfree(real_path);
+	return file;
+}
+
 struct file *hmdfs_open_path(struct hmdfs_sb_info *sbi, const char *path)
 {
 	struct path root_path;
@@ -155,6 +188,38 @@ static struct hmdfs_node_cb_desc server_cb[] = {
 void __init hmdfs_server_add_node_evt_cb(void)
 {
 	hmdfs_node_add_evt_cb(server_cb, ARRAY_SIZE(server_cb));
+}
+
+static int hmdfs_get_inode_by_name(struct hmdfs_peer *con, const char *filename, 
+					uint64_t *ino)
+{
+	int ret = 0;
+	struct path root_path;
+	struct path dst_path;
+	struct inode *inode = NULL;
+
+	ret = kern_path(con->sbi->local_dst, 0, &root_path);
+	if (ret) {
+		hmdfs_err("kern_path failed err = %d", ret);
+		return ret;
+	}
+
+	ret = vfs_path_lookup(root_path.dentry, root_path.mnt, filename, 0, 
+					&dst_path);
+	if (ret) {
+		path_put(&root_path);
+		return ret;
+	}
+
+	inode = d_inode(dst_path.dentry);
+	if (con->sbi->sb == inode->i_sb)
+		inode = hmdfs_i(inode)->lower_inode;
+	*ino = generate_u64_ino(inode->i_ino, inode->i_generation);
+
+	path_put(&dst_path);
+	path_put(&root_path);
+
+	return 0;
 }
 
 static const char *datasl_str[] = {
@@ -249,7 +314,11 @@ static struct file *hmdfs_open_file(struct hmdfs_peer *con,
 		if (err)
 			return ERR_PTR(err);
 	}
-	file = hmdfs_open_path(con->sbi, filename);
+
+	if (hm_islnk(file_type))
+		file = hmdfs_open_link(con->sbi, filename);
+	else
+		file = hmdfs_open_path(con->sbi, filename);
 
 	if (IS_ERR(file)) {
 		reset_item_opened_status(con->sbi, filename);
@@ -402,9 +471,14 @@ static int hmdfs_get_open_info(struct hmdfs_peer *con, uint8_t file_type,
 		info->stat_valid = true;
 	}
 
-	info->real_ino = generate_u64_ino(info->inode->i_ino,
-						  info->inode->i_generation);
-
+	if (hm_islnk(file_type)) {
+		ret = hmdfs_get_inode_by_name(con, filename, &info->real_ino);
+		if (ret)
+			return ret;
+	} else {
+		info->real_ino = generate_u64_ino(info->inode->i_ino,
+							info->inode->i_generation);
+	}
 	return 0;
 }
 
@@ -477,7 +551,8 @@ static int hmdfs_check_and_create(struct path *path_parent,
 	} else {
 		if (is_excl)
 			err = -EEXIST;
-		else if (S_ISLNK(d_inode(dentry)->i_mode))
+		else if (S_ISREG(d_inode(dentry)->i_mode) &&
+			 hm_islnk(hmdfs_d(dentry)->file_type))
 			err = -EINVAL;
 		else if (S_ISDIR(d_inode(dentry)->i_mode))
 			err = -EISDIR;
@@ -1149,6 +1224,50 @@ void hmdfs_server_rename(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	hmdfs_send_err_response(con, cmd, err);
 }
 
+static int hmdfs_lookup_symlink(struct path *link_path, const char *path_fmt, 
+						... )
+{
+	int ret;
+	va_list args;
+	char *path = kmalloc(PATH_MAX, GFP_KERNEL);
+
+	if (!path)
+		return -ENOMEM;
+	
+	va_start(args, path_fmt);
+	ret = vsnprintf(path, PATH_MAX, path_fmt, args);
+	va_end(args);
+
+	if(ret >= PATH_MAX) {
+		ret = -ENAMETOOLONG;
+		goto out;
+	}
+
+	ret = kern_path(path, LOOKUP_FOLLOW, link_path);
+	if (ret) {
+		hmdfs_err("kern_path failed err = %d", ret);
+		goto out;
+	}
+
+	if (!S_ISREG(d_inode(link_path->dentry)->i_mode)) {
+		hmdfs_err("path is dir symlink");
+		path_put(link_path);
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+
+out:
+	kfree(path);
+	return ret;
+}
+
+struct dir_entry_info {
+	struct list_head list;
+	char *name;
+	int name_len;
+	unsigned int d_type;
+};
+
 static int hmdfs_filldir_real(struct dir_context *ctx, const char *name,
 			      int name_len, loff_t offset, u64 ino,
 			      unsigned int d_type)
@@ -1189,8 +1308,22 @@ static int hmdfs_filldir_real(struct dir_context *ctx, const char *name,
 	if (d_type == DT_REG || d_type == DT_DIR) {
 		create_dentry(child, d_inode(child), gc->file, gc->sbi);
 		gc->num++;
-	}
+	} else if (d_type == DT_LNK) {
+		struct path link_path;
 
+		res = hmdfs_lookup_symlink(&link_path, "%s/%s/%s", 
+						gc->sbi->local_src, gc->dir,
+						name);
+		if (!res) {
+			create_dentry(child, d_inode(link_path.dentry), 
+						 gc->file, gc->sbi);
+			path_put(&link_path);
+			gc->num++;
+		} else if (res == -ENOENT) {
+			create_dentry(child, d_inode(child), gc->file, gc->sbi);
+			gc->num++;
+		}
+	}
 	dput(child);
 
 out:
@@ -1315,6 +1448,27 @@ out:
 		hmdfs_server_check_writeback(hswb);
 }
 
+static int hmdfs_lookup_linkpath(struct hmdfs_sb_info *sbi, 
+				const char *path_name, struct path *dst_path)
+{
+	struct path link_path;
+	int err;
+
+	err = hmdfs_lookup_symlink(&link_path, "%s/%s", sbi->local_dst, 
+				path_name);
+	if (err)
+		return err;
+	
+	if (d_inode(link_path.dentry)->i_sb != sbi->sb) {
+		path_put(dst_path);
+		*dst_path = link_path;
+	} else {
+		path_put(&link_path);
+	}
+
+	return 0;
+}
+
 static struct inode *hmdfs_verify_path(struct dentry *dentry, char *recv_buf,
 				       struct super_block *sb)
 {
@@ -1382,8 +1536,11 @@ void hmdfs_server_setattr(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	}
 
 	if (S_ISLNK(inode->i_mode)) {
-		err = -EPERM;
-		goto out_put_dst;
+		err = hmdfs_lookup_linkpath(con->sbi, recv->buf, &dst_path);
+		if(err == -ENOENT) 
+			err = 0;
+		else if (err)
+			goto out_put_dst;
 	}
 
 	dentry = dst_path.dentry;
@@ -1476,8 +1633,9 @@ void hmdfs_server_getattr(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	}
 
 	if (S_ISLNK(inode->i_mode)) {
-		err = -EPERM;
-		goto out_put_dst;
+		err = hmdfs_lookup_linkpath(con->sbi, recv->buf, &dst_path);
+		if(err && err != -ENOENT) 
+			goto out_put_dst;
 	}
 
 	err = vfs_getattr(&dst_path, &ks, STATX_BASIC_STATS | STATX_BTIME, 0);
