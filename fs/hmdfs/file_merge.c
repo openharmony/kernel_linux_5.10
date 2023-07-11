@@ -11,6 +11,7 @@
 
 #include "hmdfs.h"
 #include "hmdfs_trace.h"
+#include "authority/authentication.h"
 
 struct hmdfs_iterate_callback_merge {
 	struct dir_context ctx;
@@ -33,6 +34,12 @@ struct hmdfs_cache_entry {
 	int name_len;
 	char *name;
 	int file_type;
+};
+
+struct hmdfs_user_info {
+	char *local_path;
+	char *distributed_path;
+	char *bundle_name;
 };
 
 struct hmdfs_cache_entry *allocate_entry(const char *name, int namelen,
@@ -456,6 +463,8 @@ int hmdfs_dir_release_merge(struct inode *inode, struct file *file)
 	return 0;
 }
 
+static long hmdfs_ioc_get_dst_path(struct file *filp, unsigned long arg);
+
 long hmdfs_dir_unlocked_ioctl_merge(struct file *file, unsigned int cmd,
 							unsigned long arg)
 {
@@ -465,14 +474,16 @@ long hmdfs_dir_unlocked_ioctl_merge(struct file *file, unsigned int cmd,
 	struct file *lower_file = NULL;
 	int error = -ENOTTY;
 
+	if (cmd == HMDFS_IOC_GET_DST_PATH)
+		return hmdfs_ioc_get_dst_path(file, arg);
 	mutex_lock(&fi_head->comrade_list_lock);
 	list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
 				  comrade_list) {
 		if (fi_iter->device_id == 0) {
 			lower_file = fi_iter->lower_file;
-                        if (lower_file->f_op->unlocked_ioctl)
-			        error = lower_file->f_op->unlocked_ioctl(
-                                        lower_file, cmd, arg);
+			if (lower_file->f_op->unlocked_ioctl)
+				error = lower_file->f_op->unlocked_ioctl(
+					lower_file, cmd, arg);
 			break;
 		}
 	}
@@ -489,14 +500,16 @@ long hmdfs_dir_compat_ioctl_merge(struct file *file, unsigned int cmd,
 	struct file *lower_file = NULL;
 	int error = -ENOTTY;
 
+	if (cmd == HMDFS_IOC_GET_DST_PATH)
+		return hmdfs_ioc_get_dst_path(file, arg);
 	mutex_lock(&fi_head->comrade_list_lock);
 	list_for_each_entry_safe(fi_iter, fi_temp, &(fi_head->comrade_list),
 				  comrade_list) {
 		if (fi_iter->device_id == 0) {
 			lower_file = fi_iter->lower_file;
-                        if (lower_file->f_op->compat_ioctl)
-			        error = lower_file->f_op->compat_ioctl(
-                                        lower_file, cmd, arg);
+			if (lower_file->f_op->compat_ioctl)
+				error = lower_file->f_op->compat_ioctl(
+					lower_file, cmd, arg);
 			break;
 		}
 	}
@@ -582,11 +595,219 @@ static long hmdfs_ioc_get_writeopen_cnt(struct file *filp, unsigned long arg)
 	return put_user(wo_cnt, (int __user *)arg);
 }
 
+static int copy_string_from_user(unsigned long pos, unsigned long len,
+				char **data)
+{
+	char *tmp_data;
+
+	if (!access_ok((char *)pos, len))
+		return -EFAULT;
+
+	tmp_data = kmalloc(len, GFP_KERNEL);
+	if (!tmp_data)
+		return -ENOMEM;
+	*data = tmp_data;
+
+	if (copy_from_user(tmp_data, (char __user *)pos, len)){
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
+static int hmdfs_get_info_from_user(unsigned long pos, 
+		struct hmdfs_dst_info *hdi, struct hmdfs_user_info *data)
+{
+	int ret = 0;
+
+	if (!access_ok((struct hmdfs_dst_info __user *)pos, 
+			sizeof(struct hmdfs_dst_info)))
+		return -ENOMEM;
+	if (copy_from_user(hdi, (struct hmdfs_dst_info __user *)pos,
+			sizeof(struct hmdfs_dst_info)))
+		return -EFAULT;
+	
+	ret = copy_string_from_user(hdi->local_path_pos, hdi->local_path_len,
+				    &data->local_path);
+	if (ret != 0)
+		return ret;
+
+	ret = copy_string_from_user(hdi->distributed_path_pos, 
+				    hdi->distributed_path_len,
+				    &data->distributed_path);
+	if (ret != 0)
+		return ret;
+
+	ret = copy_string_from_user(hdi->bundle_name_pos, hdi->bundle_name_len,
+				    &data->bundle_name);
+	if (ret != 0)
+		return ret;
+
+	return 0;
+}
+
+static const struct cred *change_cred(struct dentry *dentry, 
+				      const char *bundle_name)
+{
+	int bid;
+	struct cred *cred = NULL;
+	const struct cred *old_cred = NULL;
+
+	cred = prepare_creds();
+	if (!cred) {
+		return NULL;
+	}
+	bid = get_bundle_uid(hmdfs_sb(dentry->d_sb), bundle_name);
+	if (bid != 0) {
+		cred->fsuid = KUIDT_INIT(bid);
+		cred->fsgid = KGIDT_INIT(bid);
+		old_cred = override_creds(cred);
+	}
+	
+	return old_cred;
+}
+
+static int get_file_size(const char *path_value, uint64_t pos)
+{
+	int ret;
+	uint64_t size;
+	struct path path;
+	struct kstat buf;
+
+	ret = kern_path(path_value, 0, &path);
+	if (ret)
+		return ret;
+	ret = vfs_getattr(&path, &buf, STATX_BASIC_STATS | STATX_BTIME, 0);
+	path_put(&path);
+	if (ret) {
+		hmdfs_err("call vfs_getattr failed, err %d", ret);
+		return ret;
+	}
+
+	size = buf.size;
+	ret = copy_to_user((uint64_t __user *)pos, &size, sizeof(uint64_t));
+	return ret;
+}
+
+static int create_link_file(struct hmdfs_user_info *data)
+{
+	int ret;
+	struct dentry *dentry;
+	struct path path;
+
+	ret = kern_path(data->distributed_path, 0, &path);
+	if (ret == 0){
+		path_put(&path);
+		return ret;
+	}
+	
+	dentry = kern_path_create(AT_FDCWD, data->distributed_path, &path, 0);
+	if (IS_ERR(dentry))
+		return PTR_ERR(dentry);
+	ret = vfs_symlink(path.dentry->d_inode, dentry, data->local_path);
+	done_path_create(&path, dentry);
+
+	return ret;
+}
+
+static int create_dir(const char *path_value, mode_t mode)
+{
+	int err = 0;
+	struct path path;
+	struct dentry *dentry;
+
+	dentry = kern_path_create(AT_FDCWD, path_value, &path, LOOKUP_DIRECTORY);
+	if(PTR_ERR(dentry) == -EEXIST)
+		return 0;
+	if (IS_ERR(dentry))
+		return PTR_ERR(dentry);
+
+	err = vfs_mkdir(d_inode(path.dentry), dentry, mode);
+	if (err && err != -EEXIST)
+		hmdfs_err("vfs_mkdir failed, err = %d", err);
+	done_path_create(&path, dentry);
+	
+	return err;
+}
+
+static int create_dir_recursive(const char *path_value, mode_t mode)
+{
+	int err = 0;
+	char *tmp_path = kstrdup(path_value, GFP_KERNEL);
+	char *p = tmp_path;
+
+	if (!tmp_path)
+		return -ENOMEM;
+
+	if (*p == '/')
+		p++;
+
+	while (*p) {
+		if (*p == '/') {
+			*p = '\0';
+			err = create_dir(tmp_path, mode);
+			if (err != 0)
+				break;
+			*p = '/';
+		}
+		p++;
+	}
+
+	kfree(tmp_path);
+	return err;
+}
+
+static long hmdfs_ioc_get_dst_path(struct file *filp, unsigned long arg)
+{
+	int ret = 0;
+	const struct cred *old_cred;
+	struct hmdfs_dst_info hdi;
+	struct hmdfs_user_info *data;
+
+	data = kzalloc(sizeof(*data), GFP_KERNEL);
+	if (!data) {
+		ret = -ENOMEM;
+		goto err_free_data;
+	}
+
+	ret = hmdfs_get_info_from_user(arg, &hdi, data);
+	if (ret != 0)
+		goto err_free_all;
+
+	old_cred = change_cred(filp->f_path.dentry, data->bundle_name);
+	if (!old_cred) {
+		ret = -EACCES;
+		goto err_free_all;
+	}
+
+	ret = create_dir_recursive(data->distributed_path, DIR_MODE);
+	if (ret != 0)
+		goto err_revert;
+
+	ret = create_link_file(data);
+	if (ret != 0 && ret != -EEXIST)
+		goto err_revert;
+
+	ret = get_file_size(data->local_path, hdi.size);
+
+err_revert:
+	revert_creds(old_cred);
+err_free_all:
+	kfree(data->local_path);
+	kfree(data->distributed_path);
+	kfree(data->bundle_name);
+err_free_data:
+	kfree(data);
+	return ret;
+}
+
 static long hmdfs_file_ioctl_merge(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
 	case HMDFS_IOC_GET_WRITEOPEN_CNT:
 		return hmdfs_ioc_get_writeopen_cnt(filp, arg);
+	case HMDFS_IOC_GET_DST_PATH:
+		return hmdfs_ioc_get_dst_path(filp, arg);
 	default:
 		return -ENOTTY;
 	}
@@ -606,6 +827,7 @@ const struct file_operations hmdfs_file_fops_merge = {
 	.release = hmdfs_file_release_local,
 	.fsync = hmdfs_fsync_local,
 	.unlocked_ioctl	= hmdfs_file_ioctl_merge,
+	.compat_ioctl = hmdfs_file_ioctl_merge,
 	.splice_read = generic_file_splice_read,
 	.splice_write = iter_file_splice_write,
 };

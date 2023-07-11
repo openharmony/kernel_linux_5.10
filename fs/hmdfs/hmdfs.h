@@ -30,6 +30,8 @@
 #define HMDFS_IOC 0xf2
 #define HMDFS_IOC_SET_SHARE_PATH _IOW(HMDFS_IOC, 1, struct hmdfs_share_control)
 #define HMDFS_IOC_GET_WRITEOPEN_CNT _IOR(HMDFS_IOC, 2, __u32)
+#define HMDFS_IOC_GET_DST_PATH _IOR(HMDFS_IOC, 3, __u32)
+
 
 #define HMDFS_PAGE_SIZE	  4096
 #define HMDFS_PAGE_OFFSET 12
@@ -60,6 +62,8 @@
 #define HMDFS_READPAGES_NR_MAX	32
 
 #define HMDFS_CID_SIZE 64
+
+#define DIR_MODE 0771
 
 enum {
 	HMDFS_FEATURE_READPAGES		= 1ULL << 0,
@@ -221,6 +225,16 @@ static inline bool hmdfs_is_stash_enabled(const struct hmdfs_sb_info *sbi)
 {
 	return sbi->s_offline_stash;
 }
+
+struct hmdfs_dst_info{
+	uint64_t local_path_len;
+	uint64_t local_path_pos;
+	uint64_t distributed_path_len;
+	uint64_t distributed_path_pos;
+	uint64_t bundle_name_len;
+	uint64_t bundle_name_pos;
+	uint64_t size;
+};
 
 struct setattr_info {
 	loff_t size;
