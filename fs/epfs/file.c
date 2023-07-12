@@ -89,6 +89,7 @@ long epfs_set_range(struct file *file, unsigned long arg)
 	struct inode *origin_inode;
 	struct epfs_inode_info *info = epfs_inode_to_private(inode);
 	int ret = 0;
+	__u64 num = 0;
 	struct epfs_range *range;
 	struct epfs_range header;
 
@@ -112,14 +113,15 @@ long epfs_set_range(struct file *file, unsigned long arg)
 		epfs_err("get header failed!");
 		goto out_set_range;
 	}
+	num = header.num;
 
-	if (header.num > EPFS_MAX_RANGES || header.num == 0) {
+	if (num > EPFS_MAX_RANGES || num <= 0) {
 		ret = -EINVAL;
-		epfs_err("illegal num: %llu", header.num);
+		epfs_err("illegal num: %llu", num);
 		goto out_set_range;
 	}
 
-	range = kzalloc(sizeof(header) + sizeof(header.range[0]) * header.num,
+	range = kzalloc(sizeof(header) + sizeof(header.range[0]) * num,
 			GFP_KERNEL);
 	if (!range) {
 		ret = -ENOMEM;
@@ -127,12 +129,13 @@ long epfs_set_range(struct file *file, unsigned long arg)
 	}
 
 	if (copy_from_user(range, (struct epfs_range *)arg,
-		sizeof(header) + sizeof(header.range[0]) * header.num)) {
+		sizeof(header) + sizeof(header.range[0]) * num)) {
 		ret = -EFAULT;
-		epfs_err("Failed to get range! num: %llu", header.num);
+		epfs_err("Failed to get range! num: %llu", num);
 		kfree(range);
 		goto out_set_range;
 	}
+	range->num = num;
 
 	ret = check_range(range);
 	if (ret) {
