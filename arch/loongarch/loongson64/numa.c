@@ -74,41 +74,7 @@ static void __init pcpu_fc_free(void *ptr, size_t size)
 
 static void __init pcpu_populate_pte(unsigned long addr)
 {
-	pgd_t *pgd = pgd_offset_k(addr);
-	p4d_t *p4d = p4d_offset(pgd, addr);
-	pud_t *pud;
-	pmd_t *pmd;
-
-	if (p4d_none(*p4d)) {
-		pud = memblock_alloc(PAGE_SIZE, PAGE_SIZE);
-		if (!pud)
-			panic("%s: Failed to allocate memory\n", __func__);
-		p4d_populate(&init_mm, p4d, pud);
-#ifndef __PAGETABLE_PUD_FOLDED
-		pud_init((unsigned long)pud, (unsigned long)invalid_pmd_table);
-#endif
-	}
-
-	pud = pud_offset(p4d, addr);
-	if (pud_none(*pud)) {
-		pmd = memblock_alloc(PAGE_SIZE, PAGE_SIZE);
-		if (!pmd)
-			panic("%s: Failed to allocate memory\n", __func__);
-		pud_populate(&init_mm, pud, pmd);
-#ifndef __PAGETABLE_PMD_FOLDED
-		pmd_init((unsigned long)pmd, (unsigned long)invalid_pte_table);
-#endif
-	}
-
-	pmd = pmd_offset(pud, addr);
-	if (!pmd_present(*pmd)) {
-		pte_t *pte;
-
-		pte = memblock_alloc(PAGE_SIZE, PAGE_SIZE);
-		if (!pte)
-			panic("%s: Failed to allocate memory\n", __func__);
-		pmd_populate_kernel(&init_mm, pmd, pte);
-	}
+	populate_kernel_pte(addr);
 }
 
 void __init setup_per_cpu_areas(void)
