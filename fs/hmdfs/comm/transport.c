@@ -894,6 +894,8 @@ out:
 
 static bool is_tcp_socket(struct tcp_handle *tcp)
 {
+	struct inet_connection_sock *icsk;
+
 	if (!tcp || !tcp->sock || !tcp->sock->sk) {
 		hmdfs_err("invalid tcp handle");
 		return false;
@@ -904,6 +906,15 @@ static bool is_tcp_socket(struct tcp_handle *tcp)
 		return false;
 	}
 
+	lock_sock(tcp->sock->sk);
+	icsk = inet_csk(tcp->sock->sk);
+	if (icsk->icsk_ulp_ops) {
+		hmdfs_err("ulp not NULL");
+		release_sock(tcp->sock->sk);
+		return false;
+	}
+
+	release_sock(tcp->sock->sk);
 	return true;
 }
 
