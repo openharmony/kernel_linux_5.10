@@ -322,10 +322,8 @@ static int is_str_msg_valid(char *msg, int str_len[], size_t str_num)
 
 	for (i = 0; i < str_num; i++) {
 		if (msg[pos + str_len[i]] != '\0' ||
-			strnlen(msg + pos, PATH_MAX) != str_len[i]) {
+			strnlen(msg + pos, PATH_MAX) != str_len[i])
 			return -EINVAL;
-		} 
-
 		pos += str_len[i] + 1;
 	}
 
@@ -941,6 +939,15 @@ static void handle_bad_message(struct hmdfs_peer *con,
 	}
 }
 
+bool is_reserved_command(int command)
+{
+	if ((command >= F_RESERVED_1 && command <= F_RESERVED_4) ||
+	    command == F_RESERVED_5 || command == F_RESERVED_6 ||
+	    command == F_RESERVED_7 || command == F_RESERVED_8)
+		return true;
+	return false;
+}
+
 int hmdfs_message_verify(struct hmdfs_peer *con, struct hmdfs_head_cmd *head,
 			 void *data)
 {
@@ -956,10 +963,7 @@ int hmdfs_message_verify(struct hmdfs_peer *con, struct hmdfs_head_cmd *head,
 		return -EINVAL;
 
 	cmd = head->operations.command;
-	if (cmd >= F_SIZE || cmd < F_OPEN ||
-		(cmd >= F_RESERVED_1 && cmd <= F_RESERVED_4) ||
-		cmd == F_RESERVED_5 || cmd == F_RESERVED_6 ||
-		cmd == F_RESERVED_7 || cmd == F_RESERVED_8) {
+	if (cmd >= F_SIZE || cmd < F_OPEN || is_reserved_command(cmd)) {
 		err = -EINVAL;
 		goto handle_bad_msg;
 	}
