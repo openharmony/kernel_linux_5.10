@@ -694,6 +694,10 @@ static int verify_getxattr_req(size_t msg_len, void *msg)
 	if (msg_len != sizeof(*req) + req->path_len + 1 + req->name_len + 1)
 		return -EINVAL;
 	
+	if (req->name_len > XATTR_NAME_MAX || req->size < 0 ||
+	    req->size > XATTR_SIZE_MAX)
+		return -EINVAL;
+
 	if (is_str_msg_valid(req->buf, str_len, sizeof(str_len) / sizeof(int)))
 		return -EINVAL;
 
@@ -705,6 +709,9 @@ static int verify_getxattr_resp(size_t msg_len, void *msg)
 	struct getxattr_response *resp = msg;
 
 	if (msg_len < sizeof(*resp))
+		return -EINVAL;
+
+	if (resp->size > XATTR_SIZE_MAX)
 		return -EINVAL;
 
 	return 0;
@@ -732,6 +739,10 @@ static int verify_setxattr_req(size_t msg_len, void *msg)
 
 	if (msg_len != sizeof(*req) + req->path_len + 1 + req->name_len + 1 +
 		req->size)
+		return -EINVAL;
+
+	if (req->name_len > XATTR_NAME_MAX || req->size < 0 ||
+	    req->size > XATTR_SIZE_MAX)
 		return -EINVAL;
 
 	if (is_str_msg_valid(req->buf, str_len, sizeof(str_len) / sizeof(int)))
@@ -762,6 +773,9 @@ static int verify_listxattr_req(size_t msg_len, void *msg)
 	if (msg_len != sizeof(*req) + req->path_len + 1)
 		return -EINVAL;
 
+	if (req->size < 0 || req->size > XATTR_LIST_MAX)
+		return -EINVAL;
+
 	if (is_str_msg_valid(req->buf, str_len, sizeof(str_len) / sizeof(int)))
 		return -EINVAL;
 
@@ -773,6 +787,9 @@ static int verify_listxattr_resp(size_t msg_len, void *msg)
 	struct listxattr_response *resp = msg;
 
 	if (msg_len < sizeof(*resp))
+		return -EINVAL;
+
+	if (resp->size > XATTR_LIST_MAX)
 		return -EINVAL;
 
 	return 0;
