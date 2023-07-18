@@ -59,7 +59,7 @@ int tls_crypto_info_init(struct connection *conn_impl)
 	u8 key_meterial[HMDFS_KEY_SIZE];
 	struct tcp_handle *tcp =
 		(struct tcp_handle *)(conn_impl->connect_handle);
-	if (conn_impl->node->version < DFS_2_0 || !tcp)
+	if (!tcp)
 		return -EINVAL;
 	// send
 	update_key(conn_impl->send_key, key_meterial, HKDF_TYPE_IV);
@@ -178,10 +178,9 @@ static int tls_set_rx(struct tcp_handle *tcp)
 int set_crypto_info(struct connection *conn_impl, int set_type)
 {
 	int ret = 0;
-	__u8 version = conn_impl->node->version;
 	struct tcp_handle *tcp =
 		(struct tcp_handle *)(conn_impl->connect_handle);
-	if (version < DFS_2_0 || !tcp)
+	if (!tcp)
 		return -EINVAL;
 
 	if (set_type == SET_CRYPTO_SEND) {

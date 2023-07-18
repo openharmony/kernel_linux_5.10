@@ -191,12 +191,10 @@ revert_cred:
 	if (!ret)
 		statistic_con_sb_dirty(node, &head->operations);
 out:
-	if (node->version == DFS_2_0 &&
-	    head->operations.cmd_flag == C_REQUEST)
+	if (head->operations.cmd_flag == C_REQUEST)
 		hmdfs_client_snd_statis(node->sbi,
 					head->operations.command, ret);
-	else if (node->version == DFS_2_0 &&
-		 head->operations.cmd_flag == C_RESPONSE)
+	else if (head->operations.cmd_flag == C_RESPONSE)
 		hmdfs_server_snd_statis(node->sbi,
 					head->operations.command, ret);
 out_err:
@@ -212,7 +210,7 @@ int hmdfs_sendmessage_response(struct hmdfs_peer *con,
 	struct hmdfs_head_cmd head;
 
 	head.magic = HMDFS_MSG_MAGIC;
-	head.version = DFS_2_0;
+	head.version = HMDFS_VERSION;
 	head.operations = cmd->operations;
 	head.operations.cmd_flag = C_RESPONSE;
 	head.data_len = cpu_to_le32(data_len + sizeof(struct hmdfs_head_cmd));
@@ -335,7 +333,7 @@ int hmdfs_send_async_request(struct hmdfs_peer *peer,
 	if (IS_ERR(mp))
 		return PTR_ERR(mp);
 	head.magic = HMDFS_MSG_MAGIC;
-	head.version = DFS_2_0;
+	head.version = HMDFS_VERSION;
 	head.data_len = cpu_to_le32(msg_len);
 	head.operations = mp->req.operations;
 	head.msg_id = cpu_to_le32(mp->head.msg_id);
@@ -427,7 +425,7 @@ int hmdfs_sendmessage_request(struct hmdfs_peer *con,
 
 	sm->out_buf = NULL;
 	head->magic = HMDFS_MSG_MAGIC;
-	head->version = DFS_2_0;
+	head->version = HMDFS_VERSION;
 	head->operations = sm->operations;
 	head->data_len = cpu_to_le32(outlen);
 	head->ret_code = cpu_to_le32(sm->ret_code);
@@ -526,7 +524,7 @@ static int hmdfs_send_slice(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		      sizeof(struct slice_descriptor);
 
 	head.magic = HMDFS_MSG_MAGIC;
-	head.version = DFS_2_0;
+	head.version = HMDFS_VERSION;
 	head.operations = cmd->operations;
 	head.operations.cmd_flag = C_RESPONSE;
 	head.data_len = cpu_to_le32(msg_len);
@@ -621,9 +619,8 @@ void hmdfs_recv_page_work_fn(struct work_struct *ptr)
 	struct hmdfs_async_work *async_work =
 		container_of(ptr, struct hmdfs_async_work, d_work.work);
 
-	if (async_work->head.peer->version >= DFS_2_0)
-		hmdfs_client_resp_statis(async_work->head.peer->sbi,
-					 F_READPAGE, HMDFS_RESP_TIMEOUT, 0, 0);
+	hmdfs_client_resp_statis(async_work->head.peer->sbi,
+					F_READPAGE, HMDFS_RESP_TIMEOUT, 0, 0);
 	hmdfs_err_ratelimited("timeout and release page, msg_id:%u",
 			      async_work->head.msg_id);
 	asw_done(async_work);
@@ -657,7 +654,7 @@ int hmdfs_sendpage_request(struct hmdfs_peer *con,
 
 	memset(&head, 0, sizeof(head));
 	head.magic = HMDFS_MSG_MAGIC;
-	head.version = DFS_2_0;
+	head.version = HMDFS_VERSION;
 	head.operations = sm->operations;
 	head.data_len = cpu_to_le32(outlen);
 	head.ret_code = cpu_to_le32(sm->ret_code);
@@ -1063,7 +1060,7 @@ static int hmdfs_response_recv(struct hmdfs_peer *con,
 	}
 }
 
-static void hmdfs_recv_mesg_callback(struct hmdfs_peer *con, void *head,
+void hmdfs_recv_mesg_callback(struct hmdfs_peer *con, void *head,
 				     void *buf)
 {
 	struct hmdfs_head_cmd *hmdfs_head = (struct hmdfs_head_cmd *)head;
@@ -1095,43 +1092,6 @@ static void hmdfs_recv_mesg_callback(struct hmdfs_peer *con, void *head,
 
 out_err:
 	kfree(buf);
-}
-
-static inline void hmdfs_recv_page_callback(struct hmdfs_peer *con,
-					    struct hmdfs_head_cmd *head,
-					    int err, void *data)
-{
-	if (head->operations.command == F_READPAGE)
-		hmdfs_client_recv_readpage(head, err, data);
-}
-
-static const struct connection_operations conn_operations[] = {
-	[PROTOCOL_VERSION] = {
-		.recvmsg = hmdfs_recv_mesg_callback,
-		.recvpage = hmdfs_recv_page_callback,
-		/* remote device operations */
-		.remote_file_fops =
-			&hmdfs_dev_file_fops_remote,
-		.remote_file_iops =
-			&hmdfs_dev_file_iops_remote,
-		.remote_file_aops =
-			&hmdfs_dev_file_aops_remote,
-		.remote_unlink =
-			hmdfs_dev_unlink_from_con,
-		.remote_readdir =
-			hmdfs_dev_readdir_from_con,
-	}
-};
-
-const struct connection_operations *hmdfs_get_peer_operation(__u8 version)
-{
-	if (version <= INVALID_VERSION || version >= MAX_VERSION)
-		return NULL;
-
-	if (version <= USERSPACE_MAX_VER)
-		return &(conn_operations[USERDFS_VERSION]);
-	else
-		return &(conn_operations[PROTOCOL_VERSION]);
 }
 
 void hmdfs_wakeup_parasite(struct hmdfs_msg_parasite *mp)

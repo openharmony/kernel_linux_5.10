@@ -29,7 +29,6 @@ typedef void (*hmdfs_node_evt_cb)(struct hmdfs_peer *conn,
 struct hmdfs_node_cb_desc {
 	int evt;
 	bool sync;
-	unsigned char min_version;
 	hmdfs_node_evt_cb fn;
 	struct list_head list;
 };

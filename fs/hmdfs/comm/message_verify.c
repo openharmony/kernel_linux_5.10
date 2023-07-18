@@ -985,45 +985,41 @@ int hmdfs_message_verify(struct hmdfs_peer *con, struct hmdfs_head_cmd *head,
 		goto handle_bad_msg;
 	}
 
-	if (head->version != DFS_2_0) {
-		err = -EINVAL;
-	} else {
-		len = le32_to_cpu(head->data_len) -
-		      sizeof(struct hmdfs_head_cmd);
-		min = message_length[flag][cmd][HMDFS_MESSAGE_MIN_INDEX];
-		if (head->operations.command == F_ITERATE && flag == C_RESPONSE)
-			max = sizeof(struct slice_descriptor) + PAGE_SIZE;
-		else
-			max = message_length[flag][cmd][HMDFS_MESSAGE_MAX_INDEX];
-		len_type =
-			message_length[flag][cmd][HMDFS_MESSAGE_LEN_JUDGE_INDEX];
+	len = le32_to_cpu(head->data_len) -
+		sizeof(struct hmdfs_head_cmd);
+	min = message_length[flag][cmd][HMDFS_MESSAGE_MIN_INDEX];
+	if (head->operations.command == F_ITERATE && flag == C_RESPONSE)
+		max = sizeof(struct slice_descriptor) + PAGE_SIZE;
+	else
+		max = message_length[flag][cmd][HMDFS_MESSAGE_MAX_INDEX];
+	len_type =
+		message_length[flag][cmd][HMDFS_MESSAGE_LEN_JUDGE_INDEX];
 
-		if (len_type == MESSAGE_LEN_JUDGE_RANGE) {
-			if (len < min || len > max) {
-				hmdfs_err(
-					"cmd %d -> %d message verify fail, len = %zu",
-					cmd, flag, len);
-				err = -EINVAL;
-				goto handle_bad_msg;
-			}
-		} else {
-			if (len != min && len != max) {
-				hmdfs_err(
-					"cmd %d -> %d message verify fail, len = %zu",
-					cmd, flag, len);
-				err = -EINVAL;
-				goto handle_bad_msg;
-			}
-		}
-
-		if (message_verify[cmd])
-			err = message_verify[cmd](flag, len, data);
-
-		if (err)
+	if (len_type == MESSAGE_LEN_JUDGE_RANGE) {
+		if (len < min || len > max) {
+			hmdfs_err(
+				"cmd %d -> %d message verify fail, len = %zu",
+				cmd, flag, len);
+			err = -EINVAL;
 			goto handle_bad_msg;
-
-		return err;
+		}
+	} else {
+		if (len != min && len != max) {
+			hmdfs_err(
+				"cmd %d -> %d message verify fail, len = %zu",
+				cmd, flag, len);
+			err = -EINVAL;
+			goto handle_bad_msg;
+		}
 	}
+
+	if (message_verify[cmd])
+		err = message_verify[cmd](flag, len, data);
+
+	if (err)
+		goto handle_bad_msg;
+
+	return err;
 
 handle_bad_msg:
 	handle_bad_message(con, head, &err);

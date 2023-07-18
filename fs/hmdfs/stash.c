@@ -2205,16 +2205,13 @@ static struct hmdfs_node_cb_desc stash_cb[] = {
 	{
 		.evt = NODE_EVT_OFFLINE,
 		.sync = true,
-		.min_version = DFS_2_0,
 		.fn = hmdfs_stash_offline_prepare,
 	},
 	{
 		.evt = NODE_EVT_OFFLINE,
 		.sync = false,
-		.min_version = DFS_2_0,
 		.fn = hmdfs_stash_offline_do_stash,
 	},
-	/* Don't known peer version yet, so min_version is 0 */
 	{
 		.evt = NODE_EVT_ADD,
 		.sync = true,
@@ -2223,19 +2220,16 @@ static struct hmdfs_node_cb_desc stash_cb[] = {
 	{
 		.evt = NODE_EVT_ONLINE,
 		.sync = false,
-		.min_version = DFS_2_0,
 		.fn = hmdfs_stash_online_prepare,
 	},
 	{
 		.evt = NODE_EVT_ONLINE,
 		.sync = false,
-		.min_version = DFS_2_0,
 		.fn = hmdfs_stash_online_do_restore,
 	},
 	{
 		.evt = NODE_EVT_DEL,
 		.sync = true,
-		.min_version = DFS_2_0,
 		.fn = hmdfs_stash_del_do_cleanup,
 	},
 };
