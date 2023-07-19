@@ -1289,8 +1289,10 @@ int do_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 		else
 			lo_d_new = kern_path_create(AT_FDCWD, abs_path_buf,
 						    &lo_p_new, 0);
-		if (IS_ERR(lo_d_new))
-			continue;
+		if (IS_ERR(lo_d_new)) {
+			ret = PTR_ERR(lo_d_new);
+			goto out;
+		}
 
 		lo_d_new_dir = dget_parent(lo_d_new);
 		lo_i_new_dir = d_inode(lo_d_new_dir);
