@@ -376,6 +376,7 @@ int do_mkdir_cloud_merge(struct inode *parent_inode, struct dentry *child_dentry
 	d_add(child_dentry, child_inode);
 	/* nlink should be increased with the joining of children */
 	set_nlink(parent_inode, 2);
+	hmdfs_update_meta(parent_inode);
 out:
 	return ret;
 }
@@ -402,6 +403,7 @@ int do_create_cloud_merge(struct inode *parent_inode, struct dentry *child_dentr
 	d_add(child_dentry, child_inode);
 	/* nlink should be increased with the joining of children */
 	set_nlink(parent_inode, 2);
+	hmdfs_update_meta(parent_inode);
 out:
 	return ret;
 }
@@ -691,14 +693,24 @@ static int hmdfs_rename_cloud_merge(struct inode *old_dir,
 
 	hmdfs_init_recursive_para(rec_op_para, F_MKDIR_MERGE, 0, 0, NULL);
 	ret = rename_lo_d_cloud_child(&rename_para, rec_op_para);
-	if (ret != 0)
+	if (ret != 0) {
 		d_drop(new_dentry);
+	} else {
+		hmdfs_update_meta(old_dir);
+		if (old_dir != new_dir)
+			hmdfs_update_meta(new_dir);
+	}
 
 	if (S_ISREG(old_dentry->d_inode->i_mode) && !ret)
 		d_invalidate(old_dentry);
 rename_out:
 	kfree(rec_op_para);
 	return ret;
+}
+
+void hmdfs_update_meta(struct inode *dir)
+{
+	dir->i_ctime = dir->i_mtime = current_time(dir);
 }
 
 const struct inode_operations hmdfs_dir_iops_cloud_merge = {

@@ -186,6 +186,8 @@ static inline bool is_merge_lookup_end(struct hmdfs_dentry_info_merge *mdi)
 	return ret;
 }
 
+void hmdfs_update_meta(struct inode *dir);
+
 #define for_each_comrade_locked(_dentry, _comrade)                             \
 	list_for_each_entry(_comrade, &(hmdfs_dm(_dentry)->comrade_list), list)
 
