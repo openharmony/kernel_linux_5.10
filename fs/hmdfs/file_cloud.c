@@ -281,8 +281,8 @@ int hmdfs_dir_open_cloud(struct inode *inode, struct file *file)
 		kref_put(&cache_item->ref, release_cache_item);
 		return 0;
 	}
-	/* need to return -ENOENT */
-	return 0;
+
+	return -ENOENT;
 }
 
 static int hmdfs_dir_release_cloud(struct inode *inode, struct file *file)

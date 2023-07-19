@@ -373,7 +373,7 @@ out:
 	return comrade;
 }
 
-static bool is_valid_comrade(struct hmdfs_dentry_info_merge *mdi, umode_t mode)
+bool is_valid_comrade(struct hmdfs_dentry_info_merge *mdi, umode_t mode)
 {
 	if (mdi->type == DT_UNKNOWN) {
 		mdi->type = S_ISDIR(mode) ? DT_DIR : DT_REG;

@@ -116,6 +116,7 @@ struct hmdfs_dentry_comrade *lookup_comrade(struct path lower_path,
 					    const char *d_name,
 					    int dev_id,
 					    unsigned int flags);
+bool is_valid_comrade(struct hmdfs_dentry_info_merge *mdi, umode_t mode);
 int merge_lookup_async(struct hmdfs_dentry_info_merge *mdi,
 		       struct hmdfs_sb_info *sbi, int devid,
 		       const char *name, unsigned int flags);
