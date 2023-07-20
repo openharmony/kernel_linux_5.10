@@ -88,10 +88,62 @@ bad_inode:
 	return ERR_PTR(ret);
 }
 
+static struct hmdfs_dentry_comrade *
+cloud_merge_lookup_comrade(struct hmdfs_sb_info *sbi,
+			   const char *name,
+			   int devid,
+			   unsigned int flags)
+{
+	int err;
+	struct path root, path;
+	struct hmdfs_dentry_comrade *comrade = NULL;
+
+	err = kern_path(sbi->real_dst, LOOKUP_DIRECTORY, &root);
+	if (err) {
+		comrade = ERR_PTR(err);
+		goto out;
+	}
+
+	err = vfs_path_lookup(root.dentry, root.mnt, name, flags, &path);
+	if (err) {
+		comrade = ERR_PTR(err);
+		goto root_put;
+	}
+
+	comrade = alloc_comrade(path.dentry, devid);
+
+	path_put(&path);
+root_put:
+	path_put(&root);
+out:
+	return comrade;
+}
+
+static void merge_lookup_sync(struct hmdfs_dentry_info_merge *mdi,
+			     struct hmdfs_sb_info *sbi,
+			     int devid,
+			     const char *name,
+			     unsigned int flags)
+{
+	struct hmdfs_dentry_comrade *comrade;
+
+	comrade = cloud_merge_lookup_comrade(sbi, name, devid, flags);
+	if (IS_ERR(comrade))
+		return;
+
+	mutex_lock(&mdi->comrade_list_lock);
+
+	if (!is_valid_comrade(mdi, hmdfs_cm(comrade)))
+		destroy_comrade(comrade);
+	else
+		link_comrade(&mdi->comrade_list, comrade);
+
+	mutex_unlock(&mdi->comrade_list_lock);
+}
+
 static int lookup_merge_normal(struct dentry *dentry, unsigned int flags)
 {
 	int ret = -ENOMEM;
-	int err = 0;
 	int devid = -1;
 	struct dentry *pdentry = dget_parent(dentry);
 	struct hmdfs_dentry_info_merge *mdi = hmdfs_dm(dentry);
@@ -120,21 +172,14 @@ static int lookup_merge_normal(struct dentry *dentry, unsigned int flags)
 	if (mdi->type != DT_REG || devid == 0) {
 		snprintf(cpath, PATH_MAX, "device_view/local%s/%s", ppath,
 			rname);
-		err = merge_lookup_async(mdi, sbi, 0, cpath, flags);
-		if (err)
-			hmdfs_err("failed to create local lookup work");
+		merge_lookup_sync(mdi, sbi, 0, cpath, flags);
 	}
 
 	snprintf(cpath, PATH_MAX, "device_view/%s%s/%s", CLOUD_CID,
 			ppath, rname);
-	err = merge_lookup_async(mdi, sbi, CLOUD_DEVICE, cpath,
-			flags);
-	if (err)
-		hmdfs_err("failed  lookup cloud");
+	merge_lookup_sync(mdi, sbi, CLOUD_DEVICE, cpath, flags);
 	mutex_unlock(&sbi->connections.node_lock);
 	mutex_unlock(&mdi->work_lock);
-
-	wait_event(mdi->wait_queue, is_merge_lookup_end(mdi));
 
 	ret = -ENOENT;
 	if (!is_comrade_list_empty(mdi))
@@ -464,11 +509,8 @@ static int create_lo_d_parent_recur(struct dentry *d_parent,
 				    struct hmdfs_recursive_para *rec_op_para)
 {
 	struct dentry *lo_d_parent, *d_pparent;
-	struct hmdfs_dentry_info_merge *pmdi = NULL;
 	int ret = 0;
 
-	pmdi = hmdfs_dm(d_parent);
-	wait_event(pmdi->wait_queue, !has_merge_lookup_work(pmdi));
 	lo_d_parent = hmdfs_get_lo_d(d_parent, HMDFS_DEVID_LOCAL);
 	if (!lo_d_parent) {
 		d_pparent = dget_parent(d_parent);
@@ -498,11 +540,8 @@ int create_lo_d_cloud_child(struct inode *i_parent, struct dentry *d_child,
 {
 	struct dentry *d_pparent, *lo_d_parent, *lo_d_child;
 	struct dentry *d_parent = dget_parent(d_child);
-	struct hmdfs_dentry_info_merge *pmdi = hmdfs_dm(d_parent);
 	int ret = 0;
 	mode_t d_child_mode = rec_op_para->mode;
-
-	wait_event(pmdi->wait_queue, !has_merge_lookup_work(pmdi));
 
 	lo_d_parent = hmdfs_get_lo_d(d_parent, HMDFS_DEVID_LOCAL);
 	if (!lo_d_parent) {
@@ -587,10 +626,7 @@ static int rename_lo_d_cloud_child(struct hmdfs_rename_para *rename_para,
 {
 	struct dentry *d_pparent, *lo_d_parent;
 	struct dentry *d_parent = dget_parent(rename_para->new_dentry);
-	struct hmdfs_dentry_info_merge *pmdi = hmdfs_dm(d_parent);
 	int ret = 0;
-
-	wait_event(pmdi->wait_queue, !has_merge_lookup_work(pmdi));
 
 	lo_d_parent = hmdfs_get_lo_d(d_parent, HMDFS_DEVID_LOCAL);
 	if (!lo_d_parent) {
