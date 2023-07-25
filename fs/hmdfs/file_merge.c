@@ -242,14 +242,15 @@ static int hmdfs_actor_merge(struct dir_context *ctx, const char *name,
 		insert_filename(iterate_callback_merge->root, &cache_entry);
 	if (d_type == DT_DIR && insert_res == DT_DIR) {
 		goto done;
-	} else if (d_type == DT_DIR && insert_res == DT_REG) {
+	} else if (d_type == DT_DIR && 
+		  (insert_res == DT_REG || insert_res == DT_LNK)) {
 		if (strlen(CONFLICTING_DIR_SUFFIX) > NAME_MAX - dentry_len) {
 			ret = -ENAMETOOLONG;
 			goto delete;
 		}
 		rename_conflicting_directory(dentry_name, &dentry_len);
 		cache_entry->file_type = DT_DIR;
-	} else if (d_type == DT_REG && insert_res > 0) {
+	} else if ((d_type == DT_REG || d_type == DT_LNK) && insert_res > 0) {
 		if (strlen(CONFLICTING_FILE_SUFFIX) + max_devid_len >
 		    NAME_MAX - dentry_len) {
 			ret = -ENAMETOOLONG;
@@ -268,8 +269,8 @@ static int hmdfs_actor_merge(struct dir_context *ctx, const char *name,
 	 */
 	iterate_callback_merge->result = ret;
 	ret = ret == 0 ? 0 : 1;
-	if (ret && d_type == DT_DIR && insert_res == DT_REG &&
-	    cache_entry->file_type == DT_DIR)
+	if (ret && d_type == DT_DIR && cache_entry->file_type == DT_DIR &&
+	   (insert_res == DT_REG || insert_res == DT_LNK))
 		cache_entry->file_type = DT_REG;
 
 delete:

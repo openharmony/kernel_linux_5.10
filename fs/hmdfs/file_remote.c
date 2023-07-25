@@ -946,6 +946,9 @@ int analysis_dentry_file_from_con(struct hmdfs_sb_info *sbi,
 			else if (S_ISREG(le16_to_cpu(
 					 dentry_group->nsl[j].i_mode)))
 				file_type = DT_REG;
+			else if (S_ISLNK(le16_to_cpu(
+					 dentry_group->nsl[j].i_mode)))
+				file_type = DT_LNK;
 
 			strncat(dentry_name, dentry_group->filename[j], len);
 			pos = hmdfs_set_pos(dev_id, i, j);
