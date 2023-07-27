@@ -44,7 +44,7 @@ static struct inode *fill_inode_merge(struct super_block *sb,
 		inode = hmdfs_iget_locked_root(sb, HMDFS_ROOT_MERGE_CLOUD, NULL,
 					       NULL);
 	else
-		inode = hmdfs_iget5_locked_merge(sb, fst_lo_d);
+		inode = hmdfs_iget5_locked_cloud_merge(sb, fst_lo_d);
 	if (!inode) {
 		hmdfs_err("iget5_locked get inode NULL");
 		inode = ERR_PTR(-ENOMEM);

@@ -26,7 +26,7 @@ struct hmdfs_dentry_cloud {
 	__le64 i_mtime;
 	__u8 record_id[CLOUD_RECORD_ID_LEN];
 	/* reserved bytes for long term extend, total 60 bytes */
-	__u8 reserved[DENTRY_RESERVED_LENGTH];
+	__u8 reserved[CLOUD_DENTRY_RESERVED_LENGTH];
 } __packed;
 
 /* 4K/68 Bytes = 60 dentries for per dentrygroup */

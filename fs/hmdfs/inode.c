@@ -34,6 +34,7 @@ enum DOMAIN {
 	DOMAIN_DEVICE_REMOTE,
 	DOMAIN_DEVICE_CLOUD,
 	DOMAIN_MERGE_VIEW,
+	DOMAIN_CLOUD_MERGE_VIEW,
 	DOMAIN_INVALID,
 };
 
@@ -65,6 +66,7 @@ struct iget_args {
 
 	/* The recordId of cloud inode */
 	uint8_t *cloud_record_id;
+	uint8_t *reserved;
 
 	/* Returned inode's ino */
 	union hmdfs_ino ino;
@@ -86,11 +88,13 @@ static int iget_test(struct inode *inode, void *data)
 	WARN_ON(ia->ino.domain < DOMAIN_ROOT ||
 		ia->ino.domain >= DOMAIN_INVALID);
 
-	if (read_ino_domain(inode->i_ino) == DOMAIN_ROOT)
+	if ((read_ino_domain(inode->i_ino) == DOMAIN_ROOT) ||
+	    (read_ino_domain(inode->i_ino) != ia->ino.domain))
 		return 0;
 
 	switch (ia->ino.domain) {
 	case DOMAIN_MERGE_VIEW:
+	case DOMAIN_CLOUD_MERGE_VIEW:
 		res = (ia->lo_i == hii->lower_inode);
 		break;
 	case DOMAIN_DEVICE_LOCAL:
@@ -101,9 +105,10 @@ static int iget_test(struct inode *inode, void *data)
 		       ia->remote_ino == hii->remote_ino);
 		break;
 	case DOMAIN_DEVICE_CLOUD:
-		res = (ia->cloud_record_id && hii->cloud_record_id &&
+		res = (ia->cloud_record_id &&
 		       (memcmp(ia->cloud_record_id, hii->cloud_record_id,
-			       CLOUD_RECORD_ID_LEN) == 0));
+			       CLOUD_RECORD_ID_LEN) == 0) &&
+		       (ia->reserved[0] == hii->reserved[0]));
 		break;
 	}
 
@@ -128,8 +133,10 @@ static int iget_set(struct inode *inode, void *data)
 	hii->remote_ino = ia->remote_ino;
 	hii->lower_inode = ia->lo_i;
 
-	if (ia->cloud_record_id)
+	if (ia->cloud_record_id) {
 		memcpy(hii->cloud_record_id, ia->cloud_record_id, CLOUD_RECORD_ID_LEN);
+		memcpy(hii->reserved, ia->reserved, CLOUD_DENTRY_RESERVED_LENGTH);
+	}
 
 	return 0;
 }
@@ -174,6 +181,28 @@ struct inode *hmdfs_iget5_locked_merge(struct super_block *sb,
 	ia.ino.ino_raw = d_inode(fst_lo_d)->i_ino;
 	ia.ino.dev_id = hmdfs_d(fst_lo_d)->device_id;
 	ia.ino.domain = DOMAIN_MERGE_VIEW;
+	return iget5_locked(sb, ia.ino.ino_output, iget_test, iget_set, &ia);
+}
+
+struct inode *hmdfs_iget5_locked_cloud_merge(struct super_block *sb,
+					     struct dentry *fst_lo_d)
+{
+	struct iget_args ia = {
+		.lo_i = d_inode(fst_lo_d),
+		.peer = NULL,
+		.remote_ino = 0,
+		.cloud_record_id = NULL,
+		.ino.ino_output = 0,
+	};
+
+	if (unlikely(!d_inode(fst_lo_d))) {
+		hmdfs_err("Received a invalid lower inode");
+		return NULL;
+	}
+
+	ia.ino.ino_raw = d_inode(fst_lo_d)->i_ino;
+	ia.ino.dev_id = hmdfs_d(fst_lo_d)->device_id;
+	ia.ino.domain = DOMAIN_CLOUD_MERGE_VIEW;
 	return iget5_locked(sb, ia.ino.ino_output, iget_test, iget_set, &ia);
 }
 
@@ -257,14 +286,15 @@ struct inode *hmdfs_iget5_locked_remote(struct super_block *sb,
  * is enough to determine a unique remote inode.
  */
 struct inode *hmdfs_iget5_locked_cloud(struct super_block *sb,
-					struct hmdfs_peer *peer,
-					uint8_t *cloud_id)
+				       struct hmdfs_peer *peer,
+				       struct hmdfs_lookup_cloud_ret *res)
 {
 	struct iget_args ia = {
 		.lo_i = NULL,
 		.peer = peer,
 		.remote_ino = 0,
-		.cloud_record_id = cloud_id,
+		.cloud_record_id = res->record_id,
+		.reserved = res->reserved,
 		.ino.ino_output = 0,
 	};
 
@@ -273,7 +303,7 @@ struct inode *hmdfs_iget5_locked_cloud(struct super_block *sb,
 		return NULL;
 	}
 
-	ia.ino.ino_raw = make_ino_raw_cloud(cloud_id);
+	ia.ino.ino_raw = make_ino_raw_cloud(res->record_id) + res->reserved[0];
 	ia.ino.dev_id = peer->device_id;
 	ia.ino.domain = DOMAIN_DEVICE_CLOUD;
 	return iget5_locked(sb, ia.ino.ino_output, iget_test, iget_set, &ia);
