@@ -20,13 +20,6 @@
 #include "authority/authentication.h"
 #include "stash.h"
 
-struct hmdfs_lookup_cloud_ret {
-	uint64_t i_size;
-	uint64_t i_mtime;
-	uint8_t record_id[CLOUD_RECORD_ID_LEN];
-	uint16_t i_mode;
-};
-
 uint32_t make_ino_raw_cloud(uint8_t *cloud_id)
 {
 	struct qstr str;
@@ -67,6 +60,7 @@ struct hmdfs_lookup_cloud_ret *lookup_cloud_dentry(struct dentry *child_dentry,
 	lookup_ret->i_size = le64_to_cpu(dentry->i_size);
 	lookup_ret->i_mtime = le64_to_cpu(dentry->i_mtime);
 	memcpy(lookup_ret->record_id, dentry->record_id, CLOUD_RECORD_ID_LEN);
+	memcpy(lookup_ret->reserved, dentry->reserved, CLOUD_DENTRY_RESERVED_LENGTH);
 
 	hmdfs_unlock_file(ctx.filp, get_dentry_group_pos(ctx.bidx),
 			  DENTRYGROUP_SIZE);
@@ -213,7 +207,7 @@ struct inode *fill_inode_cloud(struct super_block *sb, struct hmdfs_lookup_cloud
 	umode_t mode = res->i_mode;
 	peer.device_id = CLOUD_DEVICE;
 
-	inode = hmdfs_iget5_locked_cloud(sb, &peer, res->record_id);
+	inode = hmdfs_iget5_locked_cloud(sb, &peer, res);
 	if (!inode)
 		return ERR_PTR(-ENOMEM);
 

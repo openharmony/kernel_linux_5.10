@@ -88,8 +88,10 @@ struct hmdfs_inode_info {
 	 * the uniqueness of local inode can be determined.
 	 */
 	__u64 remote_ino;
-#define CLOUD_RECORD_ID_LEN          33
+#define CLOUD_RECORD_ID_LEN            33
 	__u8 cloud_record_id[CLOUD_RECORD_ID_LEN];
+#define CLOUD_DENTRY_RESERVED_LENGTH   3
+	__u8 reserved[CLOUD_DENTRY_RESERVED_LENGTH];
 	/*
 	 * if this value is not ULLONG_MAX, it means that remote getattr syscall
 	 * should return this value as inode size.
@@ -235,6 +237,8 @@ struct inode *hmdfs_iget_locked_root(struct super_block *sb, uint64_t root_ino,
 				     struct hmdfs_peer *peer);
 struct inode *hmdfs_iget5_locked_merge(struct super_block *sb,
 				       struct dentry *fst_lo_d);
+struct inode *hmdfs_iget5_locked_cloud_merge(struct super_block *sb,
+					     struct dentry *fst_lo_d);
 
 struct inode *hmdfs_iget5_locked_local(struct super_block *sb,
 				       struct inode *lo_i);
@@ -242,9 +246,18 @@ struct hmdfs_peer;
 struct inode *hmdfs_iget5_locked_remote(struct super_block *sb,
 					struct hmdfs_peer *peer,
 					uint64_t remote_ino);
+
+struct hmdfs_lookup_cloud_ret {
+	uint64_t i_size;
+	uint64_t i_mtime;
+	uint8_t record_id[CLOUD_RECORD_ID_LEN];
+	uint8_t reserved[CLOUD_DENTRY_RESERVED_LENGTH];
+	uint16_t i_mode;
+};
+
 struct inode *hmdfs_iget5_locked_cloud(struct super_block *sb,
-					struct hmdfs_peer *peer,
-					uint8_t *cloud_id);
+				       struct hmdfs_peer *peer,
+				       struct hmdfs_lookup_cloud_ret *res);
 
 uint32_t make_ino_raw_cloud(uint8_t *cloud_id);
 #endif // INODE_H
