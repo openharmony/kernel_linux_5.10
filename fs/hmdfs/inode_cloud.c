@@ -70,14 +70,24 @@ out:
 	return lookup_ret;
 }
 
-struct hmdfs_lookup_cloud_ret *hmdfs_lookup_by_cloud(struct dentry *dentry,
-					     struct qstr *qstr,
-					     unsigned int flags,
-					     const char *relative_path)
+static struct hmdfs_lookup_cloud_ret *
+hmdfs_lookup_by_cloud(struct dentry *dentry, unsigned int flags)
 {
 	struct hmdfs_lookup_cloud_ret *result = NULL;
+	char *file_name = NULL;
+	struct qstr qstr;
+	int file_name_len = dentry->d_name.len;
 
-	result = lookup_cloud_dentry(dentry, qstr, CLOUD_DEVICE);
+	file_name = kzalloc(NAME_MAX + 1, GFP_KERNEL);
+	if (!file_name)
+		return NULL;
+	strncpy(file_name, dentry->d_name.name, file_name_len);
+	qstr.name = file_name;
+	qstr.len = strlen(file_name);
+
+	result = lookup_cloud_dentry(dentry, &qstr, CLOUD_DEVICE);
+
+	kfree(file_name);
 	return result;
 }
 
@@ -269,29 +279,9 @@ static struct dentry *hmdfs_lookup_cloud_dentry(struct inode *parent_inode,
 	struct inode *inode = NULL;
 	struct super_block *sb = parent_inode->i_sb;
 	struct hmdfs_lookup_cloud_ret *lookup_result = NULL;
-	char *file_name = NULL;
-	int file_name_len = child_dentry->d_name.len;
-	struct qstr qstr;
 	struct hmdfs_dentry_info *gdi = hmdfs_d(child_dentry);
-	char *relative_path = NULL;
 
-	file_name = kzalloc(NAME_MAX + 1, GFP_KERNEL);
-	if (!file_name)
-		return ERR_PTR(-ENOMEM);
-	strncpy(file_name, child_dentry->d_name.name, file_name_len);
-
-	qstr.name = file_name;
-	qstr.len = strlen(file_name);
-
-	relative_path = hmdfs_get_dentry_relative_path(child_dentry->d_parent);
-	if (unlikely(!relative_path)) {
-		ret = ERR_PTR(-ENOMEM);
-		hmdfs_err("get relative path failed %d", -ENOMEM);
-		goto done;
-	}
-
-	lookup_result = hmdfs_lookup_by_cloud(child_dentry, &qstr, flags,
-					    relative_path);
+	lookup_result = hmdfs_lookup_by_cloud(child_dentry, flags);
 	if (lookup_result != NULL) {
 		if (in_share_dir(child_dentry))
 			gdi->file_type = HM_SHARE;
@@ -307,10 +297,7 @@ static struct dentry *hmdfs_lookup_cloud_dentry(struct inode *parent_inode,
 		ret = ERR_PTR(-ENOENT);
 	}
 
-done:
-	kfree(relative_path);
 	kfree(lookup_result);
-	kfree(file_name);
 	return ret;
 }
 
@@ -377,7 +364,19 @@ int hmdfs_rmdir_cloud(struct inode *dir, struct dentry *dentry)
 
 int hmdfs_unlink_cloud(struct inode *dir, struct dentry *dentry)
 {
-	return -EPERM;
+	struct hmdfs_lookup_cloud_ret *lookup_result = NULL;
+	int ret = -EPERM;
+
+	lookup_result = hmdfs_lookup_by_cloud(dentry, 0);
+	/*
+	 * unlink is allowed only after the file item has been removed from
+	 * the dentryfile(lookup fail).
+	 */
+	if (!lookup_result)
+		ret = 0;
+
+	kfree(lookup_result);
+	return ret;
 }
 
 int hmdfs_rename_cloud(struct inode *old_dir, struct dentry *old_dentry,
