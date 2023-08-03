@@ -1161,6 +1161,7 @@ int hmdfs_rmdir_merge(struct inode *dir, struct dentry *dentry)
 		goto out;
 	}
 
+	hmdfs_update_meta(dir);
 	d_drop(dentry);
 out:
 	hmdfs_trace_merge(trace_hmdfs_rmdir_merge, dir, dentry, ret);
@@ -1220,6 +1221,8 @@ int hmdfs_unlink_merge(struct inode *dir, struct dentry *dentry)
 	if (ret) {
 		hmdfs_err("unlink failed:%d", ret);
 		goto out;
+	} else {
+		hmdfs_update_meta(dir);
 	}
 
 	d_drop(dentry);

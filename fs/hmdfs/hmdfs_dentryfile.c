@@ -1450,7 +1450,7 @@ int get_cloud_cache_file(struct dentry *dentry, struct hmdfs_sb_info *sbi)
 
 	filp = filp_open(fullname, O_RDWR | O_LARGEFILE, 0);
 	if (IS_ERR(filp)) {
-		hmdfs_err("open fail %ld", PTR_ERR(filp));
+		hmdfs_debug("open fail %ld", PTR_ERR(filp));
 		ret = PTR_ERR(filp);
 		goto out;
 	}
