@@ -76,7 +76,7 @@ ifeq ($(CONFIG_RELOCATABLE),y)
 LDFLAGS_vmlinux		+= --emit-relocs
 endif
 
-cflags-y += -ffreestanding
+cflags-y += -fno-builtin-memcpy -fno-builtin-memmove -fno-builtin-memset
 
 #
 # Kernel compression
