@@ -9,16 +9,13 @@
 #include <linux/netdevice.h>
 #include <linux/hck/lite_vendor_hooks.h>
 
-/*
- * Follwing tracepoints are not exported in trace and provide a
- * mechanism for vendor modules to hok and extend functionality
- */
 #ifndef CONFIG_HCK
-
+#undef CALL_HCK_LITE_HOOK
 #define CALL_HCK_LITE_HOOK(name, args...)
+#undef REGISTER_HCK_LITE_HOOK
 #define REGISTER_HCK_LITE_HOOK(name, probe)
+#undef REGISTER_HCK_LITE_DATA_HOOK
 #define REGISTER_HCK_LITE_DATA_HOOK(name, probe, data)
-
 #else
 
 DECLARE_HCK_LITE_HOOK(nip_ninet_ehashfn_lhck,
