@@ -649,8 +649,8 @@ int hmdfs_rename_local_dentry(struct inode *old_dir, struct dentry *old_dentry,
 	lower_old_dir_dentry = dget_parent(lower_old_dentry);
 	lower_new_dir_dentry = dget_parent(lower_new_dentry);
 	trap = lock_rename(lower_old_dir_dentry, lower_new_dir_dentry);
-	old_dir_uid = hmdfs_override_inode_uid(d_inode(lower_old_dir_dentry));
 	new_dir_uid = hmdfs_override_inode_uid(d_inode(lower_new_dir_dentry));
+	old_dir_uid = hmdfs_override_inode_uid(d_inode(lower_old_dir_dentry));
 
 	/* source should not be ancestor of target */
 	if (trap == lower_old_dentry) {
