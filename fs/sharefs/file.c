@@ -205,6 +205,33 @@ out:
 	return err;
 }
 
+int sharefs_file_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	int err = 0;
+	struct file *lower_file;
+
+	lower_file = sharefs_lower_file(file);
+	if (!lower_file)
+		return -EINVAL;
+
+	if (!lower_file->f_op->mmap)
+		return -ENODEV;
+
+	if (WARN_ON(file != vma->vm_file))
+		return -EIO;
+
+	vma->vm_file = get_file(lower_file);
+	err = call_mmap(vma->vm_file, vma);
+	if (err)
+		fput(lower_file);
+	else
+		fput(file);
+
+	file_accessed(file);
+
+	return err;
+}
+
 const struct file_operations sharefs_main_fops = {
 	.llseek		= sharefs_file_llseek,
 	.open		= sharefs_open,
@@ -214,6 +241,7 @@ const struct file_operations sharefs_main_fops = {
 	.fasync		= sharefs_fasync,
 	.read_iter	= sharefs_read_iter,
 	.write_iter	= sharefs_write_iter,
+	.mmap		= sharefs_file_mmap,
 };
 
 /* trimmed directory options */
