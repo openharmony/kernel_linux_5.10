@@ -740,8 +740,92 @@ rename_out:
 	return err;
 }
 
-static const char *hmdfs_get_link_local(struct dentry *dentry, 
-					struct inode *inode, 
+static bool symname_is_allowed(const char *symname)
+{
+	size_t symname_len = strlen(symname);
+	int i;
+
+	for (i = 0; i < symname_len - 1; i++)
+		if (symname[i] == '.' && symname[i + 1] == '.') {
+			hmdfs_err("Prohibited link path");
+			return false;
+		}
+
+	return true;
+}
+
+int hmdfs_symlink_local(struct inode *dir, struct dentry *dentry,
+			const char *symname)
+{
+	int err;
+	struct dentry *lower_dentry = NULL;
+	struct dentry *lower_parent_dentry = NULL;
+	struct path lower_path;
+	struct inode *child_inode = NULL;
+	struct inode *lower_dir_inode = hmdfs_i(dir)->lower_inode;
+	struct hmdfs_dentry_info *gdi = hmdfs_d(dentry);
+	kuid_t tmp_uid;
+#ifdef CONFIG_HMDFS_FS_PERMISSION
+	const struct cred *saved_cred = NULL;
+	struct fs_struct *saved_fs = NULL, *copied_fs = NULL;
+	__u16 child_perm;
+#endif
+
+	if (unlikely(!symname_is_allowed(symname))) {
+		err = -EPERM;
+		goto path_err;
+	}
+
+#ifdef CONFIG_HMDFS_FS_PERMISSION
+	saved_cred = hmdfs_override_file_fsids(dir, &child_perm);
+	if (!saved_cred) {
+		err = -ENOMEM;
+		goto path_err;
+	}
+
+	saved_fs = current->fs;
+	copied_fs = hmdfs_override_fsstruct(saved_fs);
+	if (!copied_fs) {
+		err = -ENOMEM;
+		goto revert_fsids;
+	}
+#endif
+	hmdfs_get_lower_path(dentry, &lower_path);
+	lower_dentry = lower_path.dentry;
+	lower_parent_dentry = lock_parent(lower_dentry);
+	tmp_uid = hmdfs_override_inode_uid(lower_dir_inode);
+	err = vfs_symlink(lower_dir_inode, lower_dentry, symname);
+	hmdfs_revert_inode_uid(lower_dir_inode, tmp_uid);
+	unlock_dir(lower_parent_dentry);
+	if (err)
+		goto out_err;
+	set_symlink_flag(gdi);
+#ifdef CONFIG_HMDFS_FS_PERMISSION
+	err = hmdfs_persist_perm(lower_dentry, &child_perm);
+#endif
+	child_inode = fill_inode_local(dir->i_sb, d_inode(lower_dentry),
+							dentry->d_name.name);
+	if (IS_ERR(child_inode)) {
+		err = PTR_ERR(child_inode);
+		goto out_err;
+	}
+	d_add(dentry, child_inode);
+	fsstack_copy_attr_times(dir, lower_dir_inode);
+	fsstack_copy_inode_size(dir, lower_dir_inode);
+
+out_err:
+	hmdfs_put_lower_path(&lower_path);
+#ifdef CONFIG_HMDFS_FS_PERMISSION
+	hmdfs_revert_fsstruct(saved_fs, copied_fs);
+revert_fsids:
+	hmdfs_revert_fsids(saved_cred);
+#endif
+path_err:
+	return err;
+}
+
+static const char *hmdfs_get_link_local(struct dentry *dentry,
+					struct inode *inode,
 					struct delayed_call *done)
 {
 	const char *link = NULL;
@@ -941,6 +1025,7 @@ const struct inode_operations hmdfs_dir_inode_ops_local = {
 	.create = hmdfs_create_local,
 	.rmdir = hmdfs_rmdir_local,
 	.unlink = hmdfs_unlink_local,
+	.symlink = hmdfs_symlink_local,
 	.rename = hmdfs_rename_local,
 	.permission = hmdfs_permission,
 	.setattr = hmdfs_setattr_local,
