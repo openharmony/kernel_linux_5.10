@@ -850,8 +850,8 @@ int do_mkdir_merge(struct inode *parent_inode, struct dentry *child_dentry,
 		ret = PTR_ERR(child_inode);
 		goto out;
 	}
-	child_inode->i_uid = parent_inode->i_uid;
-	child_inode->i_gid = parent_inode->i_gid;
+	check_and_fixup_ownership_remote(parent_inode, child_inode,
+					 child_dentry);
 
 	d_add(child_dentry, child_inode);
 	/* nlink should be increased with the joining of children */
@@ -878,8 +878,8 @@ int do_create_merge(struct inode *parent_inode, struct dentry *child_dentry,
 		ret = PTR_ERR(child_inode);
 		goto out;
 	}
-	child_inode->i_uid = parent_inode->i_uid;
-	child_inode->i_gid = parent_inode->i_gid;
+	check_and_fixup_ownership_remote(parent_inode, child_inode,
+					 child_dentry);
 
 	d_add(child_dentry, child_inode);
 	/* nlink should be increased with the joining of children */
