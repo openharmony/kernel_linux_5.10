@@ -60,10 +60,11 @@ int raw_data_update(struct hisysevent_raw_data *dest, u8 *src, unsigned int len,
 			pr_err("failed to expand memory for raw data");
 			return -ENOMEM;
 		}
-		memcpy(resize_data, dest->data, dest->len);
-		dest->capacity += expanded_size;
-		if (!dest->data)
+		if (dest->data) {
+			memcpy(resize_data, dest->data, dest->len);
+			dest->capacity += expanded_size;
 			kfree(dest->data);
+		}
 		dest->data = resize_data;
 	}
 
@@ -108,7 +109,7 @@ void raw_data_destroy(struct hisysevent_raw_data *raw_data)
 		return;
 	}
 
-	if (!(raw_data->data))
+	if (raw_data->data)
 		kfree(raw_data->data);
 
 	kfree(raw_data);
