@@ -745,6 +745,9 @@ static bool symname_is_allowed(const char *symname)
 	size_t symname_len = strlen(symname);
 	int i;
 
+	if (symname_len == 1)
+		return true;
+
 	for (i = 0; i < symname_len - 1; i++)
 		if (symname[i] == '.' && symname[i + 1] == '.') {
 			hmdfs_err("Prohibited link path");
@@ -804,7 +807,7 @@ int hmdfs_symlink_local(struct inode *dir, struct dentry *dentry,
 	err = hmdfs_persist_perm(lower_dentry, &child_perm);
 #endif
 	child_inode = fill_inode_local(dir->i_sb, d_inode(lower_dentry),
-							dentry->d_name.name);
+				       dentry->d_name.name);
 	if (IS_ERR(child_inode)) {
 		err = PTR_ERR(child_inode);
 		goto out_err;
