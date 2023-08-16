@@ -604,7 +604,7 @@ static int copy_string_from_user(unsigned long pos, unsigned long len,
 	if (!access_ok((char *)pos, len))
 		return -EFAULT;
 
-	tmp_data = kmalloc(len, GFP_KERNEL);
+	tmp_data = kzalloc(len + 1, GFP_KERNEL);
 	if (!tmp_data)
 		return -ENOMEM;
 	*data = tmp_data;
