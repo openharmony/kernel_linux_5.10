@@ -242,7 +242,7 @@ static int hmdfs_actor_merge(struct dir_context *ctx, const char *name,
 		insert_filename(iterate_callback_merge->root, &cache_entry);
 	if (d_type == DT_DIR && insert_res == DT_DIR) {
 		goto done;
-	} else if (d_type == DT_DIR && 
+	} else if (d_type == DT_DIR &&
 		  (insert_res == DT_REG || insert_res == DT_LNK)) {
 		if (strlen(CONFLICTING_DIR_SUFFIX) > NAME_MAX - dentry_len) {
 			ret = -ENAMETOOLONG;
@@ -386,7 +386,7 @@ int do_dir_open_merge(struct file *file, const struct cred *cred,
 
 	if (IS_ERR_OR_NULL(cred))
 		return ret;
-	
+
 	wait_event(dim->wait_queue, !has_merge_lookup_work(dim));
 
 	mutex_lock(&dim->comrade_list_lock);
@@ -601,7 +601,9 @@ static int copy_string_from_user(unsigned long pos, unsigned long len,
 {
 	char *tmp_data;
 
-	if (!access_ok((char *)pos, len))
+	if (len >= PATH_MAX)
+		return -EINVAL;
+	if (!access_ok(pos, len))
 		return -EFAULT;
 
 	tmp_data = kzalloc(len + 1, GFP_KERNEL);
@@ -609,31 +611,30 @@ static int copy_string_from_user(unsigned long pos, unsigned long len,
 		return -ENOMEM;
 	*data = tmp_data;
 
-	if (copy_from_user(tmp_data, (char __user *)pos, len)){
+	if (copy_from_user(tmp_data, (char __user *)pos, len))
 		return -EFAULT;
-	}
 
 	return 0;
 }
 
-static int hmdfs_get_info_from_user(unsigned long pos, 
+static int hmdfs_get_info_from_user(unsigned long pos,
 		struct hmdfs_dst_info *hdi, struct hmdfs_user_info *data)
 {
 	int ret = 0;
 
-	if (!access_ok((struct hmdfs_dst_info __user *)pos, 
+	if (!access_ok((struct hmdfs_dst_info __user *)pos,
 			sizeof(struct hmdfs_dst_info)))
 		return -ENOMEM;
 	if (copy_from_user(hdi, (struct hmdfs_dst_info __user *)pos,
 			sizeof(struct hmdfs_dst_info)))
 		return -EFAULT;
-	
+
 	ret = copy_string_from_user(hdi->local_path_pos, hdi->local_path_len,
 				    &data->local_path);
 	if (ret != 0)
 		return ret;
 
-	ret = copy_string_from_user(hdi->distributed_path_pos, 
+	ret = copy_string_from_user(hdi->distributed_path_pos,
 				    hdi->distributed_path_len,
 				    &data->distributed_path);
 	if (ret != 0)
@@ -647,7 +648,7 @@ static int hmdfs_get_info_from_user(unsigned long pos,
 	return 0;
 }
 
-static const struct cred *change_cred(struct dentry *dentry, 
+static const struct cred *change_cred(struct dentry *dentry,
 				      const char *bundle_name)
 {
 	int bid;
@@ -664,7 +665,7 @@ static const struct cred *change_cred(struct dentry *dentry,
 		cred->fsgid = KGIDT_INIT(bid);
 		old_cred = override_creds(cred);
 	}
-	
+
 	return old_cred;
 }
 
@@ -701,7 +702,7 @@ static int create_link_file(struct hmdfs_user_info *data)
 		path_put(&path);
 		return ret;
 	}
-	
+
 	dentry = kern_path_create(AT_FDCWD, data->distributed_path, &path, 0);
 	if (IS_ERR(dentry))
 		return PTR_ERR(dentry);
@@ -727,7 +728,7 @@ static int create_dir(const char *path_value, mode_t mode)
 	if (err && err != -EEXIST)
 		hmdfs_err("vfs_mkdir failed, err = %d", err);
 	done_path_create(&path, dentry);
-	
+
 	return err;
 }
 
