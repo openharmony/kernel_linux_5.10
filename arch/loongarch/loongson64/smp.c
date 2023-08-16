@@ -344,7 +344,7 @@ static void loongson3_cpu_die(unsigned int cpu)
 	mb();
 }
 
-void play_dead(void)
+void __noreturn arch_cpu_idle_dead(void)
 {
 	register long cpuid, core, node, count;
 	register void *addr, *base;

@@ -123,8 +123,6 @@ static inline void __cpu_die(unsigned int cpu)
 {
 	mp_ops->cpu_die(cpu);
 }
-
-extern void play_dead(void);
 #endif
 
 static inline void arch_send_call_function_single_ipi(int cpu)
