@@ -364,19 +364,7 @@ int hmdfs_rmdir_cloud(struct inode *dir, struct dentry *dentry)
 
 int hmdfs_unlink_cloud(struct inode *dir, struct dentry *dentry)
 {
-	struct hmdfs_lookup_cloud_ret *lookup_result = NULL;
-	int ret = -EPERM;
-
-	lookup_result = hmdfs_lookup_by_cloud(dentry, 0);
-	/*
-	 * unlink is allowed only after the file item has been removed from
-	 * the dentryfile(lookup fail).
-	 */
-	if (!lookup_result)
-		ret = 0;
-
-	kfree(lookup_result);
-	return ret;
+	return 0;
 }
 
 int hmdfs_rename_cloud(struct inode *old_dir, struct dentry *old_dentry,
