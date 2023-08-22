@@ -381,20 +381,23 @@ char *hmdfs_get_dentry_absolute_path(const char *rootdir,
 char *hmdfs_connect_path(const char *path, const char *name)
 {
 	char *buf = 0;
+	size_t path_len, name_len;
 
 	if (!path || !name)
 		return NULL;
 
-	if (strlen(path) + strlen(name) + 1 >= PATH_MAX)
+	path_len = strnlen(path, PATH_MAX);
+	name_len = strnlen(name, PATH_MAX);
+	if (path_len + name_len + 1 >= PATH_MAX)
 		return NULL;
 
 	buf = kzalloc(PATH_MAX, GFP_KERNEL);
 	if (!buf)
 		return NULL;
 
-	strcpy(buf, path);
+	strncpy(buf, path, path_len);
 	strcat(buf, "/");
-	strcat(buf, name);
+	strncat(buf, name, name_len);
 	return buf;
 }
 
