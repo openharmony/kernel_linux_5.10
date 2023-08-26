@@ -957,6 +957,7 @@ out_unreg_sysfs:
 out_freesbi:
 	if (sbi) {
 		sb->s_fs_info = NULL;
+		hmdfs_clear_share_table(sbi);
 		hmdfs_exit_stash(sbi);
 		hmdfs_destroy_writeback(sbi);
 		hmdfs_destroy_server_writeback(sbi);
