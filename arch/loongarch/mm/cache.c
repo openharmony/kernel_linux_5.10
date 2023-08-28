@@ -153,5 +153,4 @@ void cpu_cache_init(void)
 
 	current_cpu_data.cache_leaves_present = leaf;
 	current_cpu_data.options |= LOONGARCH_CPU_PREFETCH;
-	shm_align_mask = PAGE_SIZE - 1;
 }
