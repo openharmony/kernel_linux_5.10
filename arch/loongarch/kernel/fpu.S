@@ -25,7 +25,7 @@
 
 	.macro	EX insn, reg, src, offs
 .ex\@:	\insn	\reg, \src, \offs
-	_asm_extable .ex\@, fault
+	_asm_extable .ex\@, .L_fault
 	.endm
 
 	.macro	EX_V insn, reg, src, offs
@@ -35,7 +35,7 @@
 	parse_vr __reg, \reg
 .ex\@:
 	.word __insn << 22 | __offs << 10 | __src << 5 | __reg
-	_asm_extable .ex\@, fault
+	_asm_extable .ex\@, .L_fault
 	.endm
 
 	.macro	EX_XV insn, reg, src, offs
@@ -45,7 +45,7 @@
 	parse_xr __reg, \reg
 .ex\@:
 	.word __insn << 22 | __offs << 10 | __src << 5 | __reg
-	_asm_extable .ex\@, fault
+	_asm_extable .ex\@, .L_fault
 	.endm
 
 	.macro sc_save_fp base
@@ -529,7 +529,6 @@ SYM_FUNC_START(_restore_lasx_context)
 	jirl zero, ra, 0
 SYM_FUNC_END(_restore_lasx_context)
 
-SYM_FUNC_START(fault)
+.L_fault:
 	li.w	a0, -EFAULT				# failure
 	jirl zero, ra, 0
-SYM_FUNC_END(fault)
