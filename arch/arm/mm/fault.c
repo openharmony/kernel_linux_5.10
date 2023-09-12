@@ -111,7 +111,7 @@ static void die_kernel_fault(const char *msg, struct mm_struct *mm,
 	show_pte(KERN_ALERT, mm, addr);
 	die("Oops", regs, fsr);
 	bust_spinlocks(0);
-	make_task_dead(SIGKILL);
+	do_exit(SIGKILL);
 }
 
 /*
