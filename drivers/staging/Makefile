@@ -55,3 +55,4 @@ obj-$(CONFIG_HISYSEVENT) 	+= hisysevent/
 obj-$(CONFIG_DFX_ZEROHUNG)	+= zerohung/
 obj-$(CONFIG_DFX_HUNGTASK)      += hungtask/
 obj-$(CONFIG_BLACKBOX)		+= blackbox/
+obj-$(CONFIG_UNIFIED_COLLECTION)	+= ucollection/
