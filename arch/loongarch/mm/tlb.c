@@ -254,7 +254,7 @@ static unsigned long pcpu_handlers[NR_CPUS];
 #endif
 extern long exception_handlers[VECSIZE * 128 / sizeof(long)];
 
-void setup_tlb_handler(int cpu)
+static void setup_tlb_handler(int cpu)
 {
 	setup_ptwalker();
 	local_flush_tlb_all();

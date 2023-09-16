@@ -25,7 +25,6 @@
 #include <linux/ptrace.h>
 #include <linux/kgdb.h>
 #include <linux/kdebug.h>
-#include <linux/kprobes.h>
 #include <linux/notifier.h>
 #include <linux/kdb.h>
 #include <linux/irq.h>
@@ -36,6 +35,7 @@
 #include <asm/branch.h>
 #include <asm/break.h>
 #include <asm/cpu.h>
+#include <asm/exception.h>
 #include <asm/fpu.h>
 #include <asm/inst.h>
 #include <asm/loongarchregs.h>
@@ -51,21 +51,6 @@
 #include <asm/unwind.h>
 
 #include "access-helper.h"
-
-extern asmlinkage void handle_ade(void);
-extern asmlinkage void handle_ale(void);
-extern asmlinkage void handle_bce(void);
-extern asmlinkage void handle_sys(void);
-extern asmlinkage void handle_bp(void);
-extern asmlinkage void handle_ri(void);
-extern asmlinkage void handle_fpu(void);
-extern asmlinkage void handle_fpe(void);
-extern asmlinkage void handle_lbt(void);
-extern asmlinkage void handle_lsx(void);
-extern asmlinkage void handle_lasx(void);
-extern asmlinkage void handle_reserved(void);
-extern asmlinkage void handle_watch(void);
-extern asmlinkage void handle_vint(void);
 
 static void show_backtrace(struct task_struct *task, const struct pt_regs *regs,
 			   const char *loglvl, bool user)
@@ -442,8 +427,8 @@ static inline void setup_vint_size(unsigned int size)
  * happen together with Overflow or Underflow, and `ptrace' can set
  * any bits.
  */
-void force_fcsr_sig(unsigned long fcsr, void __user *fault_addr,
-		     struct task_struct *tsk)
+static void force_fcsr_sig(unsigned long fcsr,
+			void __user *fault_addr, struct task_struct *tsk)
 {
 	int si_code = FPE_FLTUNK;
 
@@ -461,7 +446,7 @@ void force_fcsr_sig(unsigned long fcsr, void __user *fault_addr,
 	force_sig_fault(SIGFPE, si_code, fault_addr);
 }
 
-int process_fpemu_return(int sig, void __user *fault_addr, unsigned long fcsr)
+static int process_fpemu_return(int sig, void __user *fault_addr, unsigned long fcsr)
 {
 	int si_code;
 	struct vm_area_struct *vma;
@@ -809,7 +794,7 @@ asmlinkage void noinstr do_watch(struct pt_regs *regs)
 asmlinkage void noinstr do_ri(struct pt_regs *regs)
 {
 	int status = SIGILL;
-	unsigned int opcode = 0;
+	unsigned int __maybe_unused opcode;
 	unsigned int __user *era = (unsigned int __user *)exception_era(regs);
 	irqentry_state_t state = irqentry_enter(regs);
 

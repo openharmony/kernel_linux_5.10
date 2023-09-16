@@ -36,6 +36,7 @@
 #include <asm/reg.h>
 #include <asm/io.h>
 #include <asm/elf.h>
+#include <asm/exec.h>
 #include <asm/inst.h>
 #include <asm/stacktrace.h>
 #include <asm/irq_regs.h>

@@ -20,11 +20,11 @@
 #include <linux/mm.h>
 #include <linux/smp.h>
 #include <linux/kdebug.h>
-#include <linux/kprobes.h>
 #include <linux/perf_event.h>
 #include <linux/uaccess.h>
 
 #include <asm/branch.h>
+#include <asm/exception.h>
 #include <asm/mmu_context.h>
 #include <asm/ptrace.h>
 

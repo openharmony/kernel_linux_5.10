@@ -15,6 +15,7 @@
 #include <linux/sched/task_stack.h>
 
 #include <asm/asm.h>
+#include <asm/exception.h>
 #include <asm/signal.h>
 #include <asm/switch_to.h>
 #include <asm-generic/syscalls.h>
