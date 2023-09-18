@@ -742,18 +742,28 @@ rename_out:
 
 static bool symname_is_allowed(const char *symname)
 {
-	size_t symname_len = strlen(symname);
-	int i;
+	char *p;
+	char *buf = 0;
+	size_t symname_len;
 
-	if (symname_len == 1)
-		return true;
+	symname_len = strnlen(symname, PATH_MAX);
+	if (symname_len >= PATH_MAX)
+		return false;
 
-	for (i = 0; i < symname_len - 1; i++)
-		if (symname[i] == '.' && symname[i + 1] == '.') {
-			hmdfs_err("Prohibited link path");
-			return false;
-		}
+	buf = kzalloc(PATH_MAX + 2, GFP_KERNEL);
+	if (!buf)
+		return false;
 
+	buf[0] = '/';
+	strncpy(buf + 1, symname, symname_len);
+	strcat(buf, "/");
+	p = strstr(symname, "/../");
+	if (p) {
+		kfree(buf);	
+		return false;
+	}
+
+	kfree(buf);
 	return true;
 }
 
