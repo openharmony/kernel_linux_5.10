@@ -48,7 +48,6 @@
 #include <linux/igmp.h>
 #include <linux/slab.h>
 #include <linux/hash.h>
-#include <linux/hck/lite_hck_inet.h>
 #ifdef CONFIG_SYSCTL
 #include <linux/sysctl.h>
 #endif
@@ -1279,7 +1278,6 @@ int inet_gifconf(struct net_device *dev, char __user *buf, int len, int size)
 		len  -= size;
 		done += size;
 	}
-	CALL_HCK_LITE_HOOK(nip_ninet_gifconf_lhck, dev, buf, len, size, &done);
 out:
 	return done;
 }
