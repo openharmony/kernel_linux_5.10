@@ -283,10 +283,11 @@ static char *hmdfs_merge_dentry_path_raw(struct dentry *d, char *buf, int buflen
 	unsigned int len;
 	unsigned int seq = 0;
 	int error = 0;
-	struct hmdfs_dentry_info_merge *mdi = hmdfs_dm(d);
+	struct hmdfs_dentry_info_merge *mdi = NULL;
 
 	rcu_read_lock();
 restart:
+	mdi = hmdfs_dm(d);
 	dentry = d;
 	end = buf + buflen;
 	len = buflen;
