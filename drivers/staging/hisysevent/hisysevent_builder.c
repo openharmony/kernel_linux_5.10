@@ -107,8 +107,11 @@ static bool is_valid_string(const char *str, unsigned int max_len)
 	if (len == 0 || len > max_len)
 		return false;
 
-	for (i = 0; i < len; i++) {
-		if (!isalpha(str[i]) && str[i] != '_')
+	if (!isalpha(str[0]))
+		return false;
+
+	for (i = 1; i < len; i++) {
+		if (!isalnum(str[i]) && str[i] != '_')
 			return false;
 	}
 	return true;
