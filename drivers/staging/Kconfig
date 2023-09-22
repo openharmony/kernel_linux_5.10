@@ -130,4 +130,5 @@ source "drivers/staging/hungtask/Kconfig"
 
 source "drivers/staging/blackbox/Kconfig"
 
+source "drivers/staging/ucollection/Kconfig"
 endif # STAGING
