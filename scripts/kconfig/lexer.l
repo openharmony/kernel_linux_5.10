@@ -26,6 +26,7 @@ static const char *kconfig_white_list[] = {
 	"net/newip/Kconfig",
 	"security/xpm/Kconfig",
 	"drivers/auth_ctl/Kconfig",
+	"drivers/staging/ucollection/Kconfig",
 };
 
 static struct {
