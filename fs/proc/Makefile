@@ -35,3 +35,4 @@ proc-$(CONFIG_PRINTK)	+= kmsg.o
 proc-$(CONFIG_PROC_PAGE_MONITOR)	+= page.o
 proc-$(CONFIG_BOOT_CONFIG)	+= bootconfig.o
 proc-$(CONFIG_SECURITY_XPM)	+= xpm_region.o
+obj-$(CONFIG_HIDE_MEM_ADDRESS) += memory_security/

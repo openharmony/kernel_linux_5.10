@@ -43,6 +43,7 @@ source "fs/btrfs/Kconfig"
 source "fs/nilfs2/Kconfig"
 source "fs/f2fs/Kconfig"
 source "fs/zonefs/Kconfig"
+source "fs/proc/memory_security/Kconfig"
 
 config FS_DAX
 	bool "Direct Access (DAX) support"
