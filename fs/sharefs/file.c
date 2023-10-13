@@ -11,6 +11,21 @@
 
 #include "sharefs.h"
 
+static int sharefs_readdir(struct file *file, struct dir_context *ctx)
+{
+	int err;
+	struct file *lower_file = NULL;
+	struct dentry *dentry = file->f_path.dentry;
+
+	lower_file = sharefs_lower_file(file);
+	err = iterate_dir(lower_file, ctx);
+	file->f_pos = lower_file->f_pos;
+	if (err >= 0)		/* copy the atime */
+		fsstack_copy_attr_atime(d_inode(dentry),
+					file_inode(lower_file));
+	return err;
+}
+
 static int sharefs_open(struct inode *inode, struct file *file)
 {
 	int err = 0;
@@ -247,6 +262,8 @@ const struct file_operations sharefs_main_fops = {
 /* trimmed directory options */
 const struct file_operations sharefs_dir_fops = {
 	.llseek		= sharefs_file_llseek,
+	.read		= generic_read_dir,
+	.iterate	= sharefs_readdir,
 	.open		= sharefs_open,
 	.release	= sharefs_file_release,
 	.flush		= sharefs_flush,
