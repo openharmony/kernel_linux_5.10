@@ -25,7 +25,7 @@ SYM_FUNC_START(__arch_cpu_idle)
 1:	jirl	zero, ra, 0
 SYM_FUNC_END(__arch_cpu_idle)
 
-SYM_FUNC_START(handle_vint)
+SYM_CODE_START(handle_vint)
 	BACKUP_T0T1
 	SAVE_ALL
 	la.abs	t1, __arch_cpu_idle
@@ -40,11 +40,11 @@ SYM_FUNC_START(handle_vint)
 	la.abs	t0, do_vint
 	jirl    ra, t0, 0
 	RESTORE_ALL_AND_RET
-SYM_FUNC_END(handle_vint)
+SYM_CODE_END(handle_vint)
 
-SYM_FUNC_START(except_vec_cex)
+SYM_CODE_START(except_vec_cex)
 	b	cache_parity_error
-SYM_FUNC_END(except_vec_cex)
+SYM_CODE_END(except_vec_cex)
 
 	.macro	build_prep_badv
 	csrrd	t0, LOONGARCH_CSR_BADV
@@ -60,7 +60,7 @@ SYM_FUNC_END(except_vec_cex)
 
 	.macro	BUILD_HANDLER exception handler prep
 	.align	5
-	SYM_FUNC_START(handle_\exception)
+	SYM_CODE_START(handle_\exception)
 	BACKUP_T0T1
 	SAVE_ALL
 	build_prep_\prep
@@ -68,7 +68,7 @@ SYM_FUNC_END(except_vec_cex)
 	la.abs	t0, do_\handler
 	jirl    ra, t0, 0
 	RESTORE_ALL_AND_RET
-	SYM_FUNC_END(handle_\exception)
+	SYM_CODE_END(handle_\exception)
 	.endm
 
 	BUILD_HANDLER ade ade badv
@@ -84,7 +84,7 @@ SYM_FUNC_END(except_vec_cex)
 	BUILD_HANDLER watch watch none
 	BUILD_HANDLER reserved reserved none	/* others */
 
-SYM_FUNC_START(handle_sys)
+SYM_CODE_START(handle_sys)
 	la.abs	t0, handle_syscall
 	jirl    zero, t0, 0
-SYM_FUNC_END(handle_sys)
+SYM_CODE_END(handle_sys)
