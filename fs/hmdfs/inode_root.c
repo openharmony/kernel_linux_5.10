@@ -320,7 +320,7 @@ struct inode *fill_device_inode(struct super_block *sb,
 	return inode;
 }
 
-struct inode *fill_root_inode(struct super_block *sb, struct inode *lower_inode)
+struct inode *fill_root_inode(struct super_block *sb, struct hmdfs_sb_info *sbi, struct inode *lower_inode)
 {
 	struct inode *inode = NULL;
 	struct hmdfs_inode_info *info = NULL;
@@ -328,8 +328,14 @@ struct inode *fill_root_inode(struct super_block *sb, struct inode *lower_inode)
 	if (!igrab(lower_inode))
 		return ERR_PTR(-ESTALE);
 
-	inode = hmdfs_iget_locked_root(sb, HMDFS_ROOT_ANCESTOR, lower_inode,
+	if (sbi->s_cloud_disk_switch) {
+		inode = hmdfs_iget_locked_root(sb, HMDFS_ROOT_DEV_LOCAL, lower_inode,
 				       NULL);
+	} else {
+		inode = hmdfs_iget_locked_root(sb, HMDFS_ROOT_ANCESTOR, lower_inode,
+				       NULL);
+	}
+	
 	if (!inode) {
 		hmdfs_err("iget5_locked get inode NULL");
 		iput(lower_inode);
@@ -341,7 +347,15 @@ struct inode *fill_root_inode(struct super_block *sb, struct inode *lower_inode)
 	}
 
 	info = hmdfs_i(inode);
-	info->inode_type = HMDFS_LAYER_ZERO;
+	if (sbi->s_cloud_disk_switch) {
+		info->inode_type = HMDFS_LAYER_SECOND_LOCAL;
+		inode->i_op = &hmdfs_dir_inode_ops_local;
+		inode->i_fop = &hmdfs_dir_ops_local;
+	} else {
+		info->inode_type = HMDFS_LAYER_ZERO;
+		inode->i_op = &hmdfs_root_ops;
+		inode->i_fop = &hmdfs_root_fops;
+	}
 	inode->i_mode = (lower_inode->i_mode & S_IFMT) | S_IRUSR | S_IXUSR |
 			S_IRGRP | S_IXGRP | S_IXOTH;
 
@@ -355,9 +369,7 @@ struct inode *fill_root_inode(struct super_block *sb, struct inode *lower_inode)
 	inode->i_atime = lower_inode->i_atime;
 	inode->i_ctime = lower_inode->i_ctime;
 	inode->i_mtime = lower_inode->i_mtime;
-
-	inode->i_op = &hmdfs_root_ops;
-	inode->i_fop = &hmdfs_root_fops;
+	
 	fsstack_copy_inode_size(inode, lower_inode);
 	unlock_new_inode(inode);
 	return inode;

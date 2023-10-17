@@ -167,6 +167,8 @@ struct hmdfs_sb_info {
 
 	/* For merge & device view */
 	unsigned int s_merge_switch;
+	/* For cloud disk*/
+	unsigned int s_cloud_disk_switch;
 	/* For writeback */
 	struct hmdfs_writeback *h_wb;
 	/* For server writeback */

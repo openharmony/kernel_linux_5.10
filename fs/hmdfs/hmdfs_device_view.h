@@ -182,7 +182,7 @@ void hmdfs_set_time(struct dentry *dentry, unsigned long time);
 struct inode *fill_inode_local(struct super_block *sb,
 			       struct inode *lower_inode, const char *name);
 struct inode *fill_root_inode(struct super_block *sb,
-			      struct inode *lower_inode);
+			      struct hmdfs_sb_info *sbi, struct inode *lower_inode);
 struct inode *fill_device_inode(struct super_block *sb,
 				struct inode *lower_inode);
 struct hmdfs_lookup_ret *hmdfs_lookup_by_con(struct hmdfs_peer *con,
