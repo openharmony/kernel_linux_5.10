@@ -54,7 +54,7 @@ int fsverity_verify_signature(const struct fsverity_info *vi,
 	const struct fsverity_hash_alg *hash_alg = vi->tree_params.hash_alg;
 	const u32 sig_size = le32_to_cpu(desc->sig_size);
 	struct fsverity_signed_digest *d;
-	int err = 0;
+	int err;
 
 	if (sig_size == 0) {
 		if (fsverity_require_signatures) {
