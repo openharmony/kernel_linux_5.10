@@ -253,7 +253,7 @@ struct security_class_mapping secclass_map[] = {
 	{ "xpm",
 	  { "exec_no_sign", "exec_anon_mem", NULL } },
 	{ "code_sign",
-	  { "access_cert_chain", NULL } },
+	  { "add_cert_chain", NULL } },
 	{ NULL }
   };
 
