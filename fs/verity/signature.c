@@ -55,7 +55,6 @@ int fsverity_verify_signature(const struct fsverity_info *vi,
 	const u32 sig_size = le32_to_cpu(desc->sig_size);
 	struct fsverity_signed_digest *d;
 	int err = 0;
-	int ret = 0;
 
 	if (sig_size == 0) {
 		if (fsverity_require_signatures) {
@@ -79,10 +78,10 @@ int fsverity_verify_signature(const struct fsverity_info *vi,
 	d->digest_size = cpu_to_le16(hash_alg->digest_size);
 	memcpy(d->digest, vi->measurement, hash_alg->digest_size);
 
-	ret = fsverity_verify_certchain(desc->signature, sig_size);
-	if (ret) {
-		fsverity_err(inode, "verify cert chain failed, ret = %d", ret);
-		return ret;
+	err = fsverity_verify_certchain(desc->signature, sig_size);
+	if (err) {
+		fsverity_err(inode, "verify cert chain failed, err = %d", err);
+		return err;
 	}
 	pr_debug("verify cert chain success\n");
 
