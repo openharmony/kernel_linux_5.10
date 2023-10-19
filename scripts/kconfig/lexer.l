@@ -28,6 +28,7 @@ static const char *kconfig_white_list[] = {
 	"drivers/auth_ctl/Kconfig",
 	"drivers/staging/ucollection/Kconfig",
 	"fs/proc/memory_security/Kconfig",
+	"fs/code_sign/Kconfig",
 };
 
 static struct {
