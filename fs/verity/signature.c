@@ -11,6 +11,7 @@
 #include <linux/key.h>
 #include <linux/slab.h>
 #include <linux/verification.h>
+#include <linux/hck/lite_hck_code_sign.h>
 
 /*
  * /proc/sys/fs/verity/require_signatures
@@ -25,6 +26,14 @@ static int fsverity_require_signatures;
  * keyctl_restrict_keyring() to prevent any more additions.
  */
 static struct key *fsverity_keyring;
+
+static inline int fsverity_verify_certchain(const void *raw_pkcs7, size_t pkcs7_len)
+{
+	int ret = 0;
+
+	CALL_HCK_LITE_HOOK(code_sign_verify_certchain_lhck, raw_pkcs7, pkcs7_len, &ret);
+	return ret;
+}
 
 /**
  * fsverity_verify_signature() - check a verity file's signature
@@ -68,6 +77,13 @@ int fsverity_verify_signature(const struct fsverity_info *vi,
 	d->digest_algorithm = cpu_to_le16(hash_alg - fsverity_hash_algs);
 	d->digest_size = cpu_to_le16(hash_alg->digest_size);
 	memcpy(d->digest, vi->measurement, hash_alg->digest_size);
+
+	err = fsverity_verify_certchain(desc->signature, sig_size);
+	if (err) {
+		fsverity_err(inode, "verify cert chain failed, err = %d", err);
+		return err;
+	}
+	pr_debug("verify cert chain success\n");
 
 	err = verify_pkcs7_signature(d, sizeof(*d) + hash_alg->digest_size,
 				     desc->signature, sig_size,
