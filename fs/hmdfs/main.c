@@ -719,6 +719,7 @@ static int hmdfs_init_sbi(struct hmdfs_sb_info *sbi)
 			  HMDFS_FEATURE_READPAGES_OPEN |
 			  HMDFS_ATOMIC_OPEN;
 	sbi->s_merge_switch = false;
+	sbi->s_cloud_disk_switch = false;
 	sbi->dcache_threshold = DEFAULT_DCACHE_THRESHOLD;
 	sbi->dcache_precision = DEFAULT_DCACHE_PRECISION;
 	sbi->dcache_timeout = DEFAULT_DCACHE_TIMEOUT;
@@ -912,7 +913,7 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 		err = -EINVAL;
 		goto out_sput;
 	}
-	root_inode = fill_root_inode(sb, d_inode(lower_path.dentry));
+	root_inode = fill_root_inode(sb, sbi, d_inode(lower_path.dentry));
 	if (IS_ERR(root_inode)) {
 		err = PTR_ERR(root_inode);
 		goto out_sput;

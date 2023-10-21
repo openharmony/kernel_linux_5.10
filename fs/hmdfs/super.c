@@ -19,6 +19,7 @@ enum {
 	OPT_CLOUD_DIR,
 	OPT_S_CASE,
 	OPT_VIEW_TYPE,
+	OPT_CLOUD_DISK_TYPE,
 	OPT_NO_OFFLINE_STASH,
 	OPT_NO_DENTRY_CACHE,
 	OPT_USER_ID,
@@ -32,6 +33,7 @@ static match_table_t hmdfs_tokens = {
 	{ OPT_CLOUD_DIR, "cloud_dir=%s" },
 	{ OPT_S_CASE, "sensitive" },
 	{ OPT_VIEW_TYPE, "merge" },
+	{ OPT_CLOUD_DISK_TYPE, "cloud_disk"},
 	{ OPT_NO_OFFLINE_STASH, "no_offline_stash" },
 	{ OPT_NO_DENTRY_CACHE, "no_dentry_cache" },
 	{ OPT_USER_ID, "user_id=%s"},
@@ -139,6 +141,9 @@ int hmdfs_parse_options(struct hmdfs_sb_info *sbi, const char *data)
 			break;
 		case OPT_VIEW_TYPE:
 			sbi->s_merge_switch = true;
+			break;
+		case OPT_CLOUD_DISK_TYPE:
+			sbi->s_cloud_disk_switch = true;
 			break;
 		case OPT_NO_OFFLINE_STASH:
 			sbi->s_offline_stash = false;
