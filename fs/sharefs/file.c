@@ -143,7 +143,7 @@ static int sharefs_fasync(int fd, struct file *file, int flag)
  */
 static loff_t sharefs_file_llseek(struct file *file, loff_t offset, int whence)
 {
-	int err;
+	loff_t err;
 	struct file *lower_file;
 
 	err = generic_file_llseek(file, offset, whence);
