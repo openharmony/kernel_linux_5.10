@@ -3358,7 +3358,7 @@ static int f2fs_ioc_resize_fs(struct file *filp, unsigned long arg)
 	return f2fs_resize_fs(sbi, block_count);
 }
 
-static int f2fs_ioc_enable_verity(struct file *filp, unsigned long arg)
+static inline int f2fs_has_feature_verity(struct file *filp)
 {
 	struct inode *inode = file_inode(filp);
 
@@ -3370,8 +3370,27 @@ static int f2fs_ioc_enable_verity(struct file *filp, unsigned long arg)
 			  inode->i_ino);
 		return -EOPNOTSUPP;
 	}
+	return 0;
+}
+
+static int f2fs_ioc_enable_verity(struct file *filp, unsigned long arg)
+{
+	int err = f2fs_has_feature_verity(filp);
+
+	if (err)
+		return err;
 
 	return fsverity_ioctl_enable(filp, (const void __user *)arg);
+}
+
+static int f2fs_ioc_enable_code_sign(struct file *filp, unsigned long arg)
+{
+	int err = f2fs_has_feature_verity(filp);
+
+	if (err)
+		return err;
+
+	return fsverity_ioctl_enable_code_sign(filp, (const void __user *)arg);
 }
 
 static int f2fs_ioc_measure_verity(struct file *filp, unsigned long arg)
@@ -4040,6 +4059,8 @@ static long __f2fs_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return f2fs_ioc_enable_verity(filp, arg);
 	case FS_IOC_MEASURE_VERITY:
 		return f2fs_ioc_measure_verity(filp, arg);
+	case FS_IOC_ENABLE_CODE_SIGN:
+		return f2fs_ioc_enable_code_sign(filp, arg);
 	case FS_IOC_GETFSLABEL:
 		return f2fs_ioc_getfslabel(filp, arg);
 	case FS_IOC_SETFSLABEL:
@@ -4289,6 +4310,7 @@ long f2fs_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case F2FS_IOC_RESIZE_FS:
 	case FS_IOC_ENABLE_VERITY:
 	case FS_IOC_MEASURE_VERITY:
+	case FS_IOC_ENABLE_CODE_SIGN:
 	case FS_IOC_GETFSLABEL:
 	case FS_IOC_SETFSLABEL:
 	case F2FS_IOC_GET_COMPRESS_BLOCKS:

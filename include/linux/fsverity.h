@@ -127,6 +127,8 @@ static inline struct fsverity_info *fsverity_get_info(const struct inode *inode)
 /* enable.c */
 
 int fsverity_ioctl_enable(struct file *filp, const void __user *arg);
+int fsverity_enable_with_descriptor(struct file *filp,
+	void *desc, size_t desc_size);
 
 /* measure.c */
 
@@ -143,6 +145,7 @@ void fsverity_cleanup_inode(struct inode *inode);
 bool fsverity_verify_page(struct page *page);
 void fsverity_verify_bio(struct bio *bio);
 void fsverity_enqueue_verify_work(struct work_struct *work);
+u64 fsverity_get_verified_data_size(const struct inode *inode);
 
 #else /* !CONFIG_FS_VERITY */
 
@@ -155,6 +158,12 @@ static inline struct fsverity_info *fsverity_get_info(const struct inode *inode)
 
 static inline int fsverity_ioctl_enable(struct file *filp,
 					const void __user *arg)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int fsverity_enable_with_descriptor(struct file *filp,
+	void *desc, size_t desc_size)
 {
 	return -EOPNOTSUPP;
 }
@@ -201,7 +210,28 @@ static inline void fsverity_enqueue_verify_work(struct work_struct *work)
 	WARN_ON(1);
 }
 
+static inline u64 fsverity_get_verified_data_size(const struct inode *inode)
+{
+	WARN_ON(1);
+	return inode->i_size;
+}
+
 #endif	/* !CONFIG_FS_VERITY */
+
+#ifdef CONFIG_SECURITY_CODE_SIGN
+
+/* enable.c */
+
+int fsverity_ioctl_enable_code_sign(struct file *filp, const void __user *uarg);
+
+#else /* !CONFIG_SECURITY_CODE_SIGN */
+
+static inline int fsverity_ioctl_enable_code_sign(struct file *filp, const void __user *uarg)
+{
+	return -EOPNOTSUPP;
+}
+
+#endif /* !CONFIG_SECURITY_CODE_SIGN */
 
 /**
  * fsverity_active() - do reads from the inode need to go through fs-verity?

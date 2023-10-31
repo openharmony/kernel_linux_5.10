@@ -17,6 +17,7 @@
 #include <crypto/sha.h>
 #include <linux/fsverity.h>
 #include <linux/mempool.h>
+#include <linux/code_sign.h>
 
 struct ahash_request;
 
@@ -75,6 +76,9 @@ struct fsverity_info {
 	u8 root_hash[FS_VERITY_MAX_DIGEST_SIZE];
 	u8 measurement[FS_VERITY_MAX_DIGEST_SIZE];
 	const struct inode *inode;
+#ifdef CONFIG_SECURITY_CODE_SIGN
+	u64 verified_data_size;
+#endif
 };
 
 /*
@@ -117,6 +121,8 @@ struct fsverity_signed_digest {
 
 extern struct fsverity_hash_alg fsverity_hash_algs[];
 
+extern int g_fsverity_hash_algs_num;
+
 struct fsverity_hash_alg *fsverity_get_hash_alg(const struct inode *inode,
 						unsigned int num);
 struct ahash_request *fsverity_alloc_hash_request(struct fsverity_hash_alg *alg,
@@ -149,7 +155,8 @@ int fsverity_init_merkle_tree_params(struct merkle_tree_params *params,
 				     const struct inode *inode,
 				     unsigned int hash_algorithm,
 				     unsigned int log_blocksize,
-				     const u8 *salt, size_t salt_size);
+				     const u8 *salt, size_t salt_size,
+				     u64 data_size);
 
 struct fsverity_info *fsverity_create_info(const struct inode *inode,
 					   void *desc, size_t desc_size);

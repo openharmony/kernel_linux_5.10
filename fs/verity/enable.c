@@ -14,6 +14,33 @@
 #include <linux/sched/signal.h>
 #include <linux/uaccess.h>
 
+static int check_file_and_enable_verity(struct file *filp,
+	const struct fsverity_enable_arg *arg);
+
+#ifdef CONFIG_SECURITY_CODE_SIGN
+
+static int code_sign_init_descriptor(struct inode *inode,
+	const struct fsverity_enable_arg *_arg, struct fsverity_descriptor *_desc);
+
+static int code_sign_copy_merkle_tree(struct file *filp, const void *_desc,
+	const struct merkle_tree_params *params);
+
+#else /* !CONFIG_SECURITY_CODE_SIGN */
+
+static inline int code_sign_init_descriptor(struct inode *inode,
+	const struct fsverity_enable_arg *_arg, struct fsverity_descriptor *_desc)
+{
+	return 0;
+}
+
+static int code_sign_copy_merkle_tree(struct file *filp,
+	const void *_desc,
+	const struct merkle_tree_params *params)
+{
+	return 0;
+}
+#endif /* !CONFIG_SECURITY_CODE_SIGN */
+
 /*
  * Read a file data page for Merkle tree construction.  Do aggressive readahead,
  * since we're sequentially reading the entire file.
@@ -150,7 +177,8 @@ static int build_merkle_tree_level(struct file *filp, unsigned int level,
  */
 static int build_merkle_tree(struct file *filp,
 			     const struct merkle_tree_params *params,
-			     u8 *root_hash)
+			     u8 *root_hash,
+			     size_t data_size)
 {
 	struct inode *inode = file_inode(filp);
 	u8 *pending_hashes;
@@ -159,7 +187,7 @@ static int build_merkle_tree(struct file *filp,
 	unsigned int level;
 	int err = -ENOMEM;
 
-	if (inode->i_size == 0) {
+	if (data_size == 0) {
 		/* Empty file is a special case; root hash is all 0's */
 		memset(root_hash, 0, params->digest_size);
 		return 0;
@@ -177,7 +205,7 @@ static int build_merkle_tree(struct file *filp,
 	 * (level 0) and ascending to the root node (level 'num_levels - 1').
 	 * Then at the end (level 'num_levels'), calculate the root hash.
 	 */
-	blocks = ((u64)inode->i_size + params->block_size - 1) >>
+	blocks = ((u64)data_size + params->block_size - 1) >>
 		 params->log_blocksize;
 	for (level = 0; level <= params->num_levels; level++) {
 		err = build_merkle_tree_level(filp, level, blocks, params,
@@ -199,11 +227,8 @@ static int enable_verity(struct file *filp,
 			 const struct fsverity_enable_arg *arg)
 {
 	struct inode *inode = file_inode(filp);
-	const struct fsverity_operations *vops = inode->i_sb->s_vop;
-	struct merkle_tree_params params = { };
 	struct fsverity_descriptor *desc;
 	size_t desc_size = sizeof(*desc) + arg->sig_size;
-	struct fsverity_info *vi;
 	int err;
 
 	/* Start initializing the fsverity_descriptor */
@@ -234,11 +259,34 @@ static int enable_verity(struct file *filp,
 
 	desc->data_size = cpu_to_le64(inode->i_size);
 
+	err = code_sign_init_descriptor(inode, arg, desc);
+	if (err) {
+		fsverity_err(inode, "Init code sign descriptor err: %u", err);
+		goto out;
+	}
+
+	err = fsverity_enable_with_descriptor(filp, (void *)desc, desc_size);
+out:
+	kfree(desc);
+	return err;
+}
+
+int fsverity_enable_with_descriptor(struct file *filp,
+	void *_desc, size_t desc_size)
+{
+	struct inode *inode = file_inode(filp);
+	const struct fsverity_operations *vops = inode->i_sb->s_vop;
+	struct merkle_tree_params params = { };
+	struct fsverity_descriptor *desc = (struct fsverity_descriptor *)_desc;
+	struct fsverity_info *vi;
+	int err;
+
 	/* Prepare the Merkle tree parameters */
 	err = fsverity_init_merkle_tree_params(&params, inode,
-					       arg->hash_algorithm,
+					       desc->hash_algorithm,
 					       desc->log_blocksize,
-					       desc->salt, desc->salt_size);
+					       desc->salt, desc->salt_size,
+					       desc->data_size);
 	if (err)
 		goto out;
 
@@ -255,6 +303,13 @@ static int enable_verity(struct file *filp,
 	if (err)
 		goto out;
 
+	err = code_sign_copy_merkle_tree(filp, _desc, &params);
+	if (err < 0) {
+		fsverity_err(inode, "Error %d copying Merkle tree", err);
+		goto rollback;
+	} else if (err == 1) /* already copy merkle tree */
+		goto skip_build;
+
 	/*
 	 * Build the Merkle tree.  Don't hold the inode lock during this, since
 	 * on huge files this may take a very long time and we don't want to
@@ -266,11 +321,13 @@ static int enable_verity(struct file *filp,
 	 */
 	pr_debug("Building Merkle tree...\n");
 	BUILD_BUG_ON(sizeof(desc->root_hash) < FS_VERITY_MAX_DIGEST_SIZE);
-	err = build_merkle_tree(filp, &params, desc->root_hash);
+	err = build_merkle_tree(filp, &params, desc->root_hash, desc->data_size);
 	if (err) {
 		fsverity_err(inode, "Error %d building Merkle tree", err);
 		goto rollback;
 	}
+
+skip_build:
 	pr_debug("Done building Merkle tree.  Root hash is %s:%*phN\n",
 		 params.hash_alg->name, params.digest_size, desc->root_hash);
 
@@ -287,9 +344,9 @@ static int enable_verity(struct file *filp,
 		goto rollback;
 	}
 
-	if (arg->sig_size)
+	if (desc->sig_size)
 		pr_debug("Storing a %u-byte PKCS#7 signature alongside the file\n",
-			 arg->sig_size);
+			 desc->sig_size);
 
 	/*
 	 * Tell the filesystem to finish enabling verity on the file.
@@ -317,7 +374,6 @@ static int enable_verity(struct file *filp,
 	}
 out:
 	kfree(params.hashstate);
-	kfree(desc);
 	return err;
 
 rollback:
@@ -326,6 +382,7 @@ rollback:
 	inode_unlock(inode);
 	goto out;
 }
+EXPORT_SYMBOL_GPL(fsverity_enable_with_descriptor);
 
 /**
  * fsverity_ioctl_enable() - enable verity on a file
@@ -341,7 +398,6 @@ int fsverity_ioctl_enable(struct file *filp, const void __user *uarg)
 {
 	struct inode *inode = file_inode(filp);
 	struct fsverity_enable_arg arg;
-	int err;
 
 	if (copy_from_user(&arg, uarg, sizeof(arg)))
 		return -EFAULT;
@@ -362,6 +418,15 @@ int fsverity_ioctl_enable(struct file *filp, const void __user *uarg)
 	if (arg.sig_size > FS_VERITY_MAX_SIGNATURE_SIZE)
 		return -EMSGSIZE;
 
+	return check_file_and_enable_verity(filp, &arg);
+}
+EXPORT_SYMBOL_GPL(fsverity_ioctl_enable);
+
+static int check_file_and_enable_verity(struct file *filp,
+	const struct fsverity_enable_arg *arg)
+{
+	struct inode *inode = file_inode(filp);
+	int err;
 	/*
 	 * Require a regular file with write access.  But the actual fd must
 	 * still be readonly so that we can lock out all writers.  This is
@@ -390,7 +455,7 @@ int fsverity_ioctl_enable(struct file *filp, const void __user *uarg)
 	if (err) /* -ETXTBSY */
 		goto out_drop_write;
 
-	err = enable_verity(filp, &arg);
+	err = enable_verity(filp, arg);
 	if (err)
 		goto out_allow_write_access;
 
@@ -415,4 +480,152 @@ out_drop_write:
 	mnt_drop_write_file(filp);
 	return err;
 }
-EXPORT_SYMBOL_GPL(fsverity_ioctl_enable);
+
+#ifdef CONFIG_SECURITY_CODE_SIGN
+static int code_sign_copy_merkle_tree(struct file *filp,
+				 const void *_desc,
+				 const struct merkle_tree_params *params)
+{
+	struct inode *inode = file_inode(filp);
+	const struct fsverity_operations *vops = inode->i_sb->s_vop;
+	u8 *tree_data;
+	u64 blocks, i;
+	int err = -ENOMEM;
+	struct file_ra_state ra = { 0 };
+	struct page *src_page;
+	void *addr;
+	u64 tree_offset, tree_start_index;
+
+	if (!is_inside_tree_compact(_desc))
+		return 0;
+
+	tree_offset = get_tree_offset_compact(_desc);
+
+	if (inode->i_size < tree_offset + params->tree_size) {
+		fsverity_err(inode, "File is too small to contain Merkle tree.");
+		return -EFAULT;
+	}
+
+	tree_data = kmalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!tree_data)
+		goto out;
+
+	file_ra_state_init(&ra, filp->f_mapping);
+
+	tree_start_index = tree_offset >> PAGE_SHIFT;
+	blocks = params->tree_size >> PAGE_SHIFT;
+	for (i = 0; i < blocks; i++) {
+		pr_debug("Copy Merkle tree page at %d\n", tree_start_index + i);
+		src_page = read_file_data_page(filp, tree_start_index + i, &ra,
+							blocks - i);
+		if (IS_ERR(src_page)) {
+			err = PTR_ERR(src_page);
+			fsverity_err(inode,
+						"Error %d reading Merkle tree page %llu",
+						err, tree_start_index + i);
+			goto out;
+		}
+
+		addr = kmap_atomic(src_page);
+		memcpy(tree_data, addr, PAGE_SIZE);
+		kunmap_atomic(addr);
+		put_page(src_page);
+		err = vops->write_merkle_tree_block(inode, tree_data, i,
+				params->log_blocksize);
+		if (err) {
+			fsverity_err(inode,
+					"Error %d writing Merkle tree block %llu",
+					err, i);
+			goto out;
+		}
+	}
+	/* already copy merkle tree */
+	err = 1;
+out:
+	kfree(tree_data);
+	return err;
+}
+
+static int code_sign_init_descriptor(struct inode *inode,
+	const struct fsverity_enable_arg *_arg,
+	struct fsverity_descriptor *_desc)
+{
+	struct code_sign_descriptor *desc = CAST_CODE_SIGN_DESC(_desc);
+	const struct code_sign_enable_arg *arg = (const struct code_sign_enable_arg *)_arg;
+	int algo_index;
+
+	if (!arg->cs_version)
+		return 0;
+
+	/* init extended fields */
+	desc->flags = cpu_to_le32(arg->flags);
+	desc->data_size = cpu_to_le64(arg->data_size);
+	desc->tree_offset = cpu_to_le64(arg->tree_offset);
+	desc->cs_version = arg->cs_version;
+
+	/* Get root hash if a Merkle tree carried in file */
+	if (!IS_INSIDE_TREE(desc))
+		return 0;
+
+	/* Get size of root hash */
+	algo_index = desc->hash_algorithm;
+	if (algo_index >= g_fsverity_hash_algs_num ||
+			!fsverity_hash_algs[algo_index].name) {
+		fsverity_err(inode, "Unknown hash algorithm: %u", algo_index);
+		return -EINVAL;
+	}
+
+	if (copy_from_user(desc->root_hash, u64_to_user_ptr(arg->root_hash_ptr),
+			fsverity_hash_algs[algo_index].digest_size)) {
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
+/**
+ * fsverity_ioctl_enable_code_sign() - enable code signing on a file
+ * @filp: file to enable code signing on
+ * @uarg: user pointer to code_sign_enable_arg
+ *
+ * Enable fs-verity on a file with code signing features.
+ *
+ * Return: 0 on success, -errno on failure
+ */
+int fsverity_ioctl_enable_code_sign(struct file *filp, const void __user *uarg)
+{
+	struct inode *inode = file_inode(filp);
+	struct code_sign_enable_arg arg;
+
+	if (copy_from_user(&arg, uarg, sizeof(arg)))
+		return -EFAULT;
+
+	if (arg.version != 1)
+		return -EINVAL;
+
+	if (arg.cs_version != 1)
+		return -EINVAL;
+
+	if (arg.__reserved1 ||
+	    memchr_inv(arg.__reserved2, 0, sizeof(arg.__reserved2)))
+		return -EINVAL;
+
+	if (arg.data_size > inode->i_size)
+		return -EINVAL;
+
+	if (arg.tree_offset % PAGE_SIZE != 0)
+		return -EINVAL;
+
+	if (arg.block_size != PAGE_SIZE)
+		return -EINVAL;
+
+	if (arg.salt_size > sizeof_field(struct code_sign_descriptor, salt))
+		return -EMSGSIZE;
+
+	if (arg.sig_size > FS_VERITY_MAX_SIGNATURE_SIZE)
+		return -EMSGSIZE;
+
+	return check_file_and_enable_verity(filp, (struct fsverity_enable_arg *)&arg);
+}
+EXPORT_SYMBOL_GPL(fsverity_ioctl_enable_code_sign);
+#endif /* CONFIG_SECURITY_CODE_SIGN */

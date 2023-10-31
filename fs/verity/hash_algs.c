@@ -24,6 +24,8 @@ struct fsverity_hash_alg fsverity_hash_algs[] = {
 	},
 };
 
+int g_fsverity_hash_algs_num = ARRAY_SIZE(fsverity_hash_algs);
+
 static DEFINE_MUTEX(fsverity_hash_alg_init_mutex);
 
 /**

@@ -19,6 +19,7 @@ static struct kmem_cache *fsverity_info_cachep;
  * @log_blocksize: log base 2 of block size to use
  * @salt: pointer to salt (optional)
  * @salt_size: size of salt, possibly 0
+ * @data_size: verified data size
  *
  * Validate the hash algorithm and block size, then compute the tree topology
  * (num levels, num blocks in each level, etc.) and initialize @params.
@@ -29,7 +30,8 @@ int fsverity_init_merkle_tree_params(struct merkle_tree_params *params,
 				     const struct inode *inode,
 				     unsigned int hash_algorithm,
 				     unsigned int log_blocksize,
-				     const u8 *salt, size_t salt_size)
+				     const u8 *salt, size_t salt_size,
+				     u64 data_size)
 {
 	struct fsverity_hash_alg *hash_alg;
 	int err;
@@ -89,8 +91,8 @@ int fsverity_init_merkle_tree_params(struct merkle_tree_params *params,
 	 */
 
 	/* Compute number of levels and the number of blocks in each level */
-	blocks = ((u64)inode->i_size + params->block_size - 1) >> log_blocksize;
-	pr_debug("Data is %lld bytes (%llu blocks)\n", inode->i_size, blocks);
+	blocks = ((u64)data_size + params->block_size - 1) >> params->log_blocksize;
+	pr_debug("Data is %lld bytes (%llu blocks)\n", data_size, blocks);
 	while (blocks > 1) {
 		if (params->num_levels >= FS_VERITY_MAX_LEVELS) {
 			fsverity_err(inode, "Too many levels in Merkle tree");
@@ -132,11 +134,13 @@ static int compute_file_measurement(struct fsverity_hash_alg *hash_alg,
 				    u8 *measurement)
 {
 	__le32 sig_size = desc->sig_size;
-	int err;
+	int err, cs_version;
 
+	cs_version = code_sign_before_measurement_hook(desc);
 	desc->sig_size = 0;
 	err = fsverity_hash_buffer(hash_alg, desc, sizeof(*desc), measurement);
 	desc->sig_size = sig_size;
+	code_sign_after_measurement_hook(desc, cs_version);
 
 	return err;
 }
@@ -157,6 +161,13 @@ struct fsverity_info *fsverity_create_info(const struct inode *inode,
 			     desc_size);
 		return ERR_PTR(-EINVAL);
 	}
+
+	err = code_sign_check_descriptor_hook(inode, _desc);
+	if (err < 0) {
+		fsverity_err(inode, "Invalid code sign descriptor.");
+		return ERR_PTR(err);
+	} else if (err == 1)
+		goto skip_part_check;
 
 	if (desc->version != 1) {
 		fsverity_err(inode, "Unrecognized descriptor version: %u",
@@ -181,15 +192,21 @@ struct fsverity_info *fsverity_create_info(const struct inode *inode,
 		return ERR_PTR(-EINVAL);
 	}
 
+skip_part_check:
 	vi = kmem_cache_zalloc(fsverity_info_cachep, GFP_KERNEL);
 	if (!vi)
 		return ERR_PTR(-ENOMEM);
 	vi->inode = inode;
 
+#ifdef CONFIG_SECURITY_CODE_SIGN
+	vi->verified_data_size = le64_to_cpu(desc->data_size);
+#endif
+
 	err = fsverity_init_merkle_tree_params(&vi->tree_params, inode,
 					       desc->hash_algorithm,
 					       desc->log_blocksize,
-					       desc->salt, desc->salt_size);
+					       desc->salt, desc->salt_size,
+					       le64_to_cpu(desc->data_size));
 	if (err) {
 		fsverity_err(inode,
 			     "Error %d initializing Merkle tree parameters",
