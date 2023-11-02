@@ -42,10 +42,10 @@ struct dma_heap_allocation_data {
 #define DMA_HEAP_IOC_MAGIC		'H'
 
 enum dma_heap_flag_owner_id {
-  OWNER_DEFAULT = 0,
-  OWNER_GPU,
-  OWNER_MEDIA,
-  COUNT_DMA_HEAP_FLAG_OWNER,
+	OWNER_DEFAULT = 0,
+	OWNER_GPU,
+	OWNER_MEDIA,
+	COUNT_DMA_HEAP_FLAG_OWNER,
 };
 
 #define OFFSET_BIT 56 /* 7 bytes */
@@ -53,16 +53,15 @@ enum dma_heap_flag_owner_id {
 /* Use the first byte (56-63 bits) of heap flags as owner_id flag */
 void set_owner_id_for_heap_flags(__u64 *heap_flags, __u64 owner_id)
 {
-    if (heap_flags == NULL) {
-        return;
-    }
-    *heap_flags |= owner_id << OFFSET_BIT;
+	if (heap_flags == NULL)
+		return;
+	*heap_flags |= owner_id << OFFSET_BIT;
 }
 
 /* To get the binary number of owner_id */
 __u64 get_owner_id_from_heap_flags(__u64 heap_flags)
 {
-    return heap_flags >> OFFSET_BIT;
+	return heap_flags >> OFFSET_BIT;
 }
 
 /**
