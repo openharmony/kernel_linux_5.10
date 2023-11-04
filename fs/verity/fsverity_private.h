@@ -78,6 +78,7 @@ struct fsverity_info {
 	const struct inode *inode;
 #ifdef CONFIG_SECURITY_CODE_SIGN
 	u64 verified_data_size;
+	int cert_type;
 #endif
 };
 
@@ -171,14 +172,14 @@ void __init fsverity_exit_info_cache(void);
 /* signature.c */
 
 #ifdef CONFIG_FS_VERITY_BUILTIN_SIGNATURES
-int fsverity_verify_signature(const struct fsverity_info *vi,
+int fsverity_verify_signature(struct fsverity_info *vi,
 			      const struct fsverity_descriptor *desc,
 			      size_t desc_size);
 
 int __init fsverity_init_signature(void);
 #else /* !CONFIG_FS_VERITY_BUILTIN_SIGNATURES */
 static inline int
-fsverity_verify_signature(const struct fsverity_info *vi,
+fsverity_verify_signature(struct fsverity_info *vi,
 			  const struct fsverity_descriptor *desc,
 			  size_t desc_size)
 {

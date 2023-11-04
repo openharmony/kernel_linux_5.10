@@ -255,7 +255,7 @@ struct security_class_mapping secclass_map[] = {
 	{ "hideaddr",
 	  { "hide_exec_anon_mem", "hide_exec_anon_mem_debug", NULL } },
 	{ "code_sign",
-	  { "add_cert_chain", NULL } },
+	  { "add_cert_chain", "remove_cert_chain", NULL } },
 	{ NULL }
   };
 

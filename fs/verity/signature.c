@@ -27,11 +27,40 @@ static int fsverity_require_signatures;
  */
 static struct key *fsverity_keyring;
 
-static inline int fsverity_verify_certchain(const void *raw_pkcs7, size_t pkcs7_len)
+#ifdef CONFIG_SECURITY_CODE_SIGN
+
+void fsverity_set_cert_type(struct fsverity_info *vi,
+	int cert_type)
+{
+	vi->cert_type = cert_type;
+}
+
+int fsverity_get_cert_type(const struct inode *inode)
+{
+	return fsverity_get_info(inode)->cert_type;
+}
+
+#else /* !CONFIG_SECURITY_CODE_SIGN */
+
+static void inline fsverity_set_cert_type(struct fsverity_info *verity_info,
+	int cert_type)
+{
+}
+
+#endif
+
+static inline int fsverity_verify_certchain(struct fsverity_info *vi,
+	const void *raw_pkcs7, size_t pkcs7_len)
 {
 	int ret = 0;
 
-	CALL_HCK_LITE_HOOK(code_sign_verify_certchain_lhck, raw_pkcs7, pkcs7_len, &ret);
+	CALL_HCK_LITE_HOOK(code_sign_verify_certchain_lhck,
+		raw_pkcs7, pkcs7_len, &ret);
+	if (ret > 0) {
+		fsverity_set_cert_type(vi, ret);
+		ret = 0;
+	}
+
 	return ret;
 }
 
@@ -46,7 +75,7 @@ static inline int fsverity_verify_certchain(const void *raw_pkcs7, size_t pkcs7_
  *
  * Return: 0 on success (signature valid or not required); -errno on failure
  */
-int fsverity_verify_signature(const struct fsverity_info *vi,
+int fsverity_verify_signature(struct fsverity_info *vi,
 			      const struct fsverity_descriptor *desc,
 			      size_t desc_size)
 {
@@ -78,7 +107,7 @@ int fsverity_verify_signature(const struct fsverity_info *vi,
 	d->digest_size = cpu_to_le16(hash_alg->digest_size);
 	memcpy(d->digest, vi->measurement, hash_alg->digest_size);
 
-	err = fsverity_verify_certchain(desc->signature, sig_size);
+	err = fsverity_verify_certchain(vi, desc->signature, sig_size);
 	if (err) {
 		fsverity_err(inode, "verify cert chain failed, err = %d", err);
 		return err;

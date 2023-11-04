@@ -224,11 +224,18 @@ static inline u64 fsverity_get_verified_data_size(const struct inode *inode)
 
 int fsverity_ioctl_enable_code_sign(struct file *filp, const void __user *uarg);
 
+int fsverity_get_cert_type(const struct inode *inode);
+
 #else /* !CONFIG_SECURITY_CODE_SIGN */
 
 static inline int fsverity_ioctl_enable_code_sign(struct file *filp, const void __user *uarg)
 {
 	return -EOPNOTSUPP;
+}
+
+static inline int fsverity_get_cert_type(const struct inode *inode)
+{
+	return 0;
 }
 
 #endif /* !CONFIG_SECURITY_CODE_SIGN */
