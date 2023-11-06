@@ -59,19 +59,19 @@
 static __inline__ void atomic_##op(int i, atomic_t * v)			\
 {									\
 	__asm__ __volatile__(						\
-	"am"#asm_op"_db.w" " $zero, %1, %0	\n"			\
+	"am"#asm_op".w" " $zero, %1, %0	\n"				\
 	: "+ZB" (v->counter)				   		\
 	: "r" (I)							\
 	: "memory");						   	\
 }
 
-#define ATOMIC_OP_RETURN(op, I, asm_op, c_op)				\
-static __inline__ int atomic_##op##_return_relaxed(int i, atomic_t * v)	\
+#define ATOMIC_OP_RETURN(op, I, asm_op, c_op, mb, suffix)		\
+static __inline__ int atomic_##op##_return##suffix(int i, atomic_t * v)	\
 {									\
 	int result;							\
 									\
 	__asm__ __volatile__(						\
-	"am"#asm_op"_db.w" " %1, %2, %0		\n"			\
+	"am"#asm_op#mb".w" " %1, %2, %0		\n"			\
 	: "+ZB" (v->counter), "=&r" (result)				\
 	: "r" (I)							\
 	: "memory");							\
@@ -79,13 +79,13 @@ static __inline__ int atomic_##op##_return_relaxed(int i, atomic_t * v)	\
 	return result c_op I;						\
 }
 
-#define ATOMIC_FETCH_OP(op, I, asm_op)					\
-static __inline__ int atomic_fetch_##op##_relaxed(int i, atomic_t * v)	\
+#define ATOMIC_FETCH_OP(op, I, asm_op, mb, suffix)			\
+static __inline__ int atomic_fetch_##op##suffix(int i, atomic_t * v)	\
 {									\
 	int result;							\
 									\
 	__asm__ __volatile__(						\
-	"am"#asm_op"_db.w" " %1, %2, %0		\n"			\
+	"am"#asm_op#mb".w" " %1, %2, %0		\n"			\
 	: "+ZB" (v->counter), "=&r" (result)				\
 	: "r" (I)							\
 	: "memory");							\
@@ -95,29 +95,53 @@ static __inline__ int atomic_fetch_##op##_relaxed(int i, atomic_t * v)	\
 
 #define ATOMIC_OPS(op, I, asm_op, c_op)					\
 	ATOMIC_OP(op, I, asm_op)					\
-	ATOMIC_OP_RETURN(op, I, asm_op, c_op)				\
-	ATOMIC_FETCH_OP(op, I, asm_op)
+	ATOMIC_OP_RETURN(op, I, asm_op, c_op, _db,         )		\
+	ATOMIC_OP_RETURN(op, I, asm_op, c_op,    , _relaxed)		\
+	ATOMIC_FETCH_OP(op, I, asm_op, _db,         )			\
+	ATOMIC_FETCH_OP(op, I, asm_op,    , _relaxed)
 
 ATOMIC_OPS(add, i, add, +)
 ATOMIC_OPS(sub, -i, add, +)
 
+#define atomic_add_return		atomic_add_return
+#define atomic_add_return_acquire	atomic_add_return
+#define atomic_add_return_release	atomic_add_return
 #define atomic_add_return_relaxed	atomic_add_return_relaxed
+#define atomic_sub_return		atomic_sub_return
+#define atomic_sub_return_acquire	atomic_sub_return
+#define atomic_sub_return_release	atomic_sub_return
 #define atomic_sub_return_relaxed	atomic_sub_return_relaxed
+#define atomic_fetch_add		atomic_fetch_add
+#define atomic_fetch_add_acquire	atomic_fetch_add
+#define atomic_fetch_add_release	atomic_fetch_add
 #define atomic_fetch_add_relaxed	atomic_fetch_add_relaxed
+#define atomic_fetch_sub		atomic_fetch_sub
+#define atomic_fetch_sub_acquire	atomic_fetch_sub
+#define atomic_fetch_sub_release	atomic_fetch_sub
 #define atomic_fetch_sub_relaxed	atomic_fetch_sub_relaxed
 
 #undef ATOMIC_OPS
 
 #define ATOMIC_OPS(op, I, asm_op)					\
 	ATOMIC_OP(op, I, asm_op)					\
-	ATOMIC_FETCH_OP(op, I, asm_op)
+	ATOMIC_FETCH_OP(op, I, asm_op, _db,         )			\
+	ATOMIC_FETCH_OP(op, I, asm_op,    , _relaxed)
 
 ATOMIC_OPS(and, i, and)
 ATOMIC_OPS(or, i, or)
 ATOMIC_OPS(xor, i, xor)
 
+#define atomic_fetch_and		atomic_fetch_and
+#define atomic_fetch_and_acquire	atomic_fetch_and
+#define atomic_fetch_and_release	atomic_fetch_and
 #define atomic_fetch_and_relaxed	atomic_fetch_and_relaxed
+#define atomic_fetch_or			atomic_fetch_or
+#define atomic_fetch_or_acquire		atomic_fetch_or
+#define atomic_fetch_or_release		atomic_fetch_or
 #define atomic_fetch_or_relaxed		atomic_fetch_or_relaxed
+#define atomic_fetch_xor		atomic_fetch_xor
+#define atomic_fetch_xor_acquire	atomic_fetch_xor
+#define atomic_fetch_xor_release	atomic_fetch_xor
 #define atomic_fetch_xor_relaxed	atomic_fetch_xor_relaxed
 
 #undef ATOMIC_OPS
@@ -221,18 +245,18 @@ static __inline__ int atomic_sub_if_positive(int i, atomic_t * v)
 static __inline__ void atomic64_##op(long i, atomic64_t * v)		\
 {									\
 	__asm__ __volatile__(						\
-	"am"#asm_op"_db.d " " $zero, %1, %0	\n"			\
+	"am"#asm_op".d " " $zero, %1, %0	\n"			\
 	: "+ZB" (v->counter)						\
 	: "r" (I)							\
 	: "memory");							\
 }
 
-#define ATOMIC64_OP_RETURN(op, I, asm_op, c_op)					\
-static __inline__ long atomic64_##op##_return_relaxed(long i, atomic64_t * v)	\
+#define ATOMIC64_OP_RETURN(op, I, asm_op, c_op, mb, suffix)			\
+static __inline__ long atomic64_##op##_return##suffix(long i, atomic64_t * v)	\
 {										\
 	long result;								\
 	__asm__ __volatile__(							\
-	"am"#asm_op"_db.d " " %1, %2, %0		\n"			\
+	"am"#asm_op#mb".d " " %1, %2, %0		\n"			\
 	: "+ZB" (v->counter), "=&r" (result)					\
 	: "r" (I)								\
 	: "memory");								\
@@ -240,13 +264,13 @@ static __inline__ long atomic64_##op##_return_relaxed(long i, atomic64_t * v)	\
 	return result c_op I;							\
 }
 
-#define ATOMIC64_FETCH_OP(op, I, asm_op)					\
-static __inline__ long atomic64_fetch_##op##_relaxed(long i, atomic64_t * v)	\
+#define ATOMIC64_FETCH_OP(op, I, asm_op, mb, suffix)				\
+static __inline__ long atomic64_fetch_##op##suffix(long i, atomic64_t * v)	\
 {										\
 	long result;								\
 										\
 	__asm__ __volatile__(							\
-	"am"#asm_op"_db.d " " %1, %2, %0		\n"			\
+	"am"#asm_op#mb".d " " %1, %2, %0		\n"			\
 	: "+ZB" (v->counter), "=&r" (result)					\
 	: "r" (I)								\
 	: "memory");								\
@@ -256,29 +280,53 @@ static __inline__ long atomic64_fetch_##op##_relaxed(long i, atomic64_t * v)	\
 
 #define ATOMIC64_OPS(op, I, asm_op, c_op)				      \
 	ATOMIC64_OP(op, I, asm_op)					      \
-	ATOMIC64_OP_RETURN(op, I, asm_op, c_op)				      \
-	ATOMIC64_FETCH_OP(op, I, asm_op)
+	ATOMIC64_OP_RETURN(op, I, asm_op, c_op, _db,         )		      \
+	ATOMIC64_OP_RETURN(op, I, asm_op, c_op,    , _relaxed)		      \
+	ATOMIC64_FETCH_OP(op, I, asm_op, _db,         )			      \
+	ATOMIC64_FETCH_OP(op, I, asm_op,    , _relaxed)
 
 ATOMIC64_OPS(add, i, add, +)
 ATOMIC64_OPS(sub, -i, add, +)
 
+#define atomic64_add_return		atomic64_add_return
+#define atomic64_add_return_acquire	atomic64_add_return
+#define atomic64_add_return_release	atomic64_add_return
 #define atomic64_add_return_relaxed	atomic64_add_return_relaxed
+#define atomic64_sub_return		atomic64_sub_return
+#define atomic64_sub_return_acquire	atomic64_sub_return
+#define atomic64_sub_return_release	atomic64_sub_return
 #define atomic64_sub_return_relaxed	atomic64_sub_return_relaxed
+#define atomic64_fetch_add		atomic64_fetch_add
+#define atomic64_fetch_add_acquire	atomic64_fetch_add
+#define atomic64_fetch_add_release	atomic64_fetch_add
 #define atomic64_fetch_add_relaxed	atomic64_fetch_add_relaxed
+#define atomic64_fetch_sub		atomic64_fetch_sub
+#define atomic64_fetch_sub_acquire	atomic64_fetch_sub
+#define atomic64_fetch_sub_release	atomic64_fetch_sub
 #define atomic64_fetch_sub_relaxed	atomic64_fetch_sub_relaxed
 
 #undef ATOMIC64_OPS
 
 #define ATOMIC64_OPS(op, I, asm_op)					      \
 	ATOMIC64_OP(op, I, asm_op)					      \
-	ATOMIC64_FETCH_OP(op, I, asm_op)
+	ATOMIC64_FETCH_OP(op, I, asm_op, _db,         )			      \
+	ATOMIC64_FETCH_OP(op, I, asm_op,    , _relaxed)
 
 ATOMIC64_OPS(and, i, and)
 ATOMIC64_OPS(or, i, or)
 ATOMIC64_OPS(xor, i, xor)
 
+#define atomic64_fetch_and		atomic64_fetch_and
+#define atomic64_fetch_and_acquire	atomic64_fetch_and
+#define atomic64_fetch_and_release	atomic64_fetch_and
 #define atomic64_fetch_and_relaxed	atomic64_fetch_and_relaxed
+#define atomic64_fetch_or		atomic64_fetch_or
+#define atomic64_fetch_or_acquire	atomic64_fetch_or
+#define atomic64_fetch_or_release	atomic64_fetch_or
 #define atomic64_fetch_or_relaxed	atomic64_fetch_or_relaxed
+#define atomic64_fetch_xor		atomic64_fetch_xor
+#define atomic64_fetch_xor_acquire	atomic64_fetch_xor
+#define atomic64_fetch_xor_release	atomic64_fetch_xor
 #define atomic64_fetch_xor_relaxed	atomic64_fetch_xor_relaxed
 
 #undef ATOMIC64_OPS
