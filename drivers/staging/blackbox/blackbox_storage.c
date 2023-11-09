@@ -62,7 +62,7 @@ static void do_kmsg_dump(struct kmsg_dumper *dumper,
 #endif
 
 #if defined(CONFIG_DEF_BLACKBOX_STORAGE_BY_PSTORE_BLK) ||  \
-	defined(CONFIG_DEF_BLACKBOX_STORAGE_BY_PSTORE_RAM)
+    defined(CONFIG_DEF_BLACKBOX_STORAGE_BY_PSTORE_RAM)
 #define LOG_FILE_WAIT_TIME               1000 /* unit: ms */
 #define RETRY_MAX_COUNT                  10
 #define PSTORE_MOUNT_POINT               "/sys/fs/pstore/"

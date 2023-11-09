@@ -1524,6 +1524,10 @@ static noinline void __init kernel_init_freeable(void)
 	smp_init();
 	sched_init_smp();
 
+#ifdef CONFIG_ROCKCHIP_THUNDER_BOOT
+	kthread_run(defer_free_memblock, NULL, "defer_mem");
+#endif
+
 	padata_init();
 	page_alloc_init_late();
 	/* Initialize page ext after all struct pages are initialized. */
@@ -1532,6 +1536,10 @@ static noinline void __init kernel_init_freeable(void)
 	do_basic_setup();
 
 	kunit_run_all_tests();
+
+#if IS_BUILTIN(CONFIG_INITRD_ASYNC)
+	async_synchronize_full();
+#endif
 
 	console_on_rootfs();
 

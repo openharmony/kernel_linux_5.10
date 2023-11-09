@@ -1324,7 +1324,7 @@ static int __init clk_disable_unused(void)
 
 	return 0;
 }
-late_initcall_sync(clk_disable_unused);
+//late_initcall_sync(clk_disable_unused);
 
 static int clk_core_determine_round_nolock(struct clk_core *core,
 					   struct clk_rate_request *req)

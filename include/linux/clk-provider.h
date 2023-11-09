@@ -599,6 +599,7 @@ struct clk_divider {
 	u8		shift;
 	u8		width;
 	u8		flags;
+	unsigned long	max_prate;
 	const struct clk_div_table	*table;
 	spinlock_t	*lock;
 };
@@ -936,6 +937,8 @@ void clk_hw_unregister_fixed_factor(struct clk_hw *hw);
  * CLK_FRAC_DIVIDER_BIG_ENDIAN - By default little endian register accesses are
  *	used for the divider register.  Setting this flag makes the register
  *	accesses big endian.
+ * CLK_FRAC_DIVIDER_NO_LIMIT - not need to follow the 20 times limit on
+ *	fractional divider
  */
 struct clk_fractional_divider {
 	struct clk_hw	hw;
@@ -947,6 +950,7 @@ struct clk_fractional_divider {
 	u8		nwidth;
 	u32		nmask;
 	u8		flags;
+	unsigned long	max_prate;
 	void		(*approximation)(struct clk_hw *hw,
 				unsigned long rate, unsigned long *parent_rate,
 				unsigned long *m, unsigned long *n);
@@ -957,6 +961,7 @@ struct clk_fractional_divider {
 
 #define CLK_FRAC_DIVIDER_ZERO_BASED		BIT(0)
 #define CLK_FRAC_DIVIDER_BIG_ENDIAN		BIT(1)
+#define CLK_FRAC_DIVIDER_NO_LIMIT		BIT(2)
 
 extern const struct clk_ops clk_fractional_divider_ops;
 struct clk *clk_register_fractional_divider(struct device *dev,
@@ -1017,6 +1022,9 @@ extern const struct clk_ops clk_multiplier_ops;
  * @mux_hw:	handle between composite and hardware-specific mux clock
  * @rate_hw:	handle between composite and hardware-specific rate clock
  * @gate_hw:	handle between composite and hardware-specific gate clock
+ * @brother_hw: a member of clk_composite who has the common parent clocks
+ *              with another clk_composite, and it's also a handle between
+ *              common and hardware-specific interfaces
  * @mux_ops:	clock ops for mux
  * @rate_ops:	clock ops for rate
  * @gate_ops:	clock ops for gate
@@ -1028,6 +1036,7 @@ struct clk_composite {
 	struct clk_hw	*mux_hw;
 	struct clk_hw	*rate_hw;
 	struct clk_hw	*gate_hw;
+	struct clk_hw	*brother_hw;
 
 	const struct clk_ops	*mux_ops;
 	const struct clk_ops	*rate_ops;
