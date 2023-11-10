@@ -287,6 +287,8 @@ ssize_t cache_file_read(struct hmdfs_sb_info *sbi, struct file *filp, void *buf,
 			size_t count, loff_t *pos);
 ssize_t cache_file_write(struct hmdfs_sb_info *sbi, struct file *filp,
 			 const void *buf, size_t count, loff_t *pos);
+int hmdfs_metainfo_read_nocred(struct file *filp,
+			void *buffer, int size, int bidx);
 int hmdfs_metainfo_read(struct hmdfs_sb_info *sbi, struct file *filp,
 			void *buffer, int buffersize, int bidx);
 

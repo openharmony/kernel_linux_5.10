@@ -206,7 +206,7 @@ int analysis_dentry_file_from_cloud(struct hmdfs_sb_info *sbi,
 	}
 
 	for (i = group_id; i < group_num; i++) {
-		int ret = hmdfs_metainfo_read(sbi, handler, dentry_group,
+		int ret = hmdfs_metainfo_read_nocred(handler, dentry_group,
 					      sizeof(struct hmdfs_dentry_group_cloud),
 					      i);
 		if (ret != sizeof(struct hmdfs_dentry_group_cloud)) {

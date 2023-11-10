@@ -402,6 +402,14 @@ char *hmdfs_connect_path(const char *path, const char *name)
 	return buf;
 }
 
+int hmdfs_metainfo_read_nocred(struct file *filp,
+		void *buffer, int size, int bidx)
+{
+	loff_t pos = get_dentry_group_pos(bidx);
+
+	return kernel_read(filp, buffer, (size_t)size, &pos);
+}
+
 int hmdfs_metainfo_read(struct hmdfs_sb_info *sbi, struct file *filp,
 			void *buffer, int size, int bidx)
 {
@@ -641,6 +649,7 @@ struct hmdfs_dentry_group *find_dentry_page(struct hmdfs_sb_info *sbi,
 	size = cache_file_read(sbi, filp, dentry_blk, (size_t)DENTRYGROUP_SIZE,
 			       &pos);
 	if (size != DENTRYGROUP_SIZE) {
+		hmdfs_unlock_file(filp, pos, DENTRYGROUP_SIZE);
 		kfree(dentry_blk);
 		dentry_blk = NULL;
 	}
