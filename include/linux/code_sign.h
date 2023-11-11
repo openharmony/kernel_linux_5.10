@@ -30,6 +30,25 @@ struct code_sign_descriptor {
 	__u8 signature[];	/* optional PKCS#7 signature */
 };
 
+enum {
+	RELEASE_CODE_START = 0x0,
+	RELEASE_PLATFORM_CODE,
+	RELEASE_AUTHED_CODE,
+	RELEASE_DEVELOPER_CODE,
+	RELEASE_BLOCK_CODE,
+	RELEASE_CODE_END,
+
+	DEBUG_CODE_START = 0x100,
+	DEBUG_PLATFORM_CODE,
+	DEBUG_AUTHED_CODE,
+	DEBUG_DEVELOPER_CODE,
+	DEBUG_BLOCK_CODE,
+	DEBUG_DEBUG_CODE,
+	DEBUG_CODE_END,
+
+	MAY_LOCAL_CODE = 0x201,
+};
+
 #define FLAG_INSIDE_TREE	(1 << 0) /* Merkle tree in file */
 #define IS_INSIDE_TREE(desc)	((desc)->flags & FLAG_INSIDE_TREE)
 
