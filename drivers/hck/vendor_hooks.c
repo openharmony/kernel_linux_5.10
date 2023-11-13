@@ -10,6 +10,7 @@
 /* add your lite vendor hook header file here */
 #include <linux/hck/lite_hck_sample.h>
 #include <linux/hck/lite_hck_xpm.h>
+#include <linux/hck/lite_hck_ced.h>
 #include <linux/hck/lite_hck_inet.h>
 #include <linux/hck/lite_hck_hideaddr.h>
 #include <linux/hck/lite_hck_code_sign.h>

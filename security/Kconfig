@@ -231,6 +231,7 @@ source "security/yama/Kconfig"
 source "security/safesetid/Kconfig"
 source "security/lockdown/Kconfig"
 source "security/xpm/Kconfig"
+source "security/container_escape_detection/Kconfig"
 
 source "security/integrity/Kconfig"
 

@@ -252,6 +252,8 @@ struct security_class_mapping secclass_map[] = {
 	  { "integrity", "confidentiality", NULL } },
 	{ "xpm",
 	  { "exec_no_sign", "exec_anon_mem", NULL } },
+	{ "ced",
+	  { "container_escape_check", NULL } },
 	{ "hideaddr",
 	  { "hide_exec_anon_mem", "hide_exec_anon_mem_debug", NULL } },
 	{ "code_sign",
