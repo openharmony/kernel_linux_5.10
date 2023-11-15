@@ -2944,6 +2944,8 @@ extern bool page_poisoning_enabled(void);
 extern void kernel_poison_pages(struct page *page, int numpages, int enable);
 #else
 static inline bool page_poisoning_enabled(void) { return false; }
+static inline bool page_poisoning_enabled_static(void) { return false; }
+static inline void __kernel_poison_pages(struct page *page, int nunmpages) { }
 static inline void kernel_poison_pages(struct page *page, int numpages,
 					int enable) { }
 #endif

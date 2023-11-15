@@ -1912,6 +1912,8 @@ extern const int		sched_latency_to_weight[40];
 #define ENQUEUE_MIGRATED	0x00
 #endif
 
+#define ENQUEUE_WAKEUP_SYNC	0x80
+
 #define RETRY_TASK		((void *)-1UL)
 
 struct sched_class {

@@ -246,4 +246,7 @@ source "drivers/hck/Kconfig"
 
 source "drivers/auth_ctl/Kconfig"
 
+source "drivers/rkflash/Kconfig"
+
+source "drivers/rk_nand/Kconfig"
 endmenu

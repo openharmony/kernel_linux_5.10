@@ -20,6 +20,23 @@ config DRM_ROCKCHIP
 
 if DRM_ROCKCHIP
 
+config ROCKCHIP_DRM_CUBIC_LUT
+	bool "Support 3D cubic LUT"
+	depends on NO_GKI
+	help
+	  This add properties to support provision of a 3D cubic
+	  look up table, allowing for color specific adjustments.
+
+config ROCKCHIP_DRM_DEBUG
+	bool "Rockchip DRM debug"
+	depends on DEBUG_FS
+	help
+	  This option add a debug node to dump buf from userspace
+	  dump buffer store at: /data
+	  debug node: /d/dri/0/ff900000.vop/vop_dump/dump
+	  cat /d/dri/0/ff900000.vop/vop_dump/dump get more help
+	  the upper ff900000.vop is different at different SOC platform.
+
 config ROCKCHIP_ANALOGIX_DP
 	bool "Rockchip specific extensions for Analogix DP driver"
 	help
@@ -29,7 +46,6 @@ config ROCKCHIP_ANALOGIX_DP
 
 config ROCKCHIP_CDN_DP
 	bool "Rockchip cdn DP"
-	depends on EXTCON=y || (EXTCON=m && DRM_ROCKCHIP=m)
 	help
 	  This selects support for Rockchip SoC specific extensions
 	  for the cdn DP driver. If you want to enable Dp on
@@ -52,6 +68,12 @@ config ROCKCHIP_DW_MIPI_DSI
 	  for the Synopsys DesignWare HDMI driver. If you want to
 	  enable MIPI DSI on RK3288 or RK3399 based SoC, you should
 	  select this option.
+
+config ROCKCHIP_DW_DP
+	bool "Rockchip specific extensions for Synopsys DW DPTX"
+	help
+	  Choose this option for Synopsys DesignWare Cores DisplayPort
+	  transmit controller support on Rockchip SoC.
 
 config ROCKCHIP_INNO_HDMI
 	bool "Rockchip specific extensions for Innosilicon HDMI"
@@ -87,4 +109,14 @@ config ROCKCHIP_RK3066_HDMI
 	  This selects support for Rockchip SoC specific extensions
 	  for the RK3066 HDMI driver. If you want to enable
 	  HDMI on RK3066 based SoC, you should select this option.
+
+config ROCKCHIP_VCONN
+	bool "Rockchip Virtual connector driver for HDMI/DP/DSI"
+	depends on DRM_ROCKCHIP
+	help
+	  This selects support virtual HDMI/DP/DSI drived by
+	  rockchip vop, This is used for some test.
+
+source "drivers/gpu/drm/rockchip/rk628/Kconfig"
+
 endif

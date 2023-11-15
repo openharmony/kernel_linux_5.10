@@ -86,6 +86,7 @@ enum sched_tunable_scaling sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_L
  * (default: 0.75 msec * (1 + ilog(ncpus)), units: nanoseconds)
  */
 unsigned int sysctl_sched_min_granularity			= 750000ULL;
+EXPORT_SYMBOL_GPL(sysctl_sched_min_granularity);
 static unsigned int normalized_sysctl_sched_min_granularity	= 750000ULL;
 
 /*
@@ -10820,9 +10821,20 @@ void nohz_balance_enter_idle(int cpu)
 
 	SCHED_WARN_ON(cpu != smp_processor_id());
 
-	/* If this CPU is going down, then nothing needs to be done: */
-	if (!cpu_active(cpu))
+	if (!cpu_active(cpu)) {
+		/*
+		 * A CPU can be paused while it is idle with it's tick
+		 * stopped. nohz_balance_exit_idle() should be called
+		 * from the local CPU, so it can't be called during
+		 * pause. This results in paused CPU participating in
+		 * the nohz idle balance, which should be avoided.
+		 *
+		 * When the paused CPU exits idle and enters again,
+		 * exempt the paused CPU from nohz_balance_exit_idle.
+		 */
+		nohz_balance_exit_idle(rq);
 		return;
+	}
 
 	/* Spare idle load balancing on CPUs that don't want to be disturbed: */
 	if (!housekeeping_cpu(cpu, HK_FLAG_SCHED))

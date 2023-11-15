@@ -32,14 +32,36 @@
 #include "dma-buf-sysfs-stats.h"
 #include "dma-buf-process-info.h"
 
-static inline int is_dma_buf_file(struct file *);
-
 struct dma_buf_list {
 	struct list_head head;
 	struct mutex lock;
 };
 
 static struct dma_buf_list db_list;
+
+/*
+ * This function helps in traversing the db_list and calls the
+ * callback function which can extract required info out of each
+ * dmabuf.
+ */
+int get_each_dmabuf(int (*callback)(const struct dma_buf *dmabuf,
+		    void *private), void *private)
+{
+	struct dma_buf *buf;
+	int ret = mutex_lock_interruptible(&db_list.lock);
+
+	if (ret)
+		return ret;
+
+	list_for_each_entry(buf, &db_list.head, list_node) {
+		ret = callback(buf, private);
+		if (ret)
+			break;
+	}
+	mutex_unlock(&db_list.lock);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(get_each_dmabuf);
 
 static char *dmabuffs_dname(struct dentry *dentry, char *buffer, int buflen)
 {
@@ -129,6 +151,54 @@ static struct file_system_type dma_buf_fs_type = {
 	.kill_sb = kill_anon_super,
 };
 
+#ifdef CONFIG_DMABUF_SYSFS_STATS
+static void dma_buf_vma_open(struct vm_area_struct *vma)
+{
+	struct dma_buf *dmabuf = vma->vm_file->private_data;
+
+	dmabuf->mmap_count++;
+	/* call the heap provided vma open() op */
+	if (dmabuf->exp_vm_ops->open)
+		dmabuf->exp_vm_ops->open(vma);
+}
+
+static void dma_buf_vma_close(struct vm_area_struct *vma)
+{
+	struct dma_buf *dmabuf = vma->vm_file->private_data;
+
+	if (dmabuf->mmap_count)
+		dmabuf->mmap_count--;
+	/* call the heap provided vma close() op */
+	if (dmabuf->exp_vm_ops->close)
+		dmabuf->exp_vm_ops->close(vma);
+}
+
+static int dma_buf_do_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
+{
+	/* call this first because the exporter might override vma->vm_ops */
+	int ret = dmabuf->ops->mmap(dmabuf, vma);
+
+	if (ret)
+		return ret;
+
+	/* save the exporter provided vm_ops */
+	dmabuf->exp_vm_ops = vma->vm_ops;
+	dmabuf->vm_ops = *(dmabuf->exp_vm_ops);
+	/* override open() and close() to provide buffer mmap count */
+	dmabuf->vm_ops.open = dma_buf_vma_open;
+	dmabuf->vm_ops.close = dma_buf_vma_close;
+	vma->vm_ops = &dmabuf->vm_ops;
+	dmabuf->mmap_count++;
+
+	return ret;
+}
+#else	/* CONFIG_DMABUF_SYSFS_STATS */
+static int dma_buf_do_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
+{
+	return dmabuf->ops->mmap(dmabuf, vma);
+}
+#endif	/* CONFIG_DMABUF_SYSFS_STATS */
+
 static int dma_buf_mmap_internal(struct file *file, struct vm_area_struct *vma)
 {
 	struct dma_buf *dmabuf;
@@ -147,7 +217,7 @@ static int dma_buf_mmap_internal(struct file *file, struct vm_area_struct *vma)
 	    dmabuf->size >> PAGE_SHIFT)
 		return -EINVAL;
 
-	return dmabuf->ops->mmap(dmabuf, vma);
+	return dma_buf_do_mmap(dmabuf, vma);
 }
 
 static loff_t dma_buf_llseek(struct file *file, loff_t offset, int whence)
@@ -442,10 +512,11 @@ static const struct file_operations dma_buf_fops = {
 /*
  * is_dma_buf_file - Check if struct file* is associated with dma_buf
  */
-static inline int is_dma_buf_file(struct file *file)
+int is_dma_buf_file(struct file *file)
 {
 	return file->f_op == &dma_buf_fops;
 }
+EXPORT_SYMBOL_GPL(is_dma_buf_file);
 
 static struct file *dma_buf_getfile(struct dma_buf *dmabuf, int flags)
 {
@@ -1132,6 +1203,30 @@ int dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
 }
 EXPORT_SYMBOL_GPL(dma_buf_begin_cpu_access);
 
+int dma_buf_begin_cpu_access_partial(struct dma_buf *dmabuf,
+				     enum dma_data_direction direction,
+				     unsigned int offset, unsigned int len)
+{
+	int ret = 0;
+
+	if (WARN_ON(!dmabuf))
+		return -EINVAL;
+
+	if (dmabuf->ops->begin_cpu_access_partial)
+		ret = dmabuf->ops->begin_cpu_access_partial(dmabuf, direction,
+							    offset, len);
+
+	/* Ensure that all fences are waited upon - but we first allow
+	 * the native handler the chance to do so more efficiently if it
+	 * chooses. A double invocation here will be reasonably cheap no-op.
+	 */
+	if (ret == 0)
+		ret = __dma_buf_begin_cpu_access(dmabuf, direction);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(dma_buf_begin_cpu_access_partial);
+
 /**
  * dma_buf_end_cpu_access - Must be called after accessing a dma_buf from the
  * cpu in the kernel context. Calls end_cpu_access to allow exporter-specific
@@ -1158,6 +1253,21 @@ int dma_buf_end_cpu_access(struct dma_buf *dmabuf,
 }
 EXPORT_SYMBOL_GPL(dma_buf_end_cpu_access);
 
+int dma_buf_end_cpu_access_partial(struct dma_buf *dmabuf,
+				   enum dma_data_direction direction,
+				   unsigned int offset, unsigned int len)
+{
+	int ret = 0;
+
+	WARN_ON(!dmabuf);
+
+	if (dmabuf->ops->end_cpu_access_partial)
+		ret = dmabuf->ops->end_cpu_access_partial(dmabuf, direction,
+							  offset, len);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(dma_buf_end_cpu_access_partial);
 
 /**
  * dma_buf_mmap - Setup up a userspace mmap with the given vma
@@ -1285,6 +1395,32 @@ void dma_buf_vunmap(struct dma_buf *dmabuf, void *vaddr)
 	mutex_unlock(&dmabuf->lock);
 }
 EXPORT_SYMBOL_GPL(dma_buf_vunmap);
+
+int dma_buf_get_flags(struct dma_buf *dmabuf, unsigned long *flags)
+{
+	int ret = 0;
+
+	if (WARN_ON(!dmabuf) || !flags)
+		return -EINVAL;
+
+	if (dmabuf->ops->get_flags)
+		ret = dmabuf->ops->get_flags(dmabuf, flags);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(dma_buf_get_flags);
+
+int dma_buf_get_uuid(struct dma_buf *dmabuf, uuid_t *uuid)
+{
+	if (WARN_ON(!dmabuf) || !uuid)
+		return -EINVAL;
+
+	if (!dmabuf->ops->get_uuid)
+		return -ENODEV;
+
+	return dmabuf->ops->get_uuid(dmabuf, uuid);
+}
+EXPORT_SYMBOL_GPL(dma_buf_get_uuid);
 
 #ifdef CONFIG_DEBUG_FS
 static int dma_buf_debug_show(struct seq_file *s, void *unused)

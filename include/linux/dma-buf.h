@@ -210,6 +210,41 @@ struct dma_buf_ops {
 	int (*begin_cpu_access)(struct dma_buf *, enum dma_data_direction);
 
 	/**
+	 * @begin_cpu_access_partial:
+	 *
+	 * This is called from dma_buf_begin_cpu_access_partial() and allows the
+	 * exporter to ensure that the memory specified in the range is
+	 * available for cpu access - the exporter might need to allocate or
+	 * swap-in and pin the backing storage.
+	 * The exporter also needs to ensure that cpu access is
+	 * coherent for the access direction. The direction can be used by the
+	 * exporter to optimize the cache flushing, i.e. access with a different
+	 * direction (read instead of write) might return stale or even bogus
+	 * data (e.g. when the exporter needs to copy the data to temporary
+	 * storage).
+	 *
+	 * This callback is optional.
+	 *
+	 * FIXME: This is both called through the DMA_BUF_IOCTL_SYNC command
+	 * from userspace (where storage shouldn't be pinned to avoid handing
+	 * de-factor mlock rights to userspace) and for the kernel-internal
+	 * users of the various kmap interfaces, where the backing storage must
+	 * be pinned to guarantee that the atomic kmap calls can succeed. Since
+	 * there's no in-kernel users of the kmap interfaces yet this isn't a
+	 * real problem.
+	 *
+	 * Returns:
+	 *
+	 * 0 on success or a negative error code on failure. This can for
+	 * example fail when the backing storage can't be allocated. Can also
+	 * return -ERESTARTSYS or -EINTR when the call has been interrupted and
+	 * needs to be restarted.
+	 */
+	int (*begin_cpu_access_partial)(struct dma_buf *dmabuf,
+					enum dma_data_direction,
+					unsigned int offset, unsigned int len);
+
+	/**
 	 * @end_cpu_access:
 	 *
 	 * This is called from dma_buf_end_cpu_access() when the importer is
@@ -227,6 +262,28 @@ struct dma_buf_ops {
 	 * to be restarted.
 	 */
 	int (*end_cpu_access)(struct dma_buf *, enum dma_data_direction);
+
+	/**
+	 * @end_cpu_access_partial:
+	 *
+	 * This is called from dma_buf_end_cpu_access_partial() when the
+	 * importer is done accessing the CPU. The exporter can use to limit
+	 * cache flushing to only the range specefied and to unpin any
+	 * resources pinned in @begin_cpu_access_umapped.
+	 * The result of any dma_buf kmap calls after end_cpu_access_partial is
+	 * undefined.
+	 *
+	 * This callback is optional.
+	 *
+	 * Returns:
+	 *
+	 * 0 on success or a negative error code on failure. Can return
+	 * -ERESTARTSYS or -EINTR when the call has been interrupted and needs
+	 * to be restarted.
+	 */
+	int (*end_cpu_access_partial)(struct dma_buf *dmabuf,
+				      enum dma_data_direction,
+				      unsigned int offset, unsigned int len);
 
 	/**
 	 * @mmap:
@@ -267,6 +324,35 @@ struct dma_buf_ops {
 
 	void *(*vmap)(struct dma_buf *);
 	void (*vunmap)(struct dma_buf *, void *vaddr);
+
+	/**
+	 * @get_uuid
+	 *
+	 * This is called by dma_buf_get_uuid to get the UUID which identifies
+	 * the buffer to virtio devices.
+	 *
+	 * This callback is optional.
+	 *
+	 * Returns:
+	 *
+	 * 0 on success or a negative error code on failure. On success uuid
+	 * will be populated with the buffer's UUID.
+	 */
+	int (*get_uuid)(struct dma_buf *dmabuf, uuid_t *uuid);
+
+	/**
+	 * @get_flags:
+	 *
+	 * This is called by dma_buf_get_flags and is used to get the buffer's
+	 * flags.
+	 * This callback is optional.
+	 *
+	 * Returns:
+	 *
+	 * 0 on success or a negative error code on failure. On success flags
+	 * will be populated with the buffer's flags.
+	 */
+	int (*get_flags)(struct dma_buf *dmabuf, unsigned long *flags);
 };
 
 /**
@@ -295,8 +381,9 @@ struct dma_buf_ops {
  * @cb_excl: for userspace poll support
  * @cb_shared: for userspace poll support
  * @sysfs_entry: for exposing information about this buffer in sysfs.
- * The attachment_uid member of @sysfs_entry is protected by dma_resv lock
- * and is incremented on each attach.
+ * @mmap_count: number of times buffer has been mmapped.
+ * @exp_vm_ops: the vm ops provided by the buffer exporter.
+ * @vm_ops: the overridden vm_ops used to track mmap_count of the buffer.
  *
  * This represents a shared buffer, created by calling dma_buf_export(). The
  * userspace representation is a normal file descriptor, which can be created by
@@ -342,6 +429,9 @@ struct dma_buf {
 		struct kobject kobj;
 		struct dma_buf *dmabuf;
 	} *sysfs_entry;
+	int mmap_count;
+	const struct vm_operations_struct *exp_vm_ops;
+	struct vm_operations_struct vm_ops;
 #endif
 };
 
@@ -392,6 +482,9 @@ struct dma_buf_attach_ops {
  * @importer_ops: importer operations for this attachment, if provided
  * dma_buf_map/unmap_attachment() must be called with the dma_resv lock held.
  * @importer_priv: importer specific attachment data.
+ * @dma_map_attrs: DMA attributes to be used when the exporter maps the buffer
+ * through dma_buf_map_attachment.
+ * @sysfs_entry: For exposing information about this attachment in sysfs.
  *
  * This structure holds the attachment information between the dma_buf buffer
  * and its user device(s). The list contains one attachment struct per device
@@ -412,6 +505,14 @@ struct dma_buf_attachment {
 	const struct dma_buf_attach_ops *importer_ops;
 	void *importer_priv;
 	void *priv;
+	unsigned long dma_map_attrs;
+#ifdef CONFIG_DMABUF_SYSFS_STATS
+	/* for sysfs stats */
+	struct dma_buf_attach_sysfs_entry {
+		struct kobject kobj;
+		unsigned int map_counter;
+	} *sysfs_entry;
+#endif
 };
 
 /**
@@ -489,6 +590,9 @@ dma_buf_attachment_is_dynamic(struct dma_buf_attachment *attach)
 	return !!attach->importer_ops;
 }
 
+int get_each_dmabuf(int (*callback)(const struct dma_buf *dmabuf,
+		    void *private), void *private);
+int is_dma_buf_file(struct file *file);
 struct dma_buf_attachment *dma_buf_attach(struct dma_buf *dmabuf,
 					  struct device *dev);
 struct dma_buf_attachment *
@@ -513,13 +617,21 @@ void dma_buf_unmap_attachment(struct dma_buf_attachment *, struct sg_table *,
 void dma_buf_move_notify(struct dma_buf *dma_buf);
 int dma_buf_begin_cpu_access(struct dma_buf *dma_buf,
 			     enum dma_data_direction dir);
+int dma_buf_begin_cpu_access_partial(struct dma_buf *dma_buf,
+				     enum dma_data_direction dir,
+				     unsigned int offset, unsigned int len);
 int dma_buf_end_cpu_access(struct dma_buf *dma_buf,
 			   enum dma_data_direction dir);
+int dma_buf_end_cpu_access_partial(struct dma_buf *dma_buf,
+				     enum dma_data_direction dir,
+				     unsigned int offset, unsigned int len);
 
 int dma_buf_mmap(struct dma_buf *, struct vm_area_struct *,
 		 unsigned long);
 void *dma_buf_vmap(struct dma_buf *);
 void dma_buf_vunmap(struct dma_buf *, void *vaddr);
+int dma_buf_get_flags(struct dma_buf *dmabuf, unsigned long *flags);
+int dma_buf_get_uuid(struct dma_buf *dmabuf, uuid_t *uuid);
 
 #ifdef CONFIG_DMABUF_PROCESS_INFO
 /**

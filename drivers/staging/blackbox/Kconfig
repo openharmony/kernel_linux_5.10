@@ -106,3 +106,14 @@ config DEF_BLACKBOX_STORAGE
 	default "raw_partition" if DEF_BLACKBOX_STORAGE_BY_RAW_PARTITION
 
 endmenu
+
+if ARCH_ROCKCHIP
+
+config BLACKBOX_ROCKCHIP
+	bool "Support BlackBox saving fault logs with pstore for rockchip"
+	depends on PSTORE_BLACKBOX
+	depends on BLACKBOX_STORAGE_BY_PSTORE_RAM
+	help
+		Save fault logs with pstore for rockchip when oops or panic occurs.
+
+endif

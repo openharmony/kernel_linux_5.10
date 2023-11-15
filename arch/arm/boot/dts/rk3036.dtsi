@@ -85,6 +85,11 @@
 		ports = <&vop_out>;
 	};
 
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+	};
+
 	timer {
 		compatible = "arm,armv7-timer";
 		arm,cpu-registers-not-fw-configured;
@@ -360,7 +365,7 @@
 		#pwm-cells = <3>;
 		clocks = <&cru PCLK_PWM>;
 		clock-names = "pwm";
-		pinctrl-names = "default";
+		pinctrl-names = "active";
 		pinctrl-0 = <&pwm0_pin>;
 		status = "disabled";
 	};
@@ -371,7 +376,7 @@
 		#pwm-cells = <3>;
 		clocks = <&cru PCLK_PWM>;
 		clock-names = "pwm";
-		pinctrl-names = "default";
+		pinctrl-names = "active";
 		pinctrl-0 = <&pwm1_pin>;
 		status = "disabled";
 	};
@@ -382,7 +387,7 @@
 		#pwm-cells = <3>;
 		clocks = <&cru PCLK_PWM>;
 		clock-names = "pwm";
-		pinctrl-names = "default";
+		pinctrl-names = "active";
 		pinctrl-0 = <&pwm2_pin>;
 		status = "disabled";
 	};
@@ -393,7 +398,7 @@
 		#pwm-cells = <2>;
 		clocks = <&cru PCLK_PWM>;
 		clock-names = "pwm";
-		pinctrl-names = "default";
+		pinctrl-names = "active";
 		pinctrl-0 = <&pwm3_pin>;
 		status = "disabled";
 	};

@@ -71,7 +71,7 @@ struct ffs_function {
 	struct ffs_data			*ffs;
 
 	struct ffs_ep			*eps;
-	u8				eps_revmap[16];
+	u8				eps_revmap[32];
 	short				*interfaces_nums;
 
 	struct usb_function		function;
@@ -630,7 +630,7 @@ static int ffs_ep0_release(struct inode *inode, struct file *file)
 
 	ffs_data_closed(ffs);
 
-	return 0;
+	return stream_open(inode, file);
 }
 
 static long ffs_ep0_ioctl(struct file *file, unsigned code, unsigned long value)
@@ -1277,7 +1277,7 @@ ffs_epfile_release(struct inode *inode, struct file *file)
 	__ffs_epfile_read_buffer_free(epfile);
 	ffs_data_closed(epfile->ffs);
 
-	return 0;
+	return stream_open(inode, file);
 }
 
 static long ffs_epfile_ioctl(struct file *file, unsigned code,
@@ -2836,7 +2836,7 @@ static int __ffs_func_bind_do_descs(enum ffs_entity_type type, u8 *valuep,
 	struct ffs_function *func = priv;
 	struct ffs_ep *ffs_ep;
 	unsigned ep_desc_id;
-	int idx;
+	int idx, ep_num;
 	static const char *speed_names[] = { "full", "high", "super" };
 
 	if (type != FFS_DESCRIPTOR)
@@ -2909,8 +2909,9 @@ static int __ffs_func_bind_do_descs(enum ffs_entity_type type, u8 *valuep,
 
 		ffs_ep->ep  = ep;
 		ffs_ep->req = req;
-		func->eps_revmap[ds->bEndpointAddress &
-				 USB_ENDPOINT_NUMBER_MASK] = idx + 1;
+		ep_num = ((ds->bEndpointAddress & USB_ENDPOINT_DIR_MASK) >> 3) |
+			 (ds->bEndpointAddress & USB_ENDPOINT_NUMBER_MASK);
+		func->eps_revmap[ep_num] = idx + 1;
 		/*
 		 * If we use virtual address mapping, we restore
 		 * original bEndpointAddress value.
@@ -3445,7 +3446,10 @@ static void ffs_func_resume(struct usb_function *f)
 
 static int ffs_func_revmap_ep(struct ffs_function *func, u8 num)
 {
-	num = func->eps_revmap[num & USB_ENDPOINT_NUMBER_MASK];
+	int ep_num = ((num & USB_ENDPOINT_DIR_MASK) >> 3) |
+		     (num & USB_ENDPOINT_NUMBER_MASK);
+
+	num = func->eps_revmap[ep_num];
 	return num ? num : -EDOM;
 }
 

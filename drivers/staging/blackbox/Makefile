@@ -3,3 +3,5 @@
 obj-$(CONFIG_BLACKBOX)		+= blackbox_core.o \
 	blackbox_storage.o			   \
 	blackbox_common.o
+
+obj-$(CONFIG_BLACKBOX_ROCKCHIP) += rockchip/

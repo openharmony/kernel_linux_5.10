@@ -93,10 +93,10 @@ static void sco_sock_timeout(struct work_struct *work)
 
 	BT_DBG("sock %p state %d", sk, sk->sk_state);
 
-	lock_sock(sk);
+	bh_lock_sock(sk);
 	sk->sk_err = ETIMEDOUT;
 	sk->sk_state_change(sk);
-	release_sock(sk);
+	bh_unlock_sock(sk);
 
 	sock_put(sk);
 }
@@ -193,10 +193,10 @@ static void sco_conn_del(struct hci_conn *hcon, int err)
 
 	if (sk) {
 		sock_hold(sk);
-		lock_sock(sk);
+		bh_lock_sock(sk);
 		sco_sock_clear_timer(sk);
 		sco_chan_del(sk, err);
-		release_sock(sk);
+		bh_unlock_sock(sk);
 		sock_put(sk);
 	}
 
@@ -1103,10 +1103,10 @@ static void sco_conn_ready(struct sco_conn *conn)
 
 	if (sk) {
 		sco_sock_clear_timer(sk);
-		lock_sock(sk);
+		bh_lock_sock(sk);
 		sk->sk_state = BT_CONNECTED;
 		sk->sk_state_change(sk);
-		release_sock(sk);
+		bh_unlock_sock(sk);
 	} else {
 		sco_conn_lock(conn);
 
@@ -1121,12 +1121,12 @@ static void sco_conn_ready(struct sco_conn *conn)
 			return;
 		}
 
-		lock_sock(parent);
+		bh_lock_sock(parent);
 
 		sk = sco_sock_alloc(sock_net(parent), NULL,
 				    BTPROTO_SCO, GFP_ATOMIC, 0);
 		if (!sk) {
-			release_sock(parent);
+			bh_unlock_sock(parent);
 			sco_conn_unlock(conn);
 			return;
 		}
@@ -1147,7 +1147,7 @@ static void sco_conn_ready(struct sco_conn *conn)
 		/* Wake up parent */
 		parent->sk_data_ready(parent);
 
-		release_sock(parent);
+		bh_unlock_sock(parent);
 
 		sco_conn_unlock(conn);
 	}

@@ -50,6 +50,13 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(sched_overutilized_tp);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_util_est_cfs_tp);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_util_est_se_tp);
 EXPORT_TRACEPOINT_SYMBOL_GPL(sched_update_nr_running_tp);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_waking);
+#ifdef CONFIG_SCHEDSTATS
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_sleep);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_wait);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_iowait);
+EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_blocked);
+#endif
 
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
@@ -663,7 +670,7 @@ int get_nohz_timer_target(void)
 	int i, cpu = smp_processor_id(), default_cpu = -1;
 	struct sched_domain *sd;
 
-	if (housekeeping_cpu(cpu, HK_FLAG_TIMER)) {
+	if (housekeeping_cpu(cpu, HK_FLAG_TIMER) && cpu_active(cpu)) {
 		if (!idle_cpu(cpu))
 			return cpu;
 		default_cpu = cpu;
@@ -683,8 +690,25 @@ int get_nohz_timer_target(void)
 		}
 	}
 
-	if (default_cpu == -1)
-		default_cpu = housekeeping_any_cpu(HK_FLAG_TIMER);
+	if (default_cpu == -1) {
+		for_each_cpu_and(i, cpu_active_mask,
+				 housekeeping_cpumask(HK_FLAG_TIMER)) {
+			if (cpu == i)
+				continue;
+
+			if (!idle_cpu(i)) {
+				cpu = i;
+				goto unlock;
+			}
+		}
+
+		/* no active, not-idle, housekpeeing CPU found. */
+		default_cpu = cpumask_any(cpu_active_mask);
+
+		if (unlikely(default_cpu >= nr_cpu_ids))
+			goto unlock;
+	}
+
 	cpu = default_cpu;
 unlock:
 	rcu_read_unlock();
@@ -1770,7 +1794,10 @@ static inline bool is_cpu_allowed(struct task_struct *p, int cpu)
 	if (is_per_cpu_kthread(p))
 		return cpu_online(cpu);
 
-	return cpu_active(cpu);
+	if (!cpu_active(cpu))
+		return false;
+
+	return cpumask_test_cpu(cpu, task_cpu_possible_mask(p));
 }
 
 /*
@@ -2433,10 +2460,9 @@ static int select_fallback_rq(int cpu, struct task_struct *p)
 			}
 			fallthrough;
 		case possible:
-			do_set_cpus_allowed(p, cpu_possible_mask);
+			do_set_cpus_allowed(p, task_cpu_possible_mask(p));
 			state = fail;
 			break;
-
 		case fail:
 #ifdef CONFIG_CPU_ISOLATION_OPT
 			allow_iso = true;
@@ -2626,6 +2652,9 @@ ttwu_do_activate(struct rq *rq, struct task_struct *p, int wake_flags,
 		 struct rq_flags *rf)
 {
 	int en_flags = ENQUEUE_WAKEUP | ENQUEUE_NOCLOCK;
+
+	if (wake_flags & WF_SYNC)
+		en_flags |= ENQUEUE_WAKEUP_SYNC;
 
 	lockdep_assert_held(&rq->lock);
 
@@ -3022,6 +3051,19 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
 	smp_mb__after_spinlock();
 	if (!(p->state & state))
 		goto unlock;
+
+#ifdef CONFIG_FREEZER
+	/*
+	 * If we're going to wake up a thread which may be frozen, then
+	 * we can only do so if we have an active CPU which is capable of
+	 * running it. This may not be the case when resuming from suspend,
+	 * as the secondary CPUs may not yet be back online. See __thaw_task()
+	 * for the actual wakeup.
+	 */
+	if (unlikely(frozen_or_skipped(p)) &&
+	    !cpumask_intersects(cpu_active_mask, task_cpu_possible_mask(p)))
+		goto unlock;
+#endif
 
 	trace_sched_waking(p);
 
@@ -5010,7 +5052,7 @@ asmlinkage __visible void __sched preempt_schedule_irq(void)
 int default_wake_function(wait_queue_entry_t *curr, unsigned mode, int wake_flags,
 			  void *key)
 {
-	WARN_ON_ONCE(IS_ENABLED(CONFIG_SCHED_DEBUG) && wake_flags & ~WF_SYNC);
+	WARN_ON_ONCE(IS_ENABLED(CONFIG_SCHED_DEBUG) && wake_flags & ~(WF_SYNC));
 	return try_to_wake_up(curr->private, mode, wake_flags);
 }
 EXPORT_SYMBOL(default_wake_function);
@@ -5719,16 +5761,19 @@ int sched_setscheduler(struct task_struct *p, int policy,
 {
 	return _sched_setscheduler(p, policy, param, true);
 }
+EXPORT_SYMBOL_GPL(sched_setscheduler);
 
 int sched_setattr(struct task_struct *p, const struct sched_attr *attr)
 {
 	return __sched_setscheduler(p, attr, true, true);
 }
+EXPORT_SYMBOL_GPL(sched_setattr);
 
 int sched_setattr_nocheck(struct task_struct *p, const struct sched_attr *attr)
 {
 	return __sched_setscheduler(p, attr, false, true);
 }
+EXPORT_SYMBOL_GPL(sched_setattr_nocheck);
 
 /**
  * sched_setscheduler_nocheck - change the scheduling policy and/or RT priority of a thread from kernelspace.
@@ -5748,6 +5793,7 @@ int sched_setscheduler_nocheck(struct task_struct *p, int policy,
 {
 	return _sched_setscheduler(p, policy, param, false);
 }
+EXPORT_SYMBOL_GPL(sched_setscheduler_nocheck);
 
 /*
  * SCHED_FIFO is a broken scheduler model; that is, it is fundamentally
@@ -7054,6 +7100,11 @@ void migrate_tasks(struct rq *dead_rq, struct rq_flags *rf,
 	 * value of rq->clock[_task]
 	 */
 	update_rq_clock(rq);
+
+#ifdef CONFIG_SCHED_DEBUG
+	/* note the clock update in orf */
+	orf.clock_update_flags |= RQCF_UPDATED;
+#endif
 
 	for (;;) {
 		/*

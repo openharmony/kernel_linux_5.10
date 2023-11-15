@@ -488,6 +488,7 @@ static void fn_hold(struct vc_data *vc)
 {
 	struct tty_struct *tty = vc->port.tty;
 
+	if (!rep) chg_vc_kbd_led(kbd, VC_SCROLLOCK);
 	if (rep || !tty)
 		return;
 

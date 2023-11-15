@@ -322,6 +322,10 @@ static const struct usb_device_id usb_quirk_list[] = {
 	/* Alcor Micro Corp. Hub */
 	{ USB_DEVICE(0x058f, 0x9254), .driver_info = USB_QUIRK_RESET_RESUME },
 
+	/* HD Camera Manufacturer */
+	{ USB_DEVICE(0x05a3, 0x9230), .driver_info = USB_QUIRK_AUTO_SUSPEND },
+	{ USB_DEVICE(0x05a3, 0x9320), .driver_info = USB_QUIRK_AUTO_SUSPEND },
+
 	/* appletouch */
 	{ USB_DEVICE(0x05ac, 0x021a), .driver_info = USB_QUIRK_RESET_RESUME },
 
@@ -425,6 +429,10 @@ static const struct usb_device_id usb_quirk_list[] = {
 
 	/* Generic RTL8153 based ethernet adapters */
 	{ USB_DEVICE(0x0bda, 0x8153), .driver_info = USB_QUIRK_NO_LPM },
+
+	/* Sonix FaceBlack device */
+	{ USB_DEVICE(0x0c45, 0x64ab), .driver_info = USB_QUIRK_AUTO_SUSPEND },
+	{ USB_DEVICE(0x0c45, 0x64ac), .driver_info = USB_QUIRK_AUTO_SUSPEND },
 
 	/* SONiX USB DEVICE Touchpad */
 	{ USB_DEVICE(0x0c45, 0x7056), .driver_info =

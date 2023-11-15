@@ -40,6 +40,8 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpuhp.h>
 
+#undef CREATE_TRACE_POINTS
+
 #include "smpboot.h"
 
 /**
@@ -275,11 +277,13 @@ void cpu_maps_update_begin(void)
 {
 	mutex_lock(&cpu_add_remove_lock);
 }
+EXPORT_SYMBOL_GPL(cpu_maps_update_begin);
 
 void cpu_maps_update_done(void)
 {
 	mutex_unlock(&cpu_add_remove_lock);
 }
+EXPORT_SYMBOL_GPL(cpu_maps_update_done);
 
 /*
  * If set, cpu_up and cpu_down will return -EBUSY and do nothing.
@@ -1054,7 +1058,7 @@ static int __ref _cpu_down(unsigned int cpu, int tasks_frozen,
 	struct cpuhp_cpu_state *st = per_cpu_ptr(&cpuhp_state, cpu);
 	int prev_state, ret = 0;
 
-	if (num_online_cpus() == 1)
+	if (num_active_cpus() == 1 && cpu_active(cpu))
 		return -EBUSY;
 
 	if (!cpu_present(cpu))
