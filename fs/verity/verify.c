@@ -104,7 +104,7 @@ static bool verify_page(struct inode *inode, const struct fsverity_info *vi,
 	pr_debug_ratelimited("Verifying data page %lu...\n", index);
 
 #ifdef CONFIG_SECURITY_CODE_SIGN
-	if (index > (vi->verified_data_size >> PAGE_SHIFT)) {
+	if (index >= DIV_ROUND_UP(vi->verified_data_size, PAGE_SIZE)) {
 		pr_debug_ratelimited("Data out of verity range %lu\n",
 			vi->verified_data_size >> PAGE_SHIFT);
 		return true;
