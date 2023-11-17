@@ -109,6 +109,7 @@
 #include <asm/tlbflush.h>
 
 #include <trace/events/sched.h>
+#include <linux/hck/lite_hck_ced.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>
@@ -2554,6 +2555,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	}
 
 	put_pid(pid);
+	CALL_HCK_LITE_HOOK(ced_detection_lhck, p);
 	return nr;
 }
 

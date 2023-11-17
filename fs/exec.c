@@ -73,6 +73,7 @@
 #include "internal.h"
 
 #include <trace/events/sched.h>
+#include <linux/hck/lite_hck_ced.h>
 
 static int bprm_creds_from_file(struct linux_binprm *bprm);
 
@@ -1842,6 +1843,7 @@ static int bprm_execve(struct linux_binprm *bprm,
 	rseq_execve(current);
 	acct_update_integrals(current);
 	task_numa_free(current, false);
+	CALL_HCK_LITE_HOOK(ced_detection_lhck, current);
 	return retval;
 
 out:
