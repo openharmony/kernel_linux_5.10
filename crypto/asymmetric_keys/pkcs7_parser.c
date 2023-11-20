@@ -526,6 +526,17 @@ int pkcs7_sig_note_authenticated_attr(void *context, size_t hdrlen,
 		}
 		return 0;
 
+#ifdef CONFIG_SECURITY_CODE_SIGN
+	case OID_ownerid:
+		if (__test_and_set_bit(sinfo_has_owner_identifier, &sinfo->aa_set))
+			goto repeated;
+		if (tag != ASN1_UTF8STR)
+			return -EBADMSG;
+		sinfo->ownerid = value;
+		sinfo->ownerid_len = vlen;
+		return 0;
+#endif /* CONFIG_SECURITY_CODE_SIGN */
+
 		/* Microsoft SpOpusInfo seems to be contain cont[0] 16-bit BE
 		 * char URLs and cont[1] 8-bit char URLs.
 		 *

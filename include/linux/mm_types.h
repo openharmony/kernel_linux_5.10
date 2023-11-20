@@ -608,6 +608,10 @@ struct mm_struct {
 #ifdef CONFIG_SECURITY_XPM
 		struct xpm_region xpm_region;
 #endif
+
+#ifdef CONFIG_SECURITY_CODE_SIGN
+		struct cs_info pcs_info;
+#endif
 	} __randomize_layout;
 
 	/*
