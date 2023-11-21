@@ -27,15 +27,12 @@ typedef long (*rtg_ctrl_func)(int abi, void __user *arg);
 
 static long ctrl_set_enable(int abi, void __user *uarg);
 static long ctrl_set_rtg(int abi, void __user *uarg);
-static long ctrl_set_config(int abi, void __user *uarg);
 static long ctrl_set_rtg_attr(int abi, void __user *uarg);
 static long ctrl_begin_frame(int abi, void __user *uarg);
 static long ctrl_end_frame(int abi, void __user *uarg);
 static long ctrl_end_scene(int abi, void __user *uarg);
 static long ctrl_set_min_util(int abi, void __user *uarg);
 static long ctrl_set_margin(int abi, void __user *uarg);
-static long ctrl_list_rtg(int abi, void __user *uarg);
-static long ctrl_list_rtg_thread(int abi, void __user *uarg);
 static long ctrl_search_rtg(int abi, void __user *uarg);
 static long ctrl_get_enable(int abi, void __user *uarg);
 
@@ -43,15 +40,15 @@ static rtg_ctrl_func g_func_array[RTG_CTRL_MAX_NR] = {
 	NULL, /* reserved */
 	ctrl_set_enable,  // 1
 	ctrl_set_rtg,
-	ctrl_set_config,
+	NULL,
 	ctrl_set_rtg_attr,
 	ctrl_begin_frame,  // 5
 	ctrl_end_frame,
 	ctrl_end_scene,
 	ctrl_set_min_util,
 	ctrl_set_margin,
-	ctrl_list_rtg,  // 10
-	ctrl_list_rtg_thread,
+	NULL,
+	NULL,
 	ctrl_search_rtg,
 	ctrl_get_enable
 };
@@ -242,90 +239,6 @@ static long ctrl_get_enable(int abi, void __user *uarg)
 	return atomic_read(&g_rtg_enable);
 }
 
-static int parse_config(const struct rtg_str_data *rs_data)
-{
-	int len;
-	char *p = NULL;
-	char *tmp = NULL;
-	char *data = NULL;
-	int value;
-
-	if (rs_data == NULL)
-		return -INVALID_ARG;
-	data = rs_data->data;
-	len = rs_data->len;
-	if ((data == NULL) || (strlen(data) != len)) //lint !e737
-		return -INVALID_ARG;
-	/*
-	 *     eg: rtframe:4;
-	 */
-	for (p = strsep(&data, ";"); p != NULL; p = strsep(&data, ";")) {
-		tmp = strsep(&p, ":");
-		if ((tmp == NULL) || (p == NULL))
-			continue;
-		if (kstrtoint((const char *)p, DECIMAL, &value))
-			return -INVALID_ARG;
-		if (!strcmp(tmp, "rtframe")) {
-			if (value > 0 && value <= MULTI_FRAME_NUM) {
-				g_max_rt_frames = value;
-			} else {
-				pr_err("[SCHED_RTG]%s invalid max_rt_frame:%d, MULTI_FRAME_NUM=%d\n",
-				       __func__, value, MULTI_FRAME_NUM);
-				return -INVALID_ARG;
-			}
-		}
-	}
-
-	return SUCC;
-}
-
-static long ctrl_set_config(int abi, void __user *uarg)
-{
-	struct rtg_str_data rs;
-	char temp[MAX_DATA_LEN];
-	long ret = SUCC;
-
-	if (uarg == NULL)
-		return -INVALID_ARG;
-
-	if (copy_from_user(&rs, uarg, sizeof(rs))) {
-		pr_err("[SCHED_RTG] CMD_ID_SET_CONFIG copy data failed\n");
-		return -INVALID_ARG;
-	}
-	if ((rs.len <= 0) || (rs.len >= MAX_DATA_LEN)) {
-		pr_err("[SCHED_RTG] CMD_ID_SET_CONFIG data len invalid\n");
-		return -INVALID_ARG;
-	}
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpointer-to-int-cast"
-	switch (abi) {
-	case IOCTL_ABI_ARM32:
-		ret = copy_from_user(&temp,
-			(void __user *)compat_ptr((compat_uptr_t)rs.data), rs.len);
-		break;
-	case IOCTL_ABI_AARCH64:
-		ret = copy_from_user(&temp, (void __user *)rs.data, rs.len);
-		break;
-	default:
-		pr_err("[SCHED_RTG] abi format error\n");
-		return -INVALID_ARG;
-	}
-	if (ret) {
-		pr_err("[SCHED_RTG] CMD_ID_SET_CONFIG copy rs.data failed\n");
-		return -INVALID_ARG;
-	}
-#pragma GCC diagnostic pop
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
-	temp[rs.len] = '\0';
-	rs.data = &temp;
-#pragma GCC diagnostic pop
-
-	return parse_config(&rs);
-}
-
 static inline bool is_valid_type(int type)
 {
 	return (type >= VIP && type < RTG_TYPE_MAX);
@@ -502,6 +415,11 @@ int update_frame_state(int grp_id, int margin, bool in_frame)
 	return SUCC;
 }
 
+static inline int curr_grp_id()
+{
+	return sched_get_group_id(current);
+}
+
 static long ctrl_frame_state(void __user *uarg, bool is_enter)
 {
 	struct proc_state_data state_data;
@@ -514,7 +432,7 @@ static long ctrl_frame_state(void __user *uarg, bool is_enter)
 		return -INVALID_ARG;
 	}
 
-	return update_frame_state(state_data.grp_id, state_data.state_param, is_enter);
+	return update_frame_state(curr_grp_id(), state_data.state_param, is_enter);
 }
 
 static long ctrl_begin_frame(int abi, void __user *uarg)
@@ -581,7 +499,7 @@ static long ctrl_set_min_util(int abi, void __user *uarg)
 		return -INVALID_ARG;
 	}
 
-	return set_min_util(state_data.grp_id, state_data.state_param);
+	return set_min_util(curr_grp_id(), state_data.state_param);
 }
 
 static int set_margin(int grp_id, int margin)
@@ -609,7 +527,7 @@ static long ctrl_set_margin(int abi, void __user *uarg)
 		return -INVALID_ARG;
 	}
 
-	return set_margin(state_data.grp_id, state_data.state_param);
+	return set_margin(curr_grp_id(), state_data.state_param);
 }
 
 static void clear_rtg_frame_thread(struct frame_info *frame_info, bool reset)
@@ -769,11 +687,6 @@ static int do_clear_or_destroy_grp(const struct rtg_grp_data *rs_data, bool dest
 	return SUCC;
 }
 
-static int parse_clear_grp(const struct rtg_grp_data *rs_data)
-{
-	return do_clear_or_destroy_grp(rs_data, false);
-}
-
 static int parse_destroy_grp(const struct rtg_grp_data *rs_data)
 {
 	return do_clear_or_destroy_grp(rs_data, true);
@@ -800,71 +713,12 @@ long ctrl_set_rtg(int abi, void __user *uarg)
 		ret = parse_remove_thread(&rs_data);
 		break;
 	case CMD_CLEAR_RTG_GRP:
-		ret = parse_clear_grp(&rs_data);
+		ret = -INVALID_ARG;
 		break;
 	case CMD_DESTROY_RTG_GRP:
 		ret = parse_destroy_grp(&rs_data);
 		break;
 	default:
-		return -INVALID_ARG;
-	}
-
-	return ret;
-}
-
-static long ctrl_list_rtg(int abi, void __user *uarg)
-{
-	struct rtg_info rs_data;
-	long ret;
-
-	if (copy_from_user(&rs_data, uarg, sizeof(rs_data))) {
-		pr_err("[SCHED_RTG] CMD_ID_LIST_RTG copy data failed\n");
-		return -INVALID_ARG;
-	}
-	ret = list_rtg_group(&rs_data);
-	if (copy_to_user(uarg, &rs_data, sizeof(rs_data))) {
-		pr_err("[SCHED_RTG]] CMD_ID_LIST_RTG send data failed\n");
-		return -INVALID_ARG;
-	}
-
-	return ret;
-}
-
-static int list_rtg_thread(struct rtg_grp_data *rs_data)
-{
-	int num = 0;
-	int grp_id = rs_data->grp_id;
-	struct frame_info *frame_info = NULL;
-	int i;
-
-	frame_info = lookup_frame_info_by_grp_id(grp_id);
-	if (!frame_info) {
-		pr_err("[SCHED_RTG] Look up for grp %d failed!\n", grp_id);
-		return -INVALID_ARG;
-	}
-	for (i = 0; i < frame_info->thread_num; i++) {
-		if (frame_info->thread[i]) {
-			rs_data->tids[num] = frame_info->thread[i]->pid;
-			num++;
-		}
-	}
-	rs_data->tid_num = num;
-
-	return num;
-}
-
-static long ctrl_list_rtg_thread(int abi, void __user *uarg)
-{
-	struct rtg_grp_data rs_data;
-	long ret;
-
-	if (copy_from_user(&rs_data, uarg, sizeof(rs_data))) {
-		pr_err("[SCHED_RTG] CMD_ID_LIST_RTG_THREAD copy data failed\n");
-		return -INVALID_ARG;
-	}
-	ret = list_rtg_thread(&rs_data);
-	if (copy_to_user(uarg, &rs_data, sizeof(rs_data))) {
-		pr_err("[SCHED_RTG]] CMD_ID_LIST_RTG_THREAD send data failed\n");
 		return -INVALID_ARG;
 	}
 
