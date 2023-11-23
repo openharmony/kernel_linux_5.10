@@ -77,6 +77,7 @@ struct fsverity_info {
 	u8 measurement[FS_VERITY_MAX_DIGEST_SIZE];
 	const struct inode *inode;
 #ifdef CONFIG_SECURITY_CODE_SIGN
+	struct cs_info fcs_info;
 	u64 verified_data_size;
 	int cert_type;
 #endif

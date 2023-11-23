@@ -120,6 +120,9 @@ enum OID {
 	OID_SM2_with_SM3,		/* 1.2.156.10197.1.501 */
 	OID_sm3WithRSAEncryption,	/* 1.2.156.10197.1.504 */
 
+	/* Code signature defined OIDS */
+	OID_ownerid,			/* 1.3.6.1.4.1.2011.2.376.1.4.1 */
+
 	OID__NR
 };
 

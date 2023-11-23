@@ -35,7 +35,13 @@ struct pkcs7_signed_info {
 #define sinfo_has_smime_caps		3
 #define	sinfo_has_ms_opus_info		4
 #define	sinfo_has_ms_statement_type	5
+#define sinfo_has_owner_identifier	6
 	time64_t	signing_time;
+
+#ifdef CONFIG_SECURITY_CODE_SIGN
+	const char *ownerid;
+	unsigned ownerid_len;
+#endif /* CONFIG_SECURITY_CODE_SIGN */
 
 	/* Message signature.
 	 *
