@@ -108,6 +108,7 @@ extern const struct file_operations hmdfs_dev_dir_ops_remote;
 extern const struct inode_operations hmdfs_dev_file_iops_cloud;
 extern const struct file_operations hmdfs_dev_file_fops_cloud;
 extern const struct address_space_operations hmdfs_dev_file_aops_cloud;
+extern const struct address_space_operations hmdfs_aops_cloud;
 extern const struct inode_operations hmdfs_dev_dir_inode_ops_cloud;
 extern const struct file_operations hmdfs_dev_dir_ops_cloud;
 extern int hmdfs_dev_unlink_from_con(struct hmdfs_peer *conn,

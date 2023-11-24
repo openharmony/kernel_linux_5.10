@@ -77,6 +77,7 @@ struct inode *fill_inode_local(struct super_block *sb,
 {
 	int ret = 0;
 	struct inode *inode;
+	struct hmdfs_sb_info *sbi = hmdfs_sb(sb);
 	struct hmdfs_inode_info *info;
 
 	if (!igrab(lower_inode))
@@ -135,6 +136,9 @@ struct inode *fill_inode_local(struct super_block *sb,
 		ret = -EIO;
 		goto bad_inode;
 	}
+
+	if (sbi->s_cloud_disk_switch)
+		inode->i_mapping->a_ops = &hmdfs_aops_cloud;
 
 	fsstack_copy_inode_size(inode, lower_inode);
 	check_and_fixup_share_ops(inode, name);
@@ -759,7 +763,7 @@ static bool symname_is_allowed(const char *symname)
 	strcat(buf, "/");
 	p = strstr(symname, "/../");
 	if (p) {
-		kfree(buf);	
+		kfree(buf);
 		return false;
 	}
 

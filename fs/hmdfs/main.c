@@ -730,6 +730,7 @@ static int hmdfs_init_sbi(struct hmdfs_sb_info *sbi)
 	sbi->s_offline_stash = true;
 	sbi->s_dentry_cache = true;
 	sbi->wb_timeout_ms = HMDFS_DEF_WB_TIMEOUT_MS;
+	sbi->s_readpages_nr = HMDFS_READPAGES_NR_DEF;
 	/* Initialize before hmdfs_register_sysfs() */
 	atomic_set(&sbi->connections.conn_seq, 0);
 	mutex_init(&sbi->connections.node_lock);
@@ -865,6 +866,7 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_op = &hmdfs_sops;
 
 	sbi->boot_cookie = hmdfs_gen_boot_cookie();
+	sbi->s_readpages_nr = sb->s_bdi->ra_pages;
 
 	err = hmdfs_init_writeback(sbi);
 	if (err)
