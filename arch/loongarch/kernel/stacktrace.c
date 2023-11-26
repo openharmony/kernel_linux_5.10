@@ -63,7 +63,7 @@ static void save_context_stack(struct task_struct *tsk,
 	regs->regs[22] = 0;
 
 	for (unwind_start(&state, tsk, regs);
-	     !unwind_done(&state) && !unwind_error(&state); unwind_next_frame(&state)) {
+	     !unwind_done(&state); unwind_next_frame(&state)) {
 		addr = unwind_get_return_address(&state);
 		if (!addr || !fn(trace, addr))
 			return;
