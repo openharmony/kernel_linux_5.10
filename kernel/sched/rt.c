@@ -3030,10 +3030,12 @@ static int sched_rt_global_validate(void)
 
 static void sched_rt_do_global(void)
 {
-	raw_spin_lock(&def_rt_bandwidth.rt_runtime_lock);
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&def_rt_bandwidth.rt_runtime_lock, flags);
 	def_rt_bandwidth.rt_runtime = global_rt_runtime();
 	def_rt_bandwidth.rt_period = ns_to_ktime(global_rt_period());
-	raw_spin_unlock(&def_rt_bandwidth.rt_runtime_lock);
+	raw_spin_unlock_irqrestore(&def_rt_bandwidth.rt_runtime_lock, flags);
 }
 
 int sched_rt_handler(struct ctl_table *table, int write, void *buffer,
