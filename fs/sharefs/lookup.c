@@ -237,7 +237,6 @@ static struct dentry *__sharefs_lookup(struct dentry *dentry,
 		}
 		goto out;
 	}
-
 	/*
 	 * We don't consider ENOENT an error, and we want to return a
 	 * negative dentry.
@@ -292,9 +291,17 @@ struct dentry *sharefs_lookup(struct inode *dir, struct dentry *dentry,
 	int err;
 	struct dentry *ret, *parent;
 	struct path lower_parent_path;
+#ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
+	const struct cred *saved_cred = NULL;
+	__u16 permission;
 
+	saved_cred = sharefs_override_file_fsids(dir, &permission);
+	if (!saved_cred) {
+		ret = ERR_PTR(-ENOMEM);
+		goto out_err;
+	}
+#endif
 	parent = dget_parent(dentry);
-
 	sharefs_get_lower_path(parent, &lower_parent_path);
 
 	/* allocate dentry private data.  We free it in ->d_release */
@@ -319,7 +326,11 @@ struct dentry *sharefs_lookup(struct inode *dir, struct dentry *dentry,
 				sharefs_lower_inode(d_inode(parent)));
 	fixup_perm_from_level(d_inode(parent), dentry);
 out:
+#ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
+	sharefs_revert_fsids(saved_cred);
 	sharefs_put_lower_path(parent, &lower_parent_path);
 	dput(parent);
+out_err:
+#endif
 	return ret;
 }

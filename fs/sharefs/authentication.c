@@ -63,7 +63,6 @@ void fixup_perm_from_level(struct inode *dir, struct dentry *dentry)
 		}
 		break;
 	default:
-		/* ! it should not get to here */
 		sharefs_err("sharedfs perm incorrect got default case, level:%u", level);
 		break;
 	}
@@ -75,3 +74,25 @@ void sharefs_root_inode_perm_init(struct inode *root_inode)
 	struct sharefs_inode_info *hii = SHAREFS_I(root_inode);
 	hii->perm = SHAREFS_PERM_FIX;
 }
+
+#ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
+const struct cred *sharefs_override_file_fsids(struct inode *dir, __u16 *_perm)
+{
+	struct cred *cred = NULL;
+	cred = prepare_creds();
+	if (!cred)
+		return NULL;
+
+	cred->fsuid = dir->i_uid;
+	cred->fsgid = dir->i_gid;
+	return override_creds(cred);
+}
+
+void sharefs_revert_fsids(const struct cred *old_cred)
+{
+	const struct cred *cur_cred;
+	cur_cred = current->cred;
+	revert_creds(old_cred);
+	put_cred(cur_cred);
+}
+#endif

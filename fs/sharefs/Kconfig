@@ -4,3 +4,21 @@ config SHARE_FS
 	  SHAREFS is an overlay file system.SHAREFS is used for file sharing
 	  between applications. Sharefs manages permissions through different
 	  permissions for reading and writing directories.
+
+config SHAREFS_SUPPORT_OVERRIDE
+	bool "Sharefs: support override "
+	depends on SHARE_FS
+	default n
+	help
+	  This is the switch of override feature on sharefs file system. 
+	  If the device type is 2in1, it shoule be set y.
+
+config SHAREFS_SUPPORT_WRITE
+	bool "Sharefs: support write operations"
+	depends on SHARE_FS
+	depends on SHAREFS_SUPPORT_OVERRIDE
+	default n
+	help
+	  This is the switch of write operation on sharefs file system. 
+	  If the device type is 2in1 and writing files is needed,
+	  it shoule be set y.
