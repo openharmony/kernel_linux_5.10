@@ -253,6 +253,7 @@ static int parse_rtg_attr(const struct rtg_str_data *rs_data)
 	struct frame_info *frame_info = NULL;
 	int rate = -1;
 	int type = -1;
+	int ret;
 
 	if (rs_data == NULL) {
 		pr_err("[SCHED_RTG] rtg attr: rs_data is null!\n");
@@ -297,8 +298,9 @@ static int parse_rtg_attr(const struct rtg_str_data *rs_data)
 		return -INVALID_ARG;
 	}
 
-	if (rate > 0)
-		set_frame_rate(frame_info, rate);
+	ret = set_frame_rate(frame_info, rate);
+	if (ret)
+		return ret;
 
 	if (is_valid_type(type)) {
 		if (update_rt_frame_num(frame_info, type, UPDATE_RTG_FRAME)) {
