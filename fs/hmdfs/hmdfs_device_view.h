@@ -242,7 +242,6 @@ static inline bool hmdfs_support_xattr(struct dentry *dentry)
 {
 	struct inode *inode = d_inode(dentry);
 	struct hmdfs_inode_info *info = hmdfs_i(inode);
-	struct hmdfs_dentry_info *gdi = hmdfs_d(dentry);
 
 	if (info->inode_type != HMDFS_LAYER_OTHER_LOCAL &&
 	    info->inode_type != HMDFS_LAYER_OTHER_REMOTE &&
@@ -253,7 +252,8 @@ static inline bool hmdfs_support_xattr(struct dentry *dentry)
 	if (!S_ISREG(inode->i_mode))
 		return false;
 
-	if (hm_islnk(gdi->file_type))
+	if (info->inode_type == HMDFS_LAYER_OTHER_LOCAL &&
+	    hm_islnk(hmdfs_d(dentry)->file_type))
 		return false;
 
 	return true;
