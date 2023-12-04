@@ -110,8 +110,16 @@ DEFINE_PROC_SHOW_ATTRIBUTE(binder_transaction_proc);
 #define ENABLE_ACCESS_TOKENID 0
 #endif /* CONFIG_ACCESS_TOKENID */
 
+#ifdef CONFIG_BINDER_SENDER_INFO
+#define ENABLE_BINDER_SENDER_INFO 1
+#else
+#define ENABLE_BINDER_SENDER_INFO 0
+#endif /* CONFIG_BINDER_SENDER_INFO */
+
 #define ACCESS_TOKENID_FEATURE_VALUE (ENABLE_ACCESS_TOKENID << 0)
-#define BINDER_CURRENT_FEATURE_SET ACCESS_TOKENID_FEATURE_VALUE
+#define BINDER_SENDER_INFO_FEATURE_VALUE (ENABLE_BINDER_SENDER_INFO << 2)
+
+#define BINDER_CURRENT_FEATURE_SET (ACCESS_TOKENID_FEATURE_VALUE | BINDER_SENDER_INFO_FEATURE_VALUE)
 
 enum {
 	BINDER_DEBUG_USER_ERROR             = 1U << 0,
@@ -571,6 +579,9 @@ struct binder_thread {
 #ifdef CONFIG_ACCESS_TOKENID
 	struct access_token tokens;
 #endif /* CONFIG_ACCESS_TOKENID */
+#ifdef CONFIG_BINDER_SENDER_INFO
+	__u64 sender_pid_nr;
+#endif /* CONFIG_BINDER_SENDER_INFO */
 };
 
 /**
@@ -4876,8 +4887,18 @@ retry:
 			trd->sender_pid =
 				task_tgid_nr_ns(sender,
 						task_active_pid_ns(current));
+#ifdef CONFIG_BINDER_SENDER_INFO
+			binder_inner_proc_lock(thread->proc);
+			thread->sender_pid_nr = task_tgid_nr(sender);
+			binder_inner_proc_unlock(thread->proc);
+#endif
 		} else {
 			trd->sender_pid = 0;
+#ifdef CONFIG_BINDER_SENDER_INFO
+			binder_inner_proc_lock(thread->proc);
+			thread->sender_pid_nr = 0;
+			binder_inner_proc_unlock(thread->proc);
+#endif
 		}
 
 		ret = binder_apply_fd_fixups(proc, t);
@@ -5591,6 +5612,39 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 	}
 #endif /* CONFIG_ACCESS_TOKENID */
+
+#ifdef CONFIG_BINDER_SENDER_INFO
+	case BINDER_GET_SENDER_INFO: {
+		struct binder_sender_info __user *sender = ubuf;
+		u64 token, ftoken, sender_pid_nr;
+		if (size != sizeof(struct binder_sender_info)) {
+			ret = -EINVAL;
+			goto err;
+		}
+		binder_inner_proc_lock(proc);
+#ifdef CONFIG_ACCESS_TOKENID
+		token = thread->tokens.sender_tokenid;
+		ftoken = thread->tokens.first_tokenid;
+#endif /*CONFIG_ACCESS_TOKENID*/
+		sender_pid_nr = thread->sender_pid_nr;
+		binder_inner_proc_unlock(proc);
+#ifdef CONFIG_ACCESS_TOKENID
+		if (put_user(token, &sender->tokens.sender_tokenid)) {
+			ret = -EFAULT;
+			goto err;
+		}
+		if (put_user(ftoken, &sender->tokens.first_tokenid)) {
+			ret = -EFAULT;
+			goto err;
+		}
+#endif /*CONFIG_ACCESS_TOKENID*/
+		if (put_user(sender_pid_nr, &sender->sender_pid_nr)) {
+			ret = -EFAULT;
+			goto err;
+		}
+		break;
+	}
+#endif /* CONFIG_BINDER_SENDER_INFO */
 	default:
 		ret = -EINVAL;
 		goto err;
