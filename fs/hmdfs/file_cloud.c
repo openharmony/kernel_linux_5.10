@@ -259,6 +259,7 @@ next_page:
 		ret = prepare_cloud_readpage_work(filp, cnt, vec);
 
 	kfree(vec);
+	trace_hmdfs_readpages_cloud(nr_pages, pages);
 	return ret;
 }
 

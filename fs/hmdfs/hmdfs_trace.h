@@ -526,6 +526,26 @@ TRACE_EVENT(hmdfs_server_release,
 		__entry->device_id, __entry->err)
 );
 
+TRACE_EVENT(hmdfs_readpages_cloud,
+
+	TP_PROTO(unsigned int nr_pages, int err),
+
+	TP_ARGS(nr_pages, err),
+
+	TP_STRUCT__entry(
+		__field(unsigned int, nr_pages)
+		__field(int, err)
+	),
+
+	TP_fast_assign(
+		__entry->nr_pages = nr_pages;
+		__entry->err = err;
+	),
+
+	TP_printk("nr_pages:%u, lo_d_devid:%d",
+		  __entry->nr_pages, __entry->err)
+);
+
 TRACE_EVENT(hmdfs_client_recv_readpage,
 
 	TP_PROTO(struct hmdfs_peer *con, unsigned long long remote_ino,

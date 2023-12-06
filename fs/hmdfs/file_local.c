@@ -86,7 +86,7 @@ ssize_t hmdfs_do_read_iter(struct file *file, struct iov_iter *iter,
 	if (!iov_iter_count(iter))
 		return 0;
 
-	if (file->f_inode->imapping->a_ops == &hmdfs_aops_cloud) {
+	if (file->f_inode->i_mapping->a_ops == &hmdfs_aops_cloud) {
 		iocb = container_of(ppos, struct kiocb, ki_pos);
 		ret = generic_file_read_iter(iocb, iter);
 	} else
