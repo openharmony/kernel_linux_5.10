@@ -866,7 +866,6 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_op = &hmdfs_sops;
 
 	sbi->boot_cookie = hmdfs_gen_boot_cookie();
-	sbi->s_readpages_nr = sb->s_bdi->ra_pages;
 
 	err = hmdfs_init_writeback(sbi);
 	if (err)
