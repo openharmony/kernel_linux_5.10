@@ -2543,7 +2543,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 		get_task_struct(p);
 	}
 
-	CALL_HCK_LITE_HOOK(ced_detection_lhck, p);
+	CALL_HCK_LITE_HOOK(ced_kernel_clone_lhck, p);
 	wake_up_new_task(p);
 
 	/* forking complete and child started to run, tell ptracer */
