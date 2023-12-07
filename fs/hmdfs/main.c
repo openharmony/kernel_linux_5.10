@@ -153,12 +153,14 @@ static int hmdfs_xattr_local_set(struct dentry *dentry, const char *name,
 	int res = 0;
 
 	hmdfs_get_lower_path(dentry, &lower_path);
+	kuid_t tmp_uid = hmdfs_override_inode_uid(d_inode(lower_path.dentry));
 	if (value) {
 		res = vfs_setxattr(lower_path.dentry, name, value, size, flags);
 	} else {
 		WARN_ON(flags != XATTR_REPLACE);
 		res = vfs_removexattr(lower_path.dentry, name);
 	}
+	hmdfs_revert_inode_uid(d_inode(lower_path.dentry), tmp_uid);
 
 	hmdfs_put_lower_path(&lower_path);
 	return res;
@@ -206,9 +208,6 @@ static int hmdfs_xattr_set(const struct xattr_handler *handler,
 	struct hmdfs_inode_info *info = hmdfs_i(inode);
 
 	if (!hmdfs_support_xattr(dentry))
-		return -EOPNOTSUPP;
-
-	if (strncmp(name, XATTR_USER_PREFIX, XATTR_USER_PREFIX_LEN))
 		return -EOPNOTSUPP;
 
 	if (size > HMDFS_XATTR_SIZE_MAX) {
