@@ -33,6 +33,8 @@
 
 #define MAP_UNINITIALIZED 0x4000000	/* For anonymous mmap, memory could be
 					 * uninitialized */
+#define MAP_JIT 0x80000000 /* For JIT compiler which apply PROT_NONE memory 
+					and turn it into PROT_EXEC when code run */
 
 /*
  * Flags for mlock
