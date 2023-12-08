@@ -75,6 +75,8 @@
 #include <asm/unistd.h>
 #include <asm/mmu_context.h>
 
+#include <linux/hck/lite_hck_ced.h>
+
 /*
  * The default value should be high enough to not crash a system that randomly
  * crashes its kernel from time to time, but low enough to at least not permit
@@ -886,6 +888,7 @@ void __noreturn do_exit(long code)
 
 	exit_tasks_rcu_start();
 	exit_notify(tsk, group_dead);
+	CALL_HCK_LITE_HOOK(ced_exit_lhck, tsk);
 	proc_exit_connector(tsk);
 	mpol_put_task_policy(tsk);
 #ifdef CONFIG_FUTEX

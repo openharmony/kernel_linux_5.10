@@ -243,7 +243,12 @@ out:
 void switch_task_namespaces(struct task_struct *p, struct nsproxy *new)
 {
 	struct nsproxy *ns;
+	int ret = 0;
 	CALL_HCK_LITE_HOOK(ced_switch_task_namespaces_lhck, new);
+	CALL_HCK_LITE_HOOK(ced_switch_task_namespaces_permission_lhck, new, &ret);
+	if (ret)
+		return;
+
 	might_sleep();
 
 	task_lock(p);

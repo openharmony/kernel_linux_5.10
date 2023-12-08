@@ -18,6 +18,10 @@
 #undef REGISTER_HCK_LITE_DATA_HOOK
 #define REGISTER_HCK_LITE_DATA_HOOK(name, probe, data)
 #else
+DECLARE_HCK_LITE_HOOK(ced_setattr_insert_lhck,
+	TP_PROTO(struct task_struct *task),
+	TP_ARGS(task));
+
 DECLARE_HCK_LITE_HOOK(ced_switch_task_namespaces_lhck,
 	TP_PROTO(const struct nsproxy *new),
 	TP_ARGS(new));
@@ -26,10 +30,21 @@ DECLARE_HCK_LITE_HOOK(ced_detection_lhck,
 	TP_PROTO(struct task_struct *task),
 	TP_ARGS(task));
 
+DECLARE_HCK_LITE_HOOK(ced_exit_lhck,
+	TP_PROTO(struct task_struct *task),
+	TP_ARGS(task));
+
+DECLARE_HCK_LITE_HOOK(ced_kernel_clone_lhck,
+	TP_PROTO(struct task_struct *task),
+	TP_ARGS(task));
+
 DECLARE_HCK_LITE_HOOK(ced_commit_creds_lhck,
 	TP_PROTO(const struct cred *new),
 	TP_ARGS(new));
 
+DECLARE_HCK_LITE_HOOK(ced_switch_task_namespaces_permission_lhck,
+	TP_PROTO(const struct nsproxy *new, int *ret),
+	TP_ARGS(new, ret));
 #endif /* CONFIG_HCK */
 
 #endif /* _LITE_HCK_CED_H */

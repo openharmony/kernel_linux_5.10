@@ -93,6 +93,8 @@
 #include <linux/fsnotify.h>
 #include <linux/fanotify.h>
 
+#include <linux/hck/lite_hck_ced.h>
+
 #include "avc.h"
 #include "objsec.h"
 #include "netif.h"
@@ -6483,6 +6485,7 @@ static int selinux_setprocattr(const char *name, void *value, size_t size)
 	}
 
 	commit_creds(new);
+	CALL_HCK_LITE_HOOK(ced_setattr_insert_lhck, current);
 	return size;
 
 abort_change:
