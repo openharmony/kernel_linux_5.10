@@ -249,9 +249,6 @@ static inline bool hmdfs_support_xattr(struct dentry *dentry)
 	    info->inode_type != HMDFS_LAYER_OTHER_MERGE_CLOUD)
 		return false;
 
-	if (!S_ISREG(inode->i_mode))
-		return false;
-
 	if (info->inode_type == HMDFS_LAYER_OTHER_LOCAL &&
 	    hm_islnk(hmdfs_d(dentry)->file_type))
 		return false;
