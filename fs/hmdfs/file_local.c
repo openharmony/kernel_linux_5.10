@@ -81,11 +81,16 @@ ssize_t hmdfs_do_read_iter(struct file *file, struct iov_iter *iter,
 {
 	ssize_t ret;
 	struct file *lower_file = hmdfs_f(file)->lower_file;
+	struct kiocb *iocb;
 
 	if (!iov_iter_count(iter))
 		return 0;
 
-	ret = vfs_iter_read(lower_file, iter, ppos, 0);
+	if (file->f_inode->i_mapping->a_ops == &hmdfs_aops_cloud) {
+		iocb = container_of(ppos, struct kiocb, ki_pos);
+		ret = generic_file_read_iter(iocb, iter);
+	} else
+		ret = vfs_iter_read(lower_file, iter, ppos, 0);
 	hmdfs_file_accessed(file);
 
 	return ret;

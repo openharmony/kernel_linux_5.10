@@ -60,6 +60,7 @@
 #define HMDFS_MAX_WB_TIMEOUT_MS 900000
 
 #define HMDFS_READPAGES_NR_MAX	32
+#define HMDFS_READPAGES_NR_DEF	1024
 
 #define HMDFS_CID_SIZE 64
 
@@ -164,6 +165,9 @@ struct hmdfs_sb_info {
 
 	/* For features supporting */
 	u64 s_features;
+
+	/* number of pages to read */
+	unsigned int s_readpages_nr;
 
 	/* For merge & device view */
 	unsigned int s_merge_switch;
