@@ -1662,9 +1662,12 @@ unsigned long ksys_mmap_pgoff(unsigned long addr, unsigned long len,
 	retval = vm_mmap_pgoff(file, addr, len, prot, flags, pgoff);
 
 	if (!IS_ERR_VALUE(retval) && (flags & MAP_JIT)) {
-		CALL_HCK_LITE_HOOK(check_jit_memory_lhck, current, fd, prot, retval, PAGE_ALIGN(len), (int *)(&retval));
-		if (IS_ERR_VALUE(retval))
+		int error = 0;
+		CALL_HCK_LITE_HOOK(check_jit_memory_lhck, current, fd, prot, retval, PAGE_ALIGN(len), &error);
+		if (error) {
 			pr_info("JITINFO: jit request denied");
+			return error;
+		}
 	}
 out_fput:
 	if (file)
