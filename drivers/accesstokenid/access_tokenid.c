@@ -18,7 +18,7 @@
 #include "access_tokenid.h"
 
 DEFINE_RWLOCK(token_rwlock);
-#define ACCESS_TOKEN_UID KUIDT_INIT(3081)
+#define ACCESS_TOKEN_UID KUIDT_INIT(3020)
 #define MAX_NODE_NUM 500
 #define PERM_GROUP_SIZE 32
 
@@ -127,9 +127,9 @@ static bool check_permission_for_set_token_permission()
 
 static void add_node_to_left_tree_tail(struct token_perm_node *root_node, struct token_perm_node *node)
 {
-	if ((root_node == NULL) || (node == NULL)) {
+	if ((root_node == NULL) || (node == NULL))
 		return;
-	}
+
 	struct token_perm_node *current_node = root_node;
 	while (true) {
 		if (current_node->left == NULL) {
@@ -182,10 +182,10 @@ int access_tokenid_add_permission(struct file *file, void __user *uarg)
 	struct token_perm_node *parent_node = NULL;
 	find_token_perm_node(g_token_perm_root, node->perm_data.token, &target_node, &parent_node);
 	if (target_node != NULL) {
+		target_node->perm_data = node->perm_data;
 		write_unlock(&token_rwlock);
 		kmem_cache_free(g_cache, node);
-		pr_err("%s: target token to be added already exists.\n", __func__);
-		return -EEXIST;
+		return 0;
 	}
 	if (parent_node == NULL) {
 		g_token_perm_root = node;
@@ -256,9 +256,9 @@ int access_tokenid_set_permission(struct file *file, void __user *uarg)
 		pr_err("%s: to set permission for no data.\n", __func__);
 		return -ENODATA;
 	}
-	uint32_t idx = set_perm_data.opCode / PERM_GROUP_SIZE;
-	uint32_t bitIdx = set_perm_data.opCode % PERM_GROUP_SIZE;
-	if (set_perm_data.isGranted) {
+	uint32_t idx = set_perm_data.op_code / PERM_GROUP_SIZE;
+	uint32_t bitIdx = set_perm_data.op_code % PERM_GROUP_SIZE;
+	if (set_perm_data.is_granted) {
 		target_node->perm_data.perm[idx] |= (uint32_t)0x01 << bitIdx;
 	} else {
 		target_node->perm_data.perm[idx] &= ~((uint32_t)0x01 << bitIdx);
@@ -273,15 +273,15 @@ int access_tokenid_get_permission(struct file *file, void __user *uarg)
 	if (copy_from_user(&get_perm_data, uarg, sizeof(get_perm_data)))
 		return -EFAULT;
 
-	get_perm_data.isGranted = false;
+	get_perm_data.is_granted = false;
 	struct token_perm_node *target_node = NULL;
 	struct token_perm_node *parent_node = NULL;
 	read_lock(&token_rwlock);
 	find_token_perm_node(g_token_perm_root, get_perm_data.token, &target_node, &parent_node);
 	if (target_node != NULL) {
-		uint32_t idx = get_perm_data.opCode / PERM_GROUP_SIZE;
-		uint32_t bitIdx = get_perm_data.opCode % PERM_GROUP_SIZE;
-		get_perm_data.isGranted = (target_node->perm_data.perm[idx] & (uint32_t)0x01 << bitIdx) != 0;
+		uint32_t idx = get_perm_data.op_code / PERM_GROUP_SIZE;
+		uint32_t bitIdx = get_perm_data.op_code % PERM_GROUP_SIZE;
+		get_perm_data.is_granted = (target_node->perm_data.perm[idx] & (uint32_t)0x01 << bitIdx) != 0;
 	}
 	read_unlock(&token_rwlock);
 	return copy_to_user(uarg, &get_perm_data, sizeof(get_perm_data)) ? -EFAULT : 0;
