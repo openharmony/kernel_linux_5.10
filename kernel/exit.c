@@ -76,6 +76,7 @@
 #include <asm/mmu_context.h>
 
 #include <linux/hck/lite_hck_ced.h>
+#include <linux/hck/lite_hck_jit_memory.h>
 
 /*
  * The default value should be high enough to not crash a system that randomly
@@ -768,6 +769,8 @@ void __noreturn do_exit(long code)
 {
 	struct task_struct *tsk = current;
 	int group_dead;
+
+	CALL_HCK_LITE_HOOK(exit_jit_memory_lhck, current);
 
 	/*
 	 * We can get here from a kernel oops, sometimes with preemption off.

@@ -36,6 +36,7 @@
 
 #include <trace/hooks/mm.h>
 #include "internal.h"
+#include <linux/hck/lite_hck_jit_memory.h>
 
 static unsigned long change_pte_range(struct vm_area_struct *vma, pmd_t *pmd,
 		unsigned long addr, unsigned long end, pgprot_t newprot,
@@ -534,6 +535,14 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
 		return error;
 
 	start = untagged_addr(start);
+
+	if (prot & PROT_EXEC) {
+		CALL_HCK_LITE_HOOK(find_jit_memory_lhck, current, start, len, &error);
+		if (error) {
+			pr_info("JITINFO: mprotect protection triggered");
+			return error;
+		}
+	}
 
 	prot &= ~(PROT_GROWSDOWN|PROT_GROWSUP);
 	if (grows == (PROT_GROWSDOWN|PROT_GROWSUP)) /* can't be both */

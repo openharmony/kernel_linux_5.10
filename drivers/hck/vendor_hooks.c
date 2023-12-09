@@ -14,3 +14,4 @@
 #include <linux/hck/lite_hck_inet.h>
 #include <linux/hck/lite_hck_hideaddr.h>
 #include <linux/hck/lite_hck_code_sign.h>
+#include <linux/hck/lite_hck_jit_memory.h>
