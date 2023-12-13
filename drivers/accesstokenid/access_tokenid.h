@@ -13,7 +13,7 @@
 #include <linux/types.h>
 
 #define	ACCESS_TOKEN_ID_IOCTL_BASE	'A'
-#define MAX_PERM_SIZE 64
+#define MAX_PERM_GROUP_NUM 64
 
 enum {
 	GET_TOKEN_ID = 1,
@@ -38,13 +38,13 @@ typedef struct {
 
 typedef struct {
 	uint32_t token;
-	uint32_t opCode;
-	bool isGranted;
+	uint32_t op_code;
+	bool is_granted;
 } ioctl_set_get_perm_data;
 
 typedef struct {
 	uint32_t token;
-	uint32_t perm[MAX_PERM_SIZE];
+	uint32_t perm[MAX_PERM_GROUP_NUM];
 } ioctl_add_perm_data;
 
 struct token_perm_node {
