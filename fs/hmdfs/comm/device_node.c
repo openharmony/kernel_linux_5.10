@@ -262,7 +262,7 @@ static ssize_t sbi_status_show(struct kobject *kobj, struct sbi_attribute *attr,
 
 	mutex_lock(&sbi->connections.node_lock);
 	list_for_each_entry(peer, &sbi->connections.node_list, list) {
-		size += sprintf(buf + size, "%llu %d\n", peer->device_id,
+		size += sprintf(buf + size, "%s %d\n", peer->cid,
 			peer->status);
 		// connection information
 		size += sprintf(
