@@ -25,8 +25,8 @@ DECLARE_HCK_LITE_HOOK(find_jit_memory_lhck,
 
 DECLARE_HCK_LITE_HOOK(check_jit_memory_lhck,
 	TP_PROTO(struct task_struct *task, unsigned long cookie, unsigned long prot,
-		unsigned long start, unsigned long size, int *err),
-	TP_ARGS(task, cookie, prot, start, size, err));
+		unsigned long flag, unsigned long size, unsigned long *err),
+	TP_ARGS(task, cookie, prot, flag, size, err));
 
 DECLARE_HCK_LITE_HOOK(delete_jit_memory_lhck,
 	TP_PROTO(struct task_struct *task, unsigned long start, unsigned long size, int *err),
