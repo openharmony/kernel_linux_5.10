@@ -294,15 +294,17 @@ struct dentry *sharefs_lookup(struct inode *dir, struct dentry *dentry,
 #ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
 	const struct cred *saved_cred = NULL;
 	__u16 permission;
+#endif
 
+	parent = dget_parent(dentry);
+	sharefs_get_lower_path(parent, &lower_parent_path);
+#ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
 	saved_cred = sharefs_override_file_fsids(dir, &permission);
 	if (!saved_cred) {
 		ret = ERR_PTR(-ENOMEM);
 		goto out_err;
 	}
 #endif
-	parent = dget_parent(dentry);
-	sharefs_get_lower_path(parent, &lower_parent_path);
 
 	/* allocate dentry private data.  We free it in ->d_release */
 	err = new_dentry_private_data(dentry);
@@ -315,7 +317,7 @@ struct dentry *sharefs_lookup(struct inode *dir, struct dentry *dentry,
 		sharefs_err("sharefs_lookup error!");
 		goto out;
 	}
-		
+
 	if (ret)
 		dentry = ret;
 	if (d_inode(dentry))
@@ -328,9 +330,9 @@ struct dentry *sharefs_lookup(struct inode *dir, struct dentry *dentry,
 out:
 #ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
 	sharefs_revert_fsids(saved_cred);
-	sharefs_put_lower_path(parent, &lower_parent_path);
-	dput(parent);
 out_err:
 #endif
+	sharefs_put_lower_path(parent, &lower_parent_path);
+	dput(parent);
 	return ret;
 }
