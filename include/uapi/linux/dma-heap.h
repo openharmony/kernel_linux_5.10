@@ -44,7 +44,7 @@ struct dma_heap_allocation_data {
 enum dma_heap_flag_owner_id {
 	OWNER_DEFAULT = 0,
 	OWNER_GPU,
-	OWNER_MEDIA,
+	OWNER_MEDIA_CODEC,
 	COUNT_DMA_HEAP_FLAG_OWNER,
 };
 
