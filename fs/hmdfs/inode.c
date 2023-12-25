@@ -177,6 +177,10 @@ struct inode *hmdfs_iget5_locked_merge(struct super_block *sb,
 		hmdfs_err("Received a invalid lower inode");
 		return NULL;
 	}
+	if (unlikely(!hmdfs_d(fst_lo_d))) {
+		hmdfs_err("Received a invalid fsdata");
+		return NULL;
+	}
 
 	ia.ino.ino_raw = d_inode(fst_lo_d)->i_ino;
 	ia.ino.dev_id = hmdfs_d(fst_lo_d)->device_id;
@@ -197,6 +201,10 @@ struct inode *hmdfs_iget5_locked_cloud_merge(struct super_block *sb,
 
 	if (unlikely(!d_inode(fst_lo_d))) {
 		hmdfs_err("Received a invalid lower inode");
+		return NULL;
+	}
+	if (unlikely(!hmdfs_d(fst_lo_d))) {
+		hmdfs_err("Received a invalid fsdata");
 		return NULL;
 	}
 
