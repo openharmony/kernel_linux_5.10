@@ -2,7 +2,7 @@
 /*
  * access_tokenid.h
  *
- * Copyright (C) 2022 Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2022-2023 Huawei Technologies Co., Ltd. All rights reserved.
  *
  */
 
@@ -66,7 +66,7 @@ struct token_perm_node {
 #define	ACCESS_TOKENID_REMOVE_PERMISSIONS \
 	_IOW(ACCESS_TOKEN_ID_IOCTL_BASE, REMOVE_PERMISSIONS, uint32_t)
 #define	ACCESS_TOKENID_GET_PERMISSION \
-	_IOWR(ACCESS_TOKEN_ID_IOCTL_BASE, GET_PERMISSION, ioctl_set_get_perm_data)
+	_IOW(ACCESS_TOKEN_ID_IOCTL_BASE, GET_PERMISSION, ioctl_set_get_perm_data)
 #define	ACCESS_TOKENID_SET_PERMISSION \
 	_IOW(ACCESS_TOKEN_ID_IOCTL_BASE, SET_PERMISSION, ioctl_set_get_perm_data)
 
