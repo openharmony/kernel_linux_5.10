@@ -2,7 +2,7 @@
 /*
  * access_tokenid.c
  *
- * Copyright (C) 2022 Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (C) 2022-2023 Huawei Technologies Co., Ltd. All rights reserved.
  *
  */
 
@@ -20,7 +20,7 @@
 DEFINE_RWLOCK(token_rwlock);
 #define ACCESS_TOKEN_UID KUIDT_INIT(3020)
 #define MAX_NODE_NUM 500
-#define PERM_GROUP_SIZE 32
+#define UINT32_T_BITS 32
 
 static struct kmem_cache *g_cache = NULL;
 static struct token_perm_node *g_token_perm_root = NULL;
@@ -140,7 +140,7 @@ static void add_node_to_left_tree_tail(struct token_perm_node *root_node, struct
 	}
 }
 
-static void find_token_perm_node(struct token_perm_node *root_node, uint32_t token,
+static void find_node_by_token(struct token_perm_node *root_node, uint32_t token,
 	struct token_perm_node **target_node, struct token_perm_node **parent_node)
 {
 	*target_node = NULL;
@@ -160,32 +160,18 @@ static void find_token_perm_node(struct token_perm_node *root_node, uint32_t tok
 	}
 }
 
-int access_tokenid_add_permission(struct file *file, void __user *uarg)
+static int add_node_to_tree(struct token_perm_node *root_node, struct token_perm_node *node)
 {
-	if (!check_permission_for_set_token_permission())
-		return -EPERM;
-
-	struct token_perm_node *node = kmem_cache_zalloc(g_cache, GFP_KERNEL);
-	if (node == NULL)
-		return -ENOMEM;
-	if (copy_from_user(&(node->perm_data), uarg, sizeof(ioctl_add_perm_data)))
-		return -EFAULT;
-
-	write_lock(&token_rwlock);
-	if (g_total_node_num >= MAX_NODE_NUM) {
-		write_unlock(&token_rwlock);
-		kmem_cache_free(g_cache, node);
-		pr_err("%s: the number fo token nodes is over size.\n", __func__);
-		return -EOVERFLOW;
-	}
 	struct token_perm_node *target_node = NULL;
 	struct token_perm_node *parent_node = NULL;
-	find_token_perm_node(g_token_perm_root, node->perm_data.token, &target_node, &parent_node);
+	find_node_by_token(root_node, node->perm_data.token, &target_node, &parent_node);
 	if (target_node != NULL) {
 		target_node->perm_data = node->perm_data;
-		write_unlock(&token_rwlock);
-		kmem_cache_free(g_cache, node);
 		return 0;
+	}
+	if (g_total_node_num >= MAX_NODE_NUM) {
+		pr_err("%s: the number of token nodes is exceeded.\n", __func__);
+		return -EDQUOT;
 	}
 	if (parent_node == NULL) {
 		g_token_perm_root = node;
@@ -195,32 +181,22 @@ int access_tokenid_add_permission(struct file *file, void __user *uarg)
 		parent_node->right = node;
 	}
 	g_total_node_num++;
-	write_unlock(&token_rwlock);
-	return 0;
+	return 1;
 }
 
-int access_tokenid_remove_permission(struct file *file, void __user *uarg)
+static struct token_perm_node *remove_node_by_token(struct token_perm_node *root_node, uint32_t token)
 {
-	if (!check_permission_for_set_token_permission())
-		return -EPERM;
-
-	uint32_t token = 0;
-	if (copy_from_user(&token, uarg, sizeof(token)))
-		return -EFAULT;
-
 	struct token_perm_node *target_node = NULL;
 	struct token_perm_node *parent_node = NULL;
-	write_lock(&token_rwlock);
-	find_token_perm_node(g_token_perm_root, token, &target_node, &parent_node);
+	find_node_by_token(root_node, token, &target_node, &parent_node);
 	if (target_node == NULL) {
-		write_unlock(&token_rwlock);
 		pr_err("%s: target token to be removed not found.\n", __func__);
-		return 0;
+		return NULL;
 	}
 
 	struct token_perm_node **new_node_addr = NULL;
 	if (parent_node == NULL) {
-		new_node_addr = &g_token_perm_root;
+		new_node_addr = &root_node;
 	} else if (parent_node->perm_data.token > token) {
 		new_node_addr = &(parent_node->left);
 	} else {
@@ -233,8 +209,48 @@ int access_tokenid_remove_permission(struct file *file, void __user *uarg)
 		*new_node_addr = target_node->left;
 	}
 	g_total_node_num--;
+	return target_node;
+}
+
+int access_tokenid_add_permission(struct file *file, void __user *uarg)
+{
+	if (!check_permission_for_set_token_permission())
+		return -EPERM;
+
+	struct token_perm_node *node = kmem_cache_zalloc(g_cache, GFP_KERNEL);
+	if (node == NULL)
+		return -ENOMEM;
+	if (copy_from_user(&(node->perm_data), uarg, sizeof(ioctl_add_perm_data))) {
+		kmem_cache_free(g_cache, node);
+		return -EFAULT;
+	}
+
+	write_lock(&token_rwlock);
+	int ret = add_node_to_tree(g_token_perm_root, node);
 	write_unlock(&token_rwlock);
-	kmem_cache_free(g_cache, target_node);
+	if (ret <= 0) {
+		kmem_cache_free(g_cache, node);
+		return ret;
+	}
+	return 0;
+}
+
+int access_tokenid_remove_permission(struct file *file, void __user *uarg)
+{
+	if (!check_permission_for_set_token_permission())
+		return -EPERM;
+
+	uint32_t token = 0;
+	if (copy_from_user(&token, uarg, sizeof(token)))
+		return -EFAULT;
+
+	write_lock(&token_rwlock);
+	struct token_perm_node *target_node = remove_node_by_token(g_token_perm_root, token);
+	write_unlock(&token_rwlock);
+
+	if (target_node != NULL)
+		kmem_cache_free(g_cache, target_node);
+
 	return 0;
 }
 
@@ -247,21 +263,26 @@ int access_tokenid_set_permission(struct file *file, void __user *uarg)
 	if (copy_from_user(&set_perm_data, uarg, sizeof(set_perm_data)))
 		return -EFAULT;
 
+	uint32_t idx = set_perm_data.op_code / UINT32_T_BITS;
+	if (idx >= MAX_PERM_GROUP_NUM) {
+		pr_err("%s: invalid op_code.\n", __func__);
+		return -EINVAL;
+	}
+
 	struct token_perm_node *target_node = NULL;
 	struct token_perm_node *parent_node = NULL;
 	write_lock(&token_rwlock);
-	find_token_perm_node(g_token_perm_root, set_perm_data.token, &target_node, &parent_node);
+	find_node_by_token(g_token_perm_root, set_perm_data.token, &target_node, &parent_node);
 	if (target_node == NULL) {
 		write_unlock(&token_rwlock);
-		pr_err("%s: to set permission for no data.\n", __func__);
+		pr_err("%s: token not found.\n", __func__);
 		return -ENODATA;
 	}
-	uint32_t idx = set_perm_data.op_code / PERM_GROUP_SIZE;
-	uint32_t bitIdx = set_perm_data.op_code % PERM_GROUP_SIZE;
+	uint32_t bit_idx = set_perm_data.op_code % UINT32_T_BITS;
 	if (set_perm_data.is_granted) {
-		target_node->perm_data.perm[idx] |= (uint32_t)0x01 << bitIdx;
+		target_node->perm_data.perm[idx] |= (uint32_t)0x01 << bit_idx;
 	} else {
-		target_node->perm_data.perm[idx] &= ~((uint32_t)0x01 << bitIdx);
+		target_node->perm_data.perm[idx] &= ~((uint32_t)0x01 << bit_idx);
 	}
 	write_unlock(&token_rwlock);
 	return 0;
@@ -273,18 +294,22 @@ int access_tokenid_get_permission(struct file *file, void __user *uarg)
 	if (copy_from_user(&get_perm_data, uarg, sizeof(get_perm_data)))
 		return -EFAULT;
 
-	get_perm_data.is_granted = false;
+	uint32_t idx = get_perm_data.op_code / UINT32_T_BITS;
+	if (idx >= MAX_PERM_GROUP_NUM) {
+		pr_err("%s: invalid op_code.\n", __func__);
+		return -EINVAL;
+	}
+
 	struct token_perm_node *target_node = NULL;
 	struct token_perm_node *parent_node = NULL;
 	read_lock(&token_rwlock);
-	find_token_perm_node(g_token_perm_root, get_perm_data.token, &target_node, &parent_node);
-	if (target_node != NULL) {
-		uint32_t idx = get_perm_data.op_code / PERM_GROUP_SIZE;
-		uint32_t bitIdx = get_perm_data.op_code % PERM_GROUP_SIZE;
-		get_perm_data.is_granted = (target_node->perm_data.perm[idx] & (uint32_t)0x01 << bitIdx) != 0;
-	}
+	find_node_by_token(g_token_perm_root, get_perm_data.token, &target_node, &parent_node);
 	read_unlock(&token_rwlock);
-	return copy_to_user(uarg, &get_perm_data, sizeof(get_perm_data)) ? -EFAULT : 0;
+	if (target_node == NULL)
+		return -ENODATA;
+
+	uint32_t bit_idx = get_perm_data.op_code % UINT32_T_BITS;
+	return (target_node->perm_data.perm[idx] & ((uint32_t)0x01 << bit_idx)) >> bit_idx;
 }
 
 typedef int (*access_token_id_func)(struct file *file, void __user *arg);
