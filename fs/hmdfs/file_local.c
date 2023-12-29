@@ -36,7 +36,12 @@ int hmdfs_file_open_local(struct inode *inode, struct file *file)
 	}
 
 	hmdfs_get_lower_path(file->f_path.dentry, &lower_path);
-	lower_file = dentry_open(&lower_path, file->f_flags, cred);
+	if (inode->imapping != NULL &&
+	    inode->imapping->a_ops == &hmdfs_aops_cloud)
+		lower_file = dentry_open(&lower_path, file->f_flags | O_DIRECT,
+					 cred);
+	else
+		lower_file = dentry_open(&lower_path, file->f_flags, cred);
 	hmdfs_put_lower_path(&lower_path);
 	if (IS_ERR(lower_file)) {
 		err = PTR_ERR(lower_file);
@@ -86,11 +91,13 @@ ssize_t hmdfs_do_read_iter(struct file *file, struct iov_iter *iter,
 	if (!iov_iter_count(iter))
 		return 0;
 
-	if (file->f_inode->i_mapping->a_ops == &hmdfs_aops_cloud) {
+	if (inode->imapping != NULL &&
+	    inode->imapping->a_ops == &hmdfs_aops_cloud) {
 		iocb = container_of(ppos, struct kiocb, ki_pos);
 		ret = generic_file_read_iter(iocb, iter);
-	} else
+	} else {
 		ret = vfs_iter_read(lower_file, iter, ppos, 0);
+	}
 	hmdfs_file_accessed(file);
 
 	return ret;

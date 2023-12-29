@@ -92,7 +92,7 @@ int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 	}
 
 	lower_file = file_open_root(&root_path, dir_path,
-			      file->f_flags, file->f_mode);
+			      file->f_flags | O_DIRECT, file->f_mode);
 	path_put(&root_path);
 	if (IS_ERR(lower_file)) {
 		hmdfs_info("file_open_root failed: %ld", PTR_ERR(lower_file));
@@ -175,7 +175,9 @@ static void cloud_readpages_work_func(struct work_struct *work)
 	if (!pages_buf)
 		goto out;
 
+	trace_hmdfs_readpages_cloud_work_begin(cr_work->cnt, cr_work->pos);
 	ret = kernel_read(cr_work->filp, pages_buf, read_len, &cr_work->pos);
+	trace_hmdfs_readpages_cloud_work_end(cr_work->cnt, cr_work->pos);
 	if (ret < 0)
 		goto out_vunmap;
 
@@ -211,11 +213,11 @@ static int prepare_cloud_readpage_work(struct file *filp, int cnt,
 	if (gfi)
 		cr_work->filp = gfi->lower_file;
 	else
-		cr_work->filp = filp;
+		goto out;
 	
 	cred = prepare_creds();
 	if (!cred)
-		return -ENOMEM;
+		goto out;
 	cr_work->cred = cred;
 	cr_work->pos = (loff_t)(vec[0]->index) << HMDFS_PAGE_OFFSET;
 	cr_work->cnt = cnt;
@@ -224,6 +226,9 @@ static int prepare_cloud_readpage_work(struct file *filp, int cnt,
 	INIT_WORK(&cr_work->work, cloud_readpages_work_func);
 	schedule_work(&cr_work->work);
 	return 0;
+out:
+	kfree(cr_work);
+	return -ENOMEM;
 }
 
 static int hmdfs_readpages_cloud(struct file *filp,
