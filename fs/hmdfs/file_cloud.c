@@ -35,6 +35,7 @@ struct cloud_readpages_work {
 	struct file *filp;
 	loff_t pos;
 	int cnt;
+	struct cred *cred;
 	struct work_struct work;
 	struct page *pages[0];
 };
@@ -163,11 +164,13 @@ static void cloud_readpages_work_func(struct work_struct *work)
 	void *pages_buf;
 	int idx, ret;
 	ssize_t read_len;
+	const struct cred *old_cred;
 	struct cloud_readpages_work *cr_work;
 
 	cr_work = container_of(work, struct cloud_readpages_work, work);
 
 	read_len = cr_work->cnt * HMDFS_PAGE_SIZE;
+	old_cred = override_creds(cr_work->cred);
 	pages_buf = vmap(cr_work->pages, cr_work->cnt, VM_MAP, PAGE_KERNEL);
 	if (!pages_buf)
 		goto out;
@@ -186,6 +189,7 @@ out:
 		SetPageUptodate(cr_work->pages[idx]);
 		unlock_page(cr_work->pages[idx]);
 	}
+	revert_creds(old_cred);
 	kfree(cr_work);
 }
 
@@ -194,6 +198,7 @@ static int prepare_cloud_readpage_work(struct file *filp, int cnt,
 {
 	struct cloud_readpages_work *cr_work;
 	struct hmdfs_file_info *gfi = filp->private_data;
+	struct cred *cred = NULL;
 
 	cr_work = kzalloc(sizeof(*cr_work) +
 			  sizeof(cr_work->pages[0]) * cnt,
@@ -207,6 +212,11 @@ static int prepare_cloud_readpage_work(struct file *filp, int cnt,
 		cr_work->filp = gfi->lower_file;
 	else
 		cr_work->filp = filp;
+	
+	cred = prepare_creds();
+	if (!cred)
+		return -ENOMEM;
+	cr_work->cred = cred;
 	cr_work->pos = (loff_t)(vec[0]->index) << HMDFS_PAGE_OFFSET;
 	cr_work->cnt = cnt;
 	memcpy(cr_work->pages, vec, cnt * sizeof(*vec));
