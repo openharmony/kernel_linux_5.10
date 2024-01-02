@@ -173,7 +173,7 @@ out:
 		unlock_page(cr_work->pages[idx]);
 	}
 	revert_creds(old_cred);
-	put_cred(old_cred);
+	put_cred(cr_work->cred);
 	kfree(cr_work);
 }
 
