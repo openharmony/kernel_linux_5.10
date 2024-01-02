@@ -24,6 +24,7 @@
 static const char *kconfig_white_list[] = {
 	"vendor/Kconfig",
 	"net/newip/Kconfig",
+	"drivers/tzdriver/Kconfig",
 	"security/xpm/Kconfig",
 	"drivers/auth_ctl/Kconfig",
 	"drivers/staging/ucollection/Kconfig",
