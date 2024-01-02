@@ -192,6 +192,7 @@ out:
 		unlock_page(cr_work->pages[idx]);
 	}
 	revert_creds(old_cred);
+	put_cred(old_cred);
 	kfree(cr_work);
 }
 
@@ -201,13 +202,14 @@ static int prepare_cloud_readpage_work(struct file *filp, int cnt,
 	struct cloud_readpages_work *cr_work;
 	struct hmdfs_file_info *gfi = filp->private_data;
 	struct cred *cred = NULL;
+	int idx = 0;
 
 	cr_work = kzalloc(sizeof(*cr_work) +
 			  sizeof(cr_work->pages[0]) * cnt,
 			  GFP_KERNEL);
 	if (!cr_work) {
 		hmdfs_warning("cannot alloc work");
-		return -ENOMEM;
+		goto unlock;
 	}
 
 	if (gfi)
@@ -228,6 +230,9 @@ static int prepare_cloud_readpage_work(struct file *filp, int cnt,
 	return 0;
 out:
 	kfree(cr_work);
+unlock:
+	for (idx = 0; idx < cnt; ++idx)
+		unlock_page(vec[idx]);
 	return -ENOMEM;
 }
 
