@@ -40,25 +40,6 @@ struct cloud_readpages_work {
 	struct page *pages[0];
 };
 
-static ssize_t hmdfs_file_read_iter_cloud(struct kiocb *iocb,
-					  struct iov_iter *iter)
-{
-	ssize_t ret = -ENOENT;
-	struct file *filp = iocb->ki_filp;
-	struct hmdfs_file_info *gfi = filp->private_data;
-	struct file *lower_file = NULL;
-
-	if (gfi)
-		lower_file = gfi->lower_file;
-
-	if (lower_file) {
-		kiocb_clone(iocb, iocb, lower_file);
-		ret = vfs_iter_read(lower_file, iter, &iocb->ki_pos, 0);
-	}
-
-	return ret;
-}
-
 int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 {
 	const char *dir_path;
@@ -286,7 +267,7 @@ next_page:
 const struct file_operations hmdfs_dev_file_fops_cloud = {
 	.owner = THIS_MODULE,
 	.llseek = generic_file_llseek,
-	.read_iter = hmdfs_file_read_iter_cloud,
+	.read_iter = generic_file_read_iter,
 	.write_iter = NULL,
 	.mmap = hmdfs_file_mmap_cloud,
 	.open = hmdfs_file_open_cloud,

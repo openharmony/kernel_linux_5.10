@@ -79,7 +79,6 @@ static struct inode *fill_inode_merge(struct super_block *sb,
 		goto bad_inode;
 	}
 
-	inode->i_mapping->a_ops = &hmdfs_aops_cloud;
 	unlock_new_inode(inode);
 out:
 	dput(fst_lo_d);
