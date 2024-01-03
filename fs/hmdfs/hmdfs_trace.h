@@ -546,6 +546,46 @@ TRACE_EVENT(hmdfs_readpages_cloud,
 		  __entry->nr_pages, __entry->err)
 );
 
+TRACE_EVENT(hmdfs_readpages_cloud_work_begin,
+
+	TP_PROTO(int cnt, loff_t pos),
+
+	TP_ARGS(cnt, pos),
+
+	TP_STRUCT__entry(
+		__field(int, cnt)
+		__field(loff_t, pos)
+	),
+
+	TP_fast_assign(
+		__entry->cnt = cnt;
+		__entry->pos = pos;
+	),
+
+	TP_printk("cnt:%d, pos:%llx",
+		  __entry->cnt, __entry->pos)
+);
+
+TRACE_EVENT(hmdfs_readpages_cloud_work_end,
+
+	TP_PROTO(int cnt, loff_t pos),
+
+	TP_ARGS(cnt, pos),
+
+	TP_STRUCT__entry(
+		__field(int, cnt)
+		__field(loff_t, pos)
+	),
+
+	TP_fast_assign(
+		__entry->cnt = cnt;
+		__entry->pos = pos;
+	),
+
+	TP_printk("cnt:%d, pos:%llx",
+		  __entry->cnt, __entry->pos)
+);
+
 TRACE_EVENT(hmdfs_client_recv_readpage,
 
 	TP_PROTO(struct hmdfs_peer *con, unsigned long long remote_ino,
