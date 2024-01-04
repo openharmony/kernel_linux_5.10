@@ -896,13 +896,14 @@ static bool is_tcp_socket(struct tcp_handle *tcp)
 		return false;
 	}
 
-	if (tcp->sock->sk->sk_protocol != IPPROTO_TCP) {
+	lock_sock(tcp->sock->sk);
+	if (tcp->sock->sk->sk_protocol != IPPROTO_TCP ||
+	    tcp->sock->sk->sk_family != AF_INET) {
 		hmdfs_err("invalid socket protocol");
 		release_sock(tcp->sock->sk);
 		return false;
 	}
 
-	lock_sock(tcp->sock->sk);
 	icsk = inet_csk(tcp->sock->sk);
 	if (icsk->icsk_ulp_ops) {
 		hmdfs_err("ulp not NULL");
