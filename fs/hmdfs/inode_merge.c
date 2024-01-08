@@ -739,6 +739,10 @@ struct dentry *hmdfs_lookup_merge(struct inode *parent_inode,
 
 		child_inode = fill_inode_merge(parent_inode->i_sb, parent_inode,
 					       child_dentry, NULL);
+		if (IS_ERR(child_inode)) {
+			err = PTR_ERR(child_inode);
+			goto out;
+		}
 		info = hmdfs_i(child_inode);
 		if (info->inode_type == HMDFS_LAYER_FIRST_MERGE)
 			hmdfs_root_inode_perm_init(child_inode);
