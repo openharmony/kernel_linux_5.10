@@ -901,6 +901,7 @@ static bool is_tcp_socket(struct tcp_handle *tcp)
 	    tcp->sock->type != SOCK_STREAM ||
 	    tcp->sock->sk->sk_family != AF_INET) {
 		hmdfs_err("invalid socket protocol");
+		release_sock(tcp->sock->sk);
 		return false;
 	}
 
