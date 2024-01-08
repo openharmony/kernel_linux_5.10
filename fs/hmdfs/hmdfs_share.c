@@ -329,7 +329,8 @@ void hmdfs_clear_share_table(struct hmdfs_sb_info *sbi)
 	}
 	spin_unlock(&sbi->share_table.item_list_lock);
 
-	destroy_workqueue(st->share_item_timeout_wq);
+	if (st->share_item_timeout_wq != NULL)
+		destroy_workqueue(st->share_item_timeout_wq);
 }
 
 int hmdfs_clear_first_item(struct hmdfs_share_table *st)
