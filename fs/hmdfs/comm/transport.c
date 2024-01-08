@@ -898,6 +898,7 @@ static bool is_tcp_socket(struct tcp_handle *tcp)
 
 	if (tcp->sock->sk->sk_protocol != IPPROTO_TCP) {
 		hmdfs_err("invalid socket protocol");
+		release_sock(tcp->sock->sk);
 		return false;
 	}
 
