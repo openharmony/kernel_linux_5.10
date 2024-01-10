@@ -146,14 +146,11 @@ static loff_t sharefs_file_llseek(struct file *file, loff_t offset, int whence)
 	loff_t err;
 	struct file *lower_file;
 
-	err = generic_file_llseek(file, offset, whence);
-	if (err < 0)
-		goto out;
-
 	lower_file = sharefs_lower_file(file);
+	lower_file->f_pos = file->f_pos;
 	err = generic_file_llseek(lower_file, offset, whence);
+	file->f_pos = lower_file->f_pos;
 
-out:
 	return err;
 }
 
