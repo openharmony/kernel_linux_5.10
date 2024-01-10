@@ -227,6 +227,11 @@ struct access_token {
 	__u64 reserved[2];
 };
 
+struct binder_sender_info {
+	struct access_token tokens;
+	__u64 sender_pid_nr;
+};
+
 #define BINDER_WRITE_READ		_IOWR('b', 1, struct binder_write_read)
 #define BINDER_SET_IDLE_TIMEOUT		_IOW('b', 3, __s64)
 #define BINDER_SET_MAX_THREADS		_IOW('b', 5, __u32)
@@ -240,6 +245,7 @@ struct access_token {
 
 #define BINDER_FEATURE_SET	_IOWR('b', 30, struct binder_feature_set)
 #define BINDER_GET_ACCESS_TOKEN	_IOWR('b', 31, struct access_token)
+#define BINDER_GET_SENDER_INFO	_IOWR('b', 32, struct binder_sender_info)
 
 /*
  * NOTE: Two special error codes you should check for when calling

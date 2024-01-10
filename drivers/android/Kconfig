@@ -61,6 +61,11 @@ config BINDER_TRANSACTION_PROC_BRIEF
 	help
 
 	  Enable binder optimization
+
+config BINDER_SENDER_INFO
+	bool "Get binder sender info"
+	default y
+
 endif # if ANDROID
 
 endmenu
