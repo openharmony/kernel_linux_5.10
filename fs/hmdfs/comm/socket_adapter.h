@@ -23,21 +23,6 @@
 
 #define HMDFS_IDR_RESCHED_COUNT 512
 
-struct connection_operations {
-	void (*recvmsg)(struct hmdfs_peer *con, void *head, void *buf);
-	void (*recvpage)(struct hmdfs_peer *con, struct hmdfs_head_cmd *head,
-			 int err, void *data);
-	const struct file_operations *remote_file_fops;
-	const struct inode_operations *remote_file_iops;
-	const struct address_space_operations *remote_file_aops;
-	int (*remote_unlink)(struct hmdfs_peer *con, struct dentry *dentry);
-	int (*remote_readdir)(struct hmdfs_peer *con, struct file *file,
-			      struct dir_context *ctx);
-	struct hmdfs_lookup_ret *(*remote_lookup)(struct hmdfs_peer *con,
-						  const char *relative_path,
-						  const char *d_name);
-};
-
 /*****************************************************************************
  * connections(TCP, UDP, .etc) adapter for RPC
  *****************************************************************************/
@@ -75,7 +60,6 @@ int hmdfs_sendmessage_response(struct hmdfs_peer *con,
 			       void *buf, __u32 ret_code);
 int hmdfs_readfile_response(struct hmdfs_peer *con, struct hmdfs_head_cmd *head,
 			    struct file *filp);
-const struct connection_operations *hmdfs_get_peer_operation(__u8 version);
 
 void hmdfs_recv_page_work_fn(struct work_struct *ptr);
 
@@ -167,6 +151,8 @@ static inline void set_cmd_timeout(struct hmdfs_sb_info *sbi, enum FILE_CMD cmd,
 {
 	sbi->s_cmd_timeout[cmd] = value;
 }
+
+void hmdfs_recv_mesg_callback(struct hmdfs_peer *con, void *head, void *buf);
 
 void hmdfs_response_wakeup(struct sendmsg_wait_queue *msg_info,
 			   __u32 ret_code, __u32 data_len, void *buf);

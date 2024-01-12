@@ -994,7 +994,7 @@ static int hmdfs_iterate_remote(struct file *file, struct dir_context *ctx)
 	con = hmdfs_lookup_from_devid(file->f_inode->i_sb->s_fs_info, dev_id);
 	if (con) {
 		// ctx->pos = 0;
-		err = con->conn_operations->remote_readdir(con, file, ctx);
+		err = hmdfs_dev_readdir_from_con(con, file, ctx);
 		if (unlikely(!con)) {
 			hmdfs_err("con is null");
 			goto done;
@@ -1018,9 +1018,7 @@ int hmdfs_dir_open_remote(struct inode *inode, struct file *file)
 	struct hmdfs_inode_info *info = hmdfs_i(inode);
 	struct clearcache_item *cache_item = NULL;
 
-	if (info->conn && info->conn->version <= USERSPACE_MAX_VER) {
-		return 0;
-	} else if (info->conn) {
+	if (info->conn) {
 		if (!hmdfs_cache_revalidate(READ_ONCE(info->conn->conn_time),
 					    info->conn->device_id,
 					    file->f_path.dentry))

@@ -361,8 +361,7 @@ static int do_send_handshake(struct connection *conn_impl, __u8 ops,
 		   sizeof(struct connection_handshake_req) + len;
 
 	if (((ops == CONNECT_MESG_HANDSHAKE_RESPONSE) ||
-	     (ops == CONNECT_MESG_HANDSHAKE_ACK)) &&
-	    (conn_impl->node->version >= DFS_2_0)) {
+	     (ops == CONNECT_MESG_HANDSHAKE_ACK))) {
 		extend_len = hs_get_extend_data_len();
 		send_len += extend_len;
 	}
@@ -379,15 +378,14 @@ static int do_send_handshake(struct connection *conn_impl, __u8 ops,
 	memcpy(hs_data->dev_id, buf, len);
 
 	if (((ops == CONNECT_MESG_HANDSHAKE_RESPONSE) ||
-	     ops == CONNECT_MESG_HANDSHAKE_ACK) &&
-	    (conn_impl->node->version >= DFS_2_0)) {
+	     ops == CONNECT_MESG_HANDSHAKE_ACK)) {
 		hs_extend_data = (uint8_t *)hs_data +
 				  sizeof(struct connection_handshake_req) + len;
 		hs_fill_extend_data(conn_impl, ops, hs_extend_data, extend_len);
 	}
 
 	hs_head->magic = HMDFS_MSG_MAGIC;
-	hs_head->version = DFS_2_0;
+	hs_head->version = HMDFS_VERSION;
 	hs_head->flags |= 0x1;
 	hmdfs_info("Send handshake message: ops = %d, fd = %d", ops,
 		   ((struct tcp_handle *)(conn_impl->connect_handle))->fd);
@@ -612,48 +610,31 @@ void connection_to_working(struct hmdfs_peer *node)
 	peer_online(node);
 }
 
-static int connection_check_version(__u8 version)
-{
-	__u8 min_ver = USERSPACE_MAX_VER;
-
-	if (version <= min_ver || version >= MAX_VERSION) {
-		hmdfs_info("version err. version %u", version);
-		return -1;
-	}
-	return 0;
-}
-
 void connection_handshake_recv_handler(struct connection *conn_impl, void *buf,
 				       void *data, __u32 data_len)
 {
-	__u8 version;
 	__u8 ops;
 	__u8 status;
 	int fd = ((struct tcp_handle *)(conn_impl->connect_handle))->fd;
 	struct connection_msg_head *head = (struct connection_msg_head *)buf;
 	int ret;
 
-	version = head->version;
-	conn_impl->node->version = version;
-	if (connection_check_version(version) != 0)
+	if (head->version != HMDFS_VERSION)
 		goto out;
-	conn_impl->node->conn_operations = hmdfs_get_peer_operation(version);
+
+	conn_impl->node->version = head->version;
 	ops = head->operations;
 	status = conn_impl->status;
 	switch (ops) {
 	case CONNECT_MESG_HANDSHAKE_REQUEST:
 		hmdfs_info(
-			"Recved handshake request: device_id = %llu, version = %d, head->len = %d, tcp->fd = %d",
-			conn_impl->node->device_id, version, head->datasize, fd);
+			"Recved handshake request: device_id = %llu, head->len = %d, tcp->fd = %d",
+			conn_impl->node->device_id, head->datasize, fd);
 		connection_send_handshake(conn_impl,
 					  CONNECT_MESG_HANDSHAKE_RESPONSE,
 					  head->msg_id);
-		if (conn_impl->node->version >= DFS_2_0) {
-			conn_impl->status = CONNECT_STAT_WAIT_ACK;
-			conn_impl->node->status = NODE_STAT_SHAKING;
-		} else {
-			conn_impl->status = CONNECT_STAT_WORKING;
-		}
+		conn_impl->status = CONNECT_STAT_WAIT_ACK;
+		conn_impl->node->status = NODE_STAT_SHAKING;
 		break;
 	case CONNECT_MESG_HANDSHAKE_RESPONSE:
 		hmdfs_info(
@@ -665,45 +646,41 @@ void connection_handshake_recv_handler(struct connection *conn_impl, void *buf,
 			goto out;
 		}
 
-		if (conn_impl->node->version >= DFS_2_0) {
-			ret = hs_proc_msg_data(conn_impl, ops, data, data_len);
-			if (ret)
-				goto nego_err;
-			connection_send_handshake(conn_impl,
-						  CONNECT_MESG_HANDSHAKE_ACK,
-						  head->msg_id);
-			hmdfs_info("respon rcv handle,conn_impl->crypto=0x%0x",
-				   conn_impl->crypto);
+		ret = hs_proc_msg_data(conn_impl, ops, data, data_len);
+		if (ret)
+			goto nego_err;
+		connection_send_handshake(conn_impl,
+					  CONNECT_MESG_HANDSHAKE_ACK,
+					  head->msg_id);
+		hmdfs_info("respon rcv handle,conn_impl->crypto=0x%0x",
+				conn_impl->crypto);
 #ifdef CONFIG_HMDFS_FS_ENCRYPTION
-			ret = connection_handshake_init_tls(conn_impl, ops);
-			if (ret) {
-				hmdfs_err("init_tls_key fail, ops %u", ops);
-				goto out;
-			}
-#endif
+		ret = connection_handshake_init_tls(conn_impl, ops);
+		if (ret) {
+			hmdfs_err("init_tls_key fail, ops %u", ops);
+			goto out;
 		}
+#endif
 
 		conn_impl->status = CONNECT_STAT_WORKING;
 		peer_online(conn_impl->node);
 		break;
 	case CONNECT_MESG_HANDSHAKE_ACK:
-		if (conn_impl->node->version >= DFS_2_0) {
-			ret = hs_proc_msg_data(conn_impl, ops, data, data_len);
-			if (ret)
-				goto nego_err;
-			hmdfs_info("ack rcv handle, conn_impl->crypto=0x%0x",
-				   conn_impl->crypto);
+		ret = hs_proc_msg_data(conn_impl, ops, data, data_len);
+		if (ret)
+			goto nego_err;
+		hmdfs_info("ack rcv handle, conn_impl->crypto=0x%0x",
+				conn_impl->crypto);
 #ifdef CONFIG_HMDFS_FS_ENCRYPTION
-			ret = connection_handshake_init_tls(conn_impl, ops);
-			if (ret) {
-				hmdfs_err("init_tls_key fail, ops %u", ops);
-				goto out;
-			}
-#endif
-			conn_impl->status = CONNECT_STAT_WORKING;
-			peer_online(conn_impl->node);
-			break;
+		ret = connection_handshake_init_tls(conn_impl, ops);
+		if (ret) {
+			hmdfs_err("init_tls_key fail, ops %u", ops);
+			goto out;
 		}
+#endif
+		conn_impl->status = CONNECT_STAT_WORKING;
+		peer_online(conn_impl->node);
+		break;
 		fallthrough;
 	default:
 		break;
@@ -713,8 +690,7 @@ out:
 	return;
 nego_err:
 	conn_impl->status = CONNECT_STAT_NEGO_FAIL;
-	connection_handshake_notify(conn_impl->node,
-				    NOTIFY_OFFLINE);
+	connection_handshake_notify(conn_impl->node, NOTIFY_OFFLINE);
 	hmdfs_err("protocol negotiation failed, remote device_id = %llu, tcp->fd = %d",
 		  conn_impl->node->device_id, fd);
 	goto out;
@@ -750,10 +726,9 @@ out_err:
 static bool cmd_update_tls_crypto_key(struct connection *conn,
 				      struct hmdfs_head_cmd *head)
 {
-	__u8 version = conn->node->version;
 	struct tcp_handle *tcp = conn->connect_handle;
 
-	if (version < DFS_2_0 || conn->type != CONNECT_TYPE_TCP || !tcp)
+	if (conn->type != CONNECT_TYPE_TCP || !tcp)
 		return false;
 	return head->operations.command == F_CONNECT_REKEY;
 }
@@ -768,7 +743,7 @@ void connection_working_recv_handler(struct connection *conn_impl, void *buf,
 		return;
 	}
 #endif
-	conn_impl->node->conn_operations->recvmsg(conn_impl->node, buf, data);
+	hmdfs_recv_mesg_callback(conn_impl->node, buf, data);
 }
 
 static void connection_release(struct kref *ref)
@@ -1093,7 +1068,7 @@ static struct hmdfs_peer *add_peer_unsafe(struct hmdfs_sb_info *sbi,
 }
 
 static struct hmdfs_peer *alloc_peer(struct hmdfs_sb_info *sbi, uint8_t *cid,
-	const struct connection_operations *conn_operations, uint32_t devsl)
+	uint32_t devsl)
 {
 	struct hmdfs_peer *node = kzalloc(sizeof(*node), GFP_KERNEL);
 
@@ -1149,8 +1124,8 @@ static struct hmdfs_peer *alloc_peer(struct hmdfs_sb_info *sbi, uint8_t *cid,
 	INIT_LIST_HEAD(&node->list);
 	kref_init(&node->ref_cnt);
 	node->owner = sbi->seq;
-	node->conn_operations = conn_operations;
 	node->sbi = sbi;
+	node->version = HMDFS_VERSION;
 	node->status = NODE_STAT_SHAKING;
 	node->conn_time = jiffies;
 	memcpy(node->cid, cid, HMDFS_CID_SIZE);
@@ -1210,7 +1185,6 @@ struct hmdfs_peer *hmdfs_get_peer(struct hmdfs_sb_info *sbi, uint8_t *cid,
 	uint32_t devsl)
 {
 	struct hmdfs_peer *peer = NULL, *on_sbi_peer = NULL;
-	const struct connection_operations *conn_opr_ptr = NULL;
 
 	mutex_lock(&sbi->connections.node_lock);
 	peer = lookup_peer_by_cid_unsafe(sbi, cid);
@@ -1221,12 +1195,7 @@ struct hmdfs_peer *hmdfs_get_peer(struct hmdfs_sb_info *sbi, uint8_t *cid,
 		goto out;
 	}
 
-	conn_opr_ptr = hmdfs_get_peer_operation(DFS_2_0);
-	if (unlikely(!conn_opr_ptr)) {
-		hmdfs_info("Fatal! Cannot get peer operation");
-		goto out;
-	}
-	peer = alloc_peer(sbi, cid, conn_opr_ptr, devsl);
+	peer = alloc_peer(sbi, cid, devsl);
 	if (unlikely(!peer)) {
 		hmdfs_info("Failed to alloc a peer");
 		goto out;
@@ -1290,13 +1259,12 @@ int hmdfs_alloc_msg_idr(struct hmdfs_peer *peer, enum MSG_IDR_TYPE type,
 {
 	int ret = -EAGAIN;
 	struct hmdfs_msg_idr_head *head = ptr;
-	int end = peer->version < DFS_2_0 ? (USHRT_MAX + 1) : 0;
 
 	idr_preload(GFP_KERNEL);
 	spin_lock(&peer->idr_lock);
 	if (!peer->offline_start)
 		ret = idr_alloc_cyclic(&peer->msg_idr, ptr,
-				       1, end, GFP_NOWAIT);
+				       1, 0, GFP_NOWAIT);
 	if (ret >= 0) {
 		kref_init(&head->ref);
 		head->msg_id = ret;
