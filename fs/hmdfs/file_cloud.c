@@ -154,24 +154,29 @@ static void cloud_readpages_work_func(struct work_struct *work)
 	old_cred = override_creds(cr_work->cred);
 	pages_buf = vmap(cr_work->pages, cr_work->cnt, VM_MAP, PAGE_KERNEL);
 	if (!pages_buf)
-		goto out;
+		goto out_err;
 
 	trace_hmdfs_readpages_cloud_work_begin(cr_work->cnt, cr_work->pos);
 	ret = kernel_read(cr_work->filp, pages_buf, read_len, &cr_work->pos);
 	trace_hmdfs_readpages_cloud_work_end(cr_work->cnt, cr_work->pos);
 	if (ret < 0)
-		goto out_vunmap;
+		goto out_err;
 
 	if (ret != read_len)
 		memset(pages_buf + ret, 0, read_len - ret);
 
-out_vunmap:
 	vunmap(pages_buf);
-out:
 	for (idx = 0; idx < cr_work->cnt; ++idx) {
 		SetPageUptodate(cr_work->pages[idx]);
 		unlock_page(cr_work->pages[idx]);
 	}
+	goto out_free;
+out_err:
+	for (idx = 0; idx < cr_work->cnt; ++idx) {
+		unlock_page(cr_work->pages[idx]);
+		put_page(cr_work->pages[idx]);
+	}
+out_free:
 	revert_creds(old_cred);
 	put_cred(cr_work->cred);
 	kfree(cr_work);
