@@ -35,7 +35,6 @@ struct cloud_readpages_work {
 	struct file *filp;
 	loff_t pos;
 	int cnt;
-	struct cred *cred;
 	struct work_struct work;
 	struct page *pages[0];
 };
@@ -140,30 +139,28 @@ int hmdfs_file_mmap_cloud(struct file *file, struct vm_area_struct *vma)
 	return ret;
 }
 
-static void cloud_readpages_work_func(struct work_struct *work)
+static int cloud_readpages_work_func(struct work_struct *work)
 {
 	void *pages_buf;
 	int idx, ret;
 	ssize_t read_len;
-	const struct cred *old_cred;
 	struct cloud_readpages_work *cr_work;
 
 	cr_work = container_of(work, struct cloud_readpages_work, work);
 
 	read_len = cr_work->cnt * HMDFS_PAGE_SIZE;
-	old_cred = override_creds(cr_work->cred);
 	pages_buf = vmap(cr_work->pages, cr_work->cnt, VM_MAP, PAGE_KERNEL);
 	if (!pages_buf)
 		goto out_err;
 
 	trace_hmdfs_readpages_cloud_work_begin(cr_work->cnt, cr_work->pos);
 	ret = kernel_read(cr_work->filp, pages_buf, read_len, &cr_work->pos);
-	trace_hmdfs_readpages_cloud_work_end(cr_work->cnt, cr_work->pos);
-	if (ret < 0)
-		goto out_err;
+	trace_hmdfs_readpages_cloud_work_end(cr_work->cnt, cr_work->pos, ret);
 
-	if (ret != read_len)
+	if (ret >= 0 && ret <= read_len)
 		memset(pages_buf + ret, 0, read_len - ret);
+	else
+		goto out_err;
 
 	vunmap(pages_buf);
 	for (idx = 0; idx < cr_work->cnt; ++idx) {
@@ -171,15 +168,18 @@ static void cloud_readpages_work_func(struct work_struct *work)
 		unlock_page(cr_work->pages[idx]);
 	}
 	goto out_free;
+
 out_err:
+	if (pages_buf)
+		vunmap(pages_buf);
 	for (idx = 0; idx < cr_work->cnt; ++idx) {
+		ClearPageUptodate(cr_work->pages[idx]);
+		SetPageError(cr_work->pages[idx]);
 		unlock_page(cr_work->pages[idx]);
-		put_page(cr_work->pages[idx]);
 	}
 out_free:
-	revert_creds(old_cred);
-	put_cred(cr_work->cred);
 	kfree(cr_work);
+	return ret;
 }
 
 static int prepare_cloud_readpage_work(struct file *filp, int cnt,
@@ -187,7 +187,6 @@ static int prepare_cloud_readpage_work(struct file *filp, int cnt,
 {
 	struct cloud_readpages_work *cr_work;
 	struct hmdfs_file_info *gfi = filp->private_data;
-	struct cred *cred = NULL;
 	int idx = 0;
 
 	cr_work = kzalloc(sizeof(*cr_work) +
@@ -202,18 +201,11 @@ static int prepare_cloud_readpage_work(struct file *filp, int cnt,
 		cr_work->filp = gfi->lower_file;
 	else
 		goto out;
-	
-	cred = prepare_creds();
-	if (!cred)
-		goto out;
-	cr_work->cred = cred;
+
 	cr_work->pos = (loff_t)(vec[0]->index) << HMDFS_PAGE_OFFSET;
 	cr_work->cnt = cnt;
 	memcpy(cr_work->pages, vec, cnt * sizeof(*vec));
-
-	INIT_WORK(&cr_work->work, cloud_readpages_work_func);
-	schedule_work(&cr_work->work);
-	return 0;
+	return cloud_readpages_work_func(&cr_work->work);
 out:
 	kfree(cr_work);
 unlock:
@@ -247,7 +239,7 @@ static int hmdfs_readpages_cloud(struct file *filp,
 
 		list_del(&page->lru);
 		if (add_to_page_cache_lru(page, mapping, page->index, gfp))
-			goto next_page;
+			continue;
 
 		if (cnt && (cnt >= limit || page->index != next_index)) {
 			ret = prepare_cloud_readpage_work(filp, cnt, vec);
@@ -269,6 +261,37 @@ next_page:
 	return ret;
 }
 
+static int hmdfs_readpage(struct file *file, struct page *page)
+{
+	loff_t offset = page_file_offset(page);
+	int ret = -EACCES;
+	char *page_buf;
+	struct hmdfs_file_info *gfi = file->private_data;
+	struct file *lower_file;
+
+	if (gfi)
+		lower_file = gfi->lower_file;
+	else
+		goto out;
+	
+	page_buf = kmap(page);
+	if (!page_buf)
+		goto out;
+	ret = kernel_read(lower_file, page_buf, PAGE_SIZE, &offset);
+
+	if (ret >= 0 && ret <= PAGE_SIZE)
+		memset(page_buf + ret, 0, PAGE_SIZE - ret);
+
+	kunmap(page);
+	if (ret < 0)
+		SetPageError(page);
+	else
+		SetPageUptodate(page);
+out:
+	unlock_page(page);
+	return ret;
+}
+
 const struct file_operations hmdfs_dev_file_fops_cloud = {
 	.owner = THIS_MODULE,
 	.llseek = generic_file_llseek,
@@ -285,7 +308,7 @@ const struct file_operations hmdfs_dev_file_fops_cloud = {
 
 
 const struct address_space_operations hmdfs_dev_file_aops_cloud = {
-	.readpage = NULL,
+	.readpage = hmdfs_readpage,
 	.readpages = hmdfs_readpages_cloud,
 	.write_begin = NULL,
 	.write_end = NULL,
@@ -294,6 +317,7 @@ const struct address_space_operations hmdfs_dev_file_aops_cloud = {
 };
 
 const struct address_space_operations hmdfs_aops_cloud = {
+	.readpage = hmdfs_readpage,
 	.readpages = hmdfs_readpages_cloud,
 };
 

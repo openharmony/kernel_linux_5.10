@@ -568,22 +568,24 @@ TRACE_EVENT(hmdfs_readpages_cloud_work_begin,
 
 TRACE_EVENT(hmdfs_readpages_cloud_work_end,
 
-	TP_PROTO(int cnt, loff_t pos),
+	TP_PROTO(int cnt, loff_t pos, int ret),
 
-	TP_ARGS(cnt, pos),
+	TP_ARGS(cnt, pos, ret),
 
 	TP_STRUCT__entry(
 		__field(int, cnt)
 		__field(loff_t, pos)
+		__field(int, ret)
 	),
 
 	TP_fast_assign(
 		__entry->cnt = cnt;
 		__entry->pos = pos;
+		__entry->ret = ret;
 	),
 
 	TP_printk("cnt:%d, pos:%llx",
-		  __entry->cnt, __entry->pos)
+		  __entry->cnt, __entry->pos, __entry->ret)
 );
 
 TRACE_EVENT(hmdfs_client_recv_readpage,
