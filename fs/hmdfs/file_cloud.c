@@ -174,8 +174,8 @@ out_err:
 		vunmap(pages_buf);
 	for (idx = 0; idx < cr_work->cnt; ++idx) {
 		ClearPageUptodate(cr_work->pages[idx]);
-		SetPageError(cr_work->pages[idx]);
 		unlock_page(cr_work->pages[idx]);
+		put_page(cr_work->pages[idx]);
 	}
 out_free:
 	kfree(cr_work);
@@ -209,8 +209,10 @@ static int prepare_cloud_readpage_work(struct file *filp, int cnt,
 out:
 	kfree(cr_work);
 unlock:
-	for (idx = 0; idx < cnt; ++idx)
+	for (idx = 0; idx < cnt; ++idx) {
 		unlock_page(vec[idx]);
+		put_page(vec[idx]);
+	}
 	return -ENOMEM;
 }
 
@@ -249,8 +251,6 @@ static int hmdfs_readpages_cloud(struct file *filp,
 		}
 		next_index = page->index + 1;
 		vec[cnt++] = page;
-next_page:
-		put_page(page);
 	}
 
 	if (cnt)
@@ -279,13 +279,13 @@ static int hmdfs_readpage(struct file *file, struct page *page)
 		goto out;
 	ret = kernel_read(lower_file, page_buf, PAGE_SIZE, &offset);
 
-	if (ret >= 0 && ret <= PAGE_SIZE)
+	if (ret >= 0 && ret <= PAGE_SIZE) {
+		ret = 0;
 		memset(page_buf + ret, 0, PAGE_SIZE - ret);
+	}
 
 	kunmap(page);
-	if (ret < 0)
-		SetPageError(page);
-	else
+	if (ret == 0)
 		SetPageUptodate(page);
 out:
 	unlock_page(page);
