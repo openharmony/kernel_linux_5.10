@@ -683,6 +683,7 @@ static struct hmdfs_dentry *find_in_block(struct hmdfs_dentry_group *dentry_blk,
 		if (!test_bit_le(bit_pos, dentry_blk->bitmap)) {
 			bit_pos++;
 			max_len++;
+			continue;
 		}
 		de = &dentry_blk->nsl[bit_pos];
 		if (unlikely(!de->namelen)) {
