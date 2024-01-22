@@ -154,9 +154,9 @@ static int hmdfs_do_readpages_cloud(struct file *filp, int cnt,
 		goto out_err;
 	}
 
-	trace_hmdfs_do_readpages_cloud_begin(cr_work->cnt, cr_work->pos);
+	trace_hmdfs_do_readpages_cloud_begin(cnt, pos);
 	ret = kernel_read(lower_filp, pages_buf, cnt * HMDFS_PAGE_SIZE, &pos);
-	trace_hmdfs_do_readpages_cloud_end(cr_work->cnt, cr_work->pos, ret);
+	trace_hmdfs_do_readpages_cloud_end(cnt, pos, ret);
 
 	if (ret >= 0)
 		memset(pages_buf + ret, 0, cnt * HMDFS_PAGE_SIZE - ret);
