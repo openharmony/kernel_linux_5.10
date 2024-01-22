@@ -67,6 +67,7 @@ enum rtg_err_no {
 	NOT_MULTI_FRAME,
 	INVALID_RTG_ID,
 	NO_RT_FRAME,
+	INVALID_PROC_STATE,
 };
 
 struct rtg_grp_data {
