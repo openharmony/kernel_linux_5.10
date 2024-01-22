@@ -174,6 +174,7 @@ out_err:
 		vunmap(pages_buf);
 	for (idx = 0; idx < cr_work->cnt; ++idx) {
 		ClearPageUptodate(cr_work->pages[idx]);
+		delete_from_page_cache(cr_work->pages[idx]);
 		unlock_page(cr_work->pages[idx]);
 		put_page(cr_work->pages[idx]);
 	}
