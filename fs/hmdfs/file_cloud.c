@@ -207,8 +207,10 @@ static int hmdfs_readpages_cloud(struct file *filp,
 		struct page *page = lru_to_page(pages);
 
 		list_del(&page->lru);
-		if (add_to_page_cache_lru(page, mapping, page->index, gfp))
+		if (add_to_page_cache_lru(page, mapping, page->index, gfp)) {
+			unlock_page(page)
 			continue;
+		}
 
 		if (cnt && (cnt >= limit || page->index != next_index)) {
 			ret = hmdfs_do_readpages_cloud(filp, cnt, vec);
