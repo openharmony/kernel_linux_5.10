@@ -208,7 +208,8 @@ static int hmdfs_readpages_cloud(struct file *filp,
 
 		list_del(&page->lru);
 		if (add_to_page_cache_lru(page, mapping, page->index, gfp)) {
-			unlock_page(page)
+			unlock_page(page);
+			put_page(page);
 			continue;
 		}
 
