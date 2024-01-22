@@ -546,7 +546,7 @@ TRACE_EVENT(hmdfs_readpages_cloud,
 		  __entry->nr_pages, __entry->err)
 );
 
-TRACE_EVENT(hmdfs_readpages_cloud_work_begin,
+TRACE_EVENT(hmdfs_do_readpages_cloud_begin,
 
 	TP_PROTO(int cnt, loff_t pos),
 
@@ -566,7 +566,7 @@ TRACE_EVENT(hmdfs_readpages_cloud_work_begin,
 		  __entry->cnt, __entry->pos)
 );
 
-TRACE_EVENT(hmdfs_readpages_cloud_work_end,
+TRACE_EVENT(hmdfs_do_readpages_cloud_end,
 
 	TP_PROTO(int cnt, loff_t pos, int ret),
 

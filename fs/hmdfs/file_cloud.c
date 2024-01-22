@@ -31,14 +31,6 @@ static const struct vm_operations_struct hmdfs_cloud_vm_ops = {
 	.page_mkwrite = NULL,
 };
 
-struct cloud_readpages_work {
-	struct file *filp;
-	loff_t pos;
-	int cnt;
-	struct work_struct work;
-	struct page *pages[0];
-};
-
 int hmdfs_file_open_cloud(struct inode *inode, struct file *file)
 {
 	const char *dir_path;
@@ -139,82 +131,56 @@ int hmdfs_file_mmap_cloud(struct file *file, struct vm_area_struct *vma)
 	return ret;
 }
 
-static int cloud_readpages_work_func(struct work_struct *work)
+static int hmdfs_do_readpages_cloud(struct file *filp, int cnt,
+				    struct page **vec)
 {
-	void *pages_buf;
+	struct hmdfs_file_info *gfi = filp->private_data;
+	struct file *lower_filp;
+	loff_t pos = (loff_t)(vec[0]->index) << HMDFS_PAGE_OFFSET;
+	void *pages_buf = NULL;
 	int idx, ret;
-	ssize_t read_len;
-	struct cloud_readpages_work *cr_work;
 
-	cr_work = container_of(work, struct cloud_readpages_work, work);
-
-	read_len = cr_work->cnt * HMDFS_PAGE_SIZE;
-	pages_buf = vmap(cr_work->pages, cr_work->cnt, VM_MAP, PAGE_KERNEL);
-	if (!pages_buf)
+	if (gfi) {
+		lower_filp = gfi->lower_file;
+	}
+	else {
+		ret = -EINVAL;
 		goto out_err;
+	}
 
-	trace_hmdfs_readpages_cloud_work_begin(cr_work->cnt, cr_work->pos);
-	ret = kernel_read(cr_work->filp, pages_buf, read_len, &cr_work->pos);
-	trace_hmdfs_readpages_cloud_work_end(cr_work->cnt, cr_work->pos, ret);
+	pages_buf = vmap(vec, cnt, VM_MAP, PAGE_KERNEL);
+	if (!pages_buf) {
+		ret = -ENOMEM;
+		goto out_err;
+	}
 
-	if (ret >= 0 && ret <= read_len)
-		memset(pages_buf + ret, 0, read_len - ret);
+	trace_hmdfs_do_readpages_cloud_begin(cr_work->cnt, cr_work->pos);
+	ret = kernel_read(lower_filp, pages_buf, cnt * HMDFS_PAGE_SIZE, &pos);
+	trace_hmdfs_do_readpages_cloud_end(cr_work->cnt, cr_work->pos, ret);
+
+	if (ret >= 0)
+		memset(pages_buf + ret, 0, cnt * HMDFS_PAGE_SIZE - ret);
 	else
 		goto out_err;
 
 	vunmap(pages_buf);
-	for (idx = 0; idx < cr_work->cnt; ++idx) {
-		SetPageUptodate(cr_work->pages[idx]);
-		unlock_page(cr_work->pages[idx]);
+	for (idx = 0; idx < cnt; ++idx) {
+		SetPageUptodate(vec[idx]);
+		unlock_page(vec[idx]);
 	}
-	goto out_free;
+	goto out;
 
 out_err:
 	if (pages_buf)
 		vunmap(pages_buf);
-	for (idx = 0; idx < cr_work->cnt; ++idx) {
-		ClearPageUptodate(cr_work->pages[idx]);
-		delete_from_page_cache(cr_work->pages[idx]);
-		unlock_page(cr_work->pages[idx]);
-		put_page(cr_work->pages[idx]);
-	}
-out_free:
-	kfree(cr_work);
-	return ret;
-}
-
-static int prepare_cloud_readpage_work(struct file *filp, int cnt,
-				       struct page **vec)
-{
-	struct cloud_readpages_work *cr_work;
-	struct hmdfs_file_info *gfi = filp->private_data;
-	int idx = 0;
-
-	cr_work = kzalloc(sizeof(*cr_work) +
-			  sizeof(cr_work->pages[0]) * cnt,
-			  GFP_KERNEL);
-	if (!cr_work) {
-		hmdfs_warning("cannot alloc work");
-		goto unlock;
-	}
-
-	if (gfi)
-		cr_work->filp = gfi->lower_file;
-	else
-		goto out;
-
-	cr_work->pos = (loff_t)(vec[0]->index) << HMDFS_PAGE_OFFSET;
-	cr_work->cnt = cnt;
-	memcpy(cr_work->pages, vec, cnt * sizeof(*vec));
-	return cloud_readpages_work_func(&cr_work->work);
-out:
-	kfree(cr_work);
-unlock:
 	for (idx = 0; idx < cnt; ++idx) {
+		ClearPageUptodate(vec[idx]);
+		delete_from_page_cache(vec[idx]);
 		unlock_page(vec[idx]);
 		put_page(vec[idx]);
 	}
-	return -ENOMEM;
+out:
+	return ret;
 }
 
 static int hmdfs_readpages_cloud(struct file *filp,
@@ -245,7 +211,7 @@ static int hmdfs_readpages_cloud(struct file *filp,
 			continue;
 
 		if (cnt && (cnt >= limit || page->index != next_index)) {
-			ret = prepare_cloud_readpage_work(filp, cnt, vec);
+			ret = hmdfs_do_readpages_cloud(filp, cnt, vec);
 			cnt = 0;
 			if (ret)
 				break;
@@ -255,7 +221,7 @@ static int hmdfs_readpages_cloud(struct file *filp,
 	}
 
 	if (cnt)
-		ret = prepare_cloud_readpage_work(filp, cnt, vec);
+		ret = hmdfs_do_readpages_cloud(filp, cnt, vec);
 
 	kfree(vec);
 	trace_hmdfs_readpages_cloud(nr_pages, pages);
