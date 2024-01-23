@@ -201,20 +201,21 @@ static ssize_t sbi_status_show(struct kobject *kobj, struct sbi_attribute *attr,
 	struct tcp_handle *tcp = NULL;
 
 	sbi = to_sbi(kobj);
-	size += sprintf(buf + size, "peers status\n");
+	size += sprintf_s(buf + size, PAGE_SIZE - size, "peers status\n");
 
 	mutex_lock(&sbi->connections.node_lock);
 	list_for_each_entry(peer, &sbi->connections.node_list, list) {
-		size += sprintf(buf + size, "%s %d\n", peer->cid,
-			peer->status);
+		size += sprintf_s(buf + size, PAGE_SIZE - size, "%s %d\n",
+				  peer->cid, peer->status);
 		// connection information
-		size += sprintf(
-			buf + size,
+		size += sprintf_s(
+			buf + size, PAGE_SIZE - size,
 			"\t socket_fd  connection_status  tcp_status  ... refcnt\n");
 		mutex_lock(&peer->conn_impl_list_lock);
 		list_for_each_entry(conn_impl, &peer->conn_impl_list, list) {
 			tcp = conn_impl->connect_handle;
-			size += sprintf(buf + size, "\t %d  \t%d  \t%d  \t%p  \t%ld\n",
+			size += sprintf_s(buf + size, PAGE_SIZE - size,
+					"\t %d  \t%d  \t%d  \t%p  \t%ld\n",
 					tcp->fd, conn_impl->status,
 					tcp->sock->state, tcp->sock, file_count(tcp->sock->file));
 		}
