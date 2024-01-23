@@ -534,10 +534,12 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	} while (need_seqretry(&sig->stats_lock, seq));
 	done_seqretry_irqrestore(&sig->stats_lock, seq, flags);
 
-	if (!whole) {
+	if (whole) {
+		thread_group_cputime_adjusted(task, &utime, &stime);
+	} else {
+		task_cputime_adjusted(task, &utime, &stime);
 		min_flt = task->min_flt;
 		maj_flt = task->maj_flt;
-		task_cputime_adjusted(task, &utime, &stime);
 		gtime = task_gtime(task);
 	}
 
