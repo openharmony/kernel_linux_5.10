@@ -250,12 +250,13 @@ static ssize_t sbi_stat_show(struct kobject *kobj, struct sbi_attribute *attr,
 		mutex_lock(&peer->conn_impl_list_lock);
 		list_for_each_entry(conn_impl, &peer->conn_impl_list, list) {
 			tcp = conn_impl->connect_handle;
-			size += sprintf(buf + size, "socket_fd: %d\n", tcp->fd);
-			size += sprintf(buf + size,
+			size += sprintf_s(buf + size, PAGE_SIZE - size,
+					  "socket_fd: %d\n", tcp->fd);
+			size += sprintf_s(buf + size, PAGE_SIZE - size,
 					"\tsend_msg %d \tsend_bytes %llu\n",
 					conn_impl->stat.send_message_count,
 					conn_impl->stat.send_bytes);
-			size += sprintf(buf + size,
+			size += sprintf_s(buf + size, PAGE_SIZE - size,
 					"\trecv_msg %d \trecv_bytes %llu\n",
 					conn_impl->stat.recv_message_count,
 					conn_impl->stat.recv_bytes);
