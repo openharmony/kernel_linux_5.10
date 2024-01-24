@@ -58,7 +58,7 @@ static int parse_time_zone(const char *time_zone_formatted)
 	if (!time_zone_formatted)
 		return DEFAULT_TZ_POS;
 
-	ret = match_string(time_zone_list, TIME_ZONE_LEN, time_zone_formatted);
+	ret = match_string(time_zone_list, ARRAY_SIZE(time_zone_list), time_zone_formatted);
 	if (ret < 0)
 		return DEFAULT_TZ_POS;
 
