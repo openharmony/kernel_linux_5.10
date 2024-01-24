@@ -108,6 +108,11 @@ struct inet_connection_sock {
 	__u8			  icsk_syn_retries;
 	__u8			  icsk_probes_out;
 	__u16			  icsk_ext_hdr_len;
+#ifdef CONFIG_TCP_NB_URC
+	__u8			  icsk_nb_urc_enabled:1,
+				  icsk_nb_urc_reserved:7;
+	__u32			  icsk_nb_urc_rto;
+#endif /* CONFIG_TCP_NB_URC */
 	struct {
 		__u8		  pending;	 /* ACK is pending			   */
 		__u8		  quick;	 /* Scheduled number of quick acks	   */
@@ -219,6 +224,11 @@ static inline void inet_csk_reset_xmit_timer(struct sock *sk, const int what,
 					     const unsigned long max_when)
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);
+
+#ifdef CONFIG_TCP_NB_URC
+	if (icsk->icsk_nb_urc_enabled)
+		when = icsk->icsk_nb_urc_rto;
+#endif /* CONFIG_TCP_NB_URC */
 
 	if (when > max_when) {
 		pr_debug("reset_xmit_timer: sk=%p %d when=0x%lx, caller=%p\n",

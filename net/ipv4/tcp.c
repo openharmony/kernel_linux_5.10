@@ -457,6 +457,11 @@ void tcp_init_sock(struct sock *sk)
 
 	sk_sockets_allocated_inc(sk);
 	sk->sk_route_forced_caps = NETIF_F_GSO;
+#ifdef CONFIG_TCP_NB_URC
+	icsk->icsk_nb_urc_enabled = 0;
+	icsk->icsk_nb_urc_rto = TCP_TIMEOUT_INIT;
+	tp->tcp_retries2 = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
+#endif /* CONFIG_TCP_NB_URC */
 }
 EXPORT_SYMBOL(tcp_init_sock);
 
@@ -2807,6 +2812,11 @@ int tcp_disconnect(struct sock *sk, int flags)
 	icsk->icsk_rto = TCP_TIMEOUT_INIT;
 	icsk->icsk_rto_min = TCP_RTO_MIN;
 	icsk->icsk_delack_max = TCP_DELACK_MAX;
+#ifdef CONFIG_TCP_NB_URC
+	icsk->icsk_nb_urc_enabled = 0;
+	icsk->icsk_nb_urc_rto = TCP_TIMEOUT_INIT;
+	tp->tcp_retries2 = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
+#endif /* CONFIG_TCP_NB_URC */
 	tp->snd_ssthresh = TCP_INFINITE_SSTHRESH;
 	tp->snd_cwnd = TCP_INIT_CWND;
 	tp->snd_cwnd_cnt = 0;
@@ -3143,6 +3153,30 @@ int tcp_sock_set_keepcnt(struct sock *sk, int val)
 }
 EXPORT_SYMBOL(tcp_sock_set_keepcnt);
 
+#ifdef CONFIG_TCP_NB_URC
+static int tcp_set_nb_urc(struct sock *sk, sockptr_t optval, int optlen) {
+	int err = 0;
+	struct tcp_nb_urc opt = {};
+	struct inet_connection_sock *icsk = inet_csk(sk);
+
+	if (optlen != sizeof(struct tcp_nb_urc)) {
+		err = -EINVAL;
+		return err;
+	}
+
+	if (copy_from_sockptr(&opt, optval, sizeof(struct tcp_nb_urc))) {
+		err = -EINVAL;
+		return err;
+	}
+
+	icsk->icsk_syn_retries = opt.syn_retries;
+	tcp_sk(sk)->tcp_retries2 = opt.tcp_retries2;
+	icsk->icsk_nb_urc_enabled = opt.nb_urc_enabled;
+	icsk->icsk_nb_urc_rto = opt.nb_urc_rto;
+
+	return err;
+}
+#endif /* CONFIG_TCP_NB_URC */
 /*
  *	Socket option code for TCP.
  */
@@ -3449,6 +3483,11 @@ static int do_tcp_setsockopt(struct sock *sk, int level, int optname,
 			tcp_enable_tx_delay();
 		tp->tcp_tx_delay = val;
 		break;
+#ifdef CONFIG_TCP_NB_URC
+	case TCP_NB_URC:
+		err = tcp_set_nb_urc(sk, optval, optlen);
+		break;
+#endif /* CONFIG_TCP_NB_URC */
 	default:
 		err = -ENOPROTOOPT;
 		break;
