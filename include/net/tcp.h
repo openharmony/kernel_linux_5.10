@@ -2393,4 +2393,16 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 	return 0;
 }
 
+#ifdef CONFIG_TCP_NB_URC
+static inline int tcp_get_retries_limit(struct sock *sk)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+
+	if (inet_csk(sk)->icsk_nb_urc_enabled)
+		return tp->tcp_retries2;
+
+	return READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
+}
+#endif /* CONFIG_TCP_NB_URC */
+
 #endif	/* _TCP_H */

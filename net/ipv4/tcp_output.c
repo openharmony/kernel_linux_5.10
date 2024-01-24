@@ -4088,7 +4088,6 @@ void tcp_send_probe0(struct sock *sk)
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
-	struct net *net = sock_net(sk);
 	unsigned long timeout;
 	int err;
 
@@ -4104,7 +4103,11 @@ void tcp_send_probe0(struct sock *sk)
 
 	icsk->icsk_probes_out++;
 	if (err <= 0) {
-		if (icsk->icsk_backoff < READ_ONCE(net->ipv4.sysctl_tcp_retries2))
+#ifdef CONFIG_TCP_NB_URC
+		if (icsk->icsk_backoff < tcp_get_retries_limit(sk))
+#else
+		if (icsk->icsk_backoff < READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2))
+#endif /* CONFIG_TCP_NB_URC */
 			icsk->icsk_backoff++;
 		timeout = tcp_probe0_when(sk, TCP_RTO_MAX);
 	} else {
