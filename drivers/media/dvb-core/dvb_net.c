@@ -1597,8 +1597,9 @@ static int dvb_net_close(struct inode *inode, struct file *file)
 	if (dvbdev->users == 1 && dvbnet->exit == 1) {
 		mutex_unlock(&dvbnet->remove_mutex);
 		wake_up(&dvbdev->wait_queue);
-	} else
+	} else {
 		mutex_unlock(&dvbnet->remove_mutex);
+	}
 
 	return 0;
 }
