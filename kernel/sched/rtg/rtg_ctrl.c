@@ -374,32 +374,42 @@ static void start_frame_freq(struct frame_info *frame_info)
 	}
 }
 
-static void set_frame(struct frame_info *frame_info, int margin)
+static int set_frame(struct frame_info *frame_info, int margin)
 {
+	int ret;
 	if (!frame_info)
-		return;
+		return -INVALID_RTG_ID;
 
 	atomic_set(&frame_info->frame_state, FRAME_DRAWING);
-	if (set_frame_margin(frame_info, margin) == SUCC)
-		set_frame_timestamp(frame_info, FRAME_START);
+	ret = set_frame_margin(frame_info, margin);
+	if (ret)
+		goto out;
+
+	ret = set_frame_timestamp(frame_info, FRAME_START);
+	if (ret)
+		goto out;
+
+out:
+	return ret;
 }
 
-static void reset_frame(struct frame_info *frame_info)
+static int reset_frame(struct frame_info *frame_info)
 {
 	if (!frame_info)
-		return;
+		return -INVALID_RTG_ID;
 
 	if (atomic_read(&frame_info->frame_state) == FRAME_END_STATE) {
 		pr_debug("[SCHED_RTG]: Frame state is already reset\n");
-		return;
+		return -INVALID_PROC_STATE;
 	}
 
 	atomic_set(&frame_info->frame_state, FRAME_END_STATE);
-	set_frame_timestamp(frame_info, FRAME_END);
+	return set_frame_timestamp(frame_info, FRAME_END);
 }
 
 int update_frame_state(int grp_id, int margin, bool in_frame)
 {
+	int ret;
 	struct frame_info *frame_info = NULL;
 
 	frame_info = lookup_frame_info_by_grp_id(grp_id);
@@ -408,13 +418,13 @@ int update_frame_state(int grp_id, int margin, bool in_frame)
 
 	if (in_frame) {
 		start_frame_freq(frame_info);
-		set_frame(frame_info, margin);
+		ret = set_frame(frame_info, margin);
 		trace_rtg_frame_sched(grp_id, "margin", margin);
 	} else {
-		reset_frame(frame_info);
+		ret = reset_frame(frame_info);
 	}
 
-	return SUCC;
+	return ret;
 }
 
 static inline int curr_grp_id()
@@ -484,9 +494,7 @@ static int set_min_util(int gid, int min_util)
 	if (!frame_info)
 		return -FRAME_ERR_PID;
 
-	set_frame_min_util(frame_info, min_util, false);
-
-	return SUCC;
+	return set_frame_min_util(frame_info, min_util, false);
 }
 
 static long ctrl_set_min_util(int abi, void __user *uarg)
