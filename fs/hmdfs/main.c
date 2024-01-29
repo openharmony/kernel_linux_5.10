@@ -947,8 +947,10 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 		err = -ENOMEM;
 		goto out_sput;
 	}
-
-	err = init_hmdfs_dentry_info(sbi, root_dentry, HMDFS_LAYER_ZERO);
+	if (sbi->s_cloud_disk_switch)
+		err = init_hmdfs_dentry_info(sbi, root_dentry, HMDFS_LAYER_SECOND_LOCAL);
+	else
+		err = init_hmdfs_dentry_info(sbi, root_dentry, HMDFS_LAYER_ZERO);
 	if (err)
 		goto out_freeroot;
 	hmdfs_set_lower_path(root_dentry, &lower_path);
