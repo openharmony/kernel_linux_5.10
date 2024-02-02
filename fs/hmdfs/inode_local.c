@@ -761,7 +761,7 @@ static bool symname_is_allowed(const char *symname)
 	buf[0] = '/';
 	strncpy(buf + 1, symname, symname_len);
 	strcat(buf, "/");
-	p = strstr(symname, "/../");
+	p = strstr(buf, "/../");
 	if (p) {
 		kfree(buf);
 		return false;
