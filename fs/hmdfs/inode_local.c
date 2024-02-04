@@ -926,6 +926,8 @@ static int hmdfs_getattr_local(const struct path *path, struct kstat *stat,
 	stat->ino = d_inode(path->dentry)->i_ino;
 	stat->uid = d_inode(path->dentry)->i_uid;
 	stat->gid = d_inode(path->dentry)->i_gid;
+	stat->dev = 0;
+	stat->rdev = 0;
 	hmdfs_put_lower_path(&lower_path);
 
 	return ret;
