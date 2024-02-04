@@ -63,14 +63,21 @@ static struct file *get_file_from_conn(struct hmdfs_peer *conn, __u32 file_id)
 	return file;
 }
 
-void remove_file_from_conn(struct hmdfs_peer *conn, __u32 file_id)
+int remove_file_from_conn(struct hmdfs_peer *conn, __u32 file_id)
 {
 	spinlock_t *lock = &(conn->file_id_lock);
 	struct idr *idr = &(conn->file_id_idr);
+	struct file *file;
 
 	spin_lock(lock);
-	idr_remove(idr, file_id);
+	file = idr_remove(idr, file_id);
 	spin_unlock(lock);
+
+	if (!file) {
+		return -ENOENT;
+	} else {
+		return 0;
+	}
 }
 
 struct file *hmdfs_open_path(struct hmdfs_sb_info *sbi, const char *path)
@@ -660,7 +667,11 @@ void hmdfs_server_release(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	/* put the reference acquired by get_file_by_fid_and_ver() */
 	hmdfs_close_path(file);
 	hmdfs_info("close %u", file_id);
-	remove_file_from_conn(con, file_id);
+	ret = remove_file_from_conn(con, file_id);
+	if (ret) {
+		hmdfs_err("cannot find after close %u", file_id);
+		goto out;
+	}
 
 	hmdfs_close_path(file);
 
