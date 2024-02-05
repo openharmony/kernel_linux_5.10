@@ -271,50 +271,6 @@ void hmdfs_message_verify_init(void)
 		MESSAGE_LEN_JUDGE_RANGE;
 }
 
-static void find_first_no_slash(const char **name, int *len)
-{
-	const char *s = *name;
-	int l = *len;
-
-	while (*s == '/' && l > 0) {
-		s++;
-		l--;
-	}
-
-	*name = s;
-	*len = l;
-}
-
-static void find_first_slash(const char **name, int *len)
-{
-	const char *s = *name;
-	int l = *len;
-
-	while (*s != '/' && l > 0) {
-		s++;
-		l--;
-	}
-
-	*name = s;
-	*len = l;
-}
-
-static bool path_contain_dotdot(const char *name, int len)
-{
-	while (true) {
-		find_first_no_slash(&name, &len);
-
-		if (len == 0)
-			return false;
-
-		if (len >= 2 && name[0] == '.' && name[1] == '.' &&
-		    (len == 2 || name[2] == '/'))
-			return true;
-
-		find_first_slash(&name, &len);
-	}
-}
-
 static int is_str_msg_valid(char *msg, int str_len[], size_t str_num)
 {
 	int i = 0;
@@ -344,15 +300,6 @@ static int verify_open_req(size_t msg_len, void *msg)
 	str_len[0] = req->path_len;
 	if (is_str_msg_valid(req->buf, str_len, sizeof(str_len) / sizeof(int)))
 		return -EINVAL;
-
-	/*
-	 * We only allow server to open file in hmdfs, thus we need to
-	 * make sure path don't contain "..".
-	 */
-	if (path_contain_dotdot(req->buf, req->path_len)) {
-		hmdfs_err("verify fail, path contain dotdot");
-		return -EINVAL;
-	}
 
 	return 0;
 }

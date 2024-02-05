@@ -32,6 +32,50 @@ struct hmdfs_open_info {
 	int file_id;
 };
 
+static void find_first_no_slash(const char **name, int *len)
+{
+	const char *s = *name;
+	int l = *len;
+
+	while (*s == '/' && l > 0) {
+		s++;
+		l--;
+	}
+
+	*name = s;
+	*len = l;
+}
+
+static void find_first_slash(const char **name, int *len)
+{
+	const char *s = *name;
+	int l = *len;
+
+	while (*s != '/' && l > 0) {
+		s++;
+		l--;
+	}
+
+	*name = s;
+	*len = l;
+}
+
+static bool path_contain_dotdot(const char *name, int len)
+{
+	while (true) {
+		find_first_no_slash(&name, &len);
+
+		if (len == 0)
+			return false;
+
+		if (len >= 2 && name[0] == '.' && name[1] == '.' &&
+		    (len == 2 || name[2] == '/'))
+			return true;
+
+		find_first_slash(&name, &len);
+	}
+}
+
 static int insert_file_into_conn(struct hmdfs_peer *conn, struct file *file)
 {
 	struct idr *idr = &(conn->file_id_idr);
@@ -506,6 +550,11 @@ void hmdfs_server_open(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		goto err_free;
 	}
 
+	if (path_contain_dotdot(recv->buf, recv->path_len)) {
+		ret = -EINVAL;
+		goto err_free;
+	}
+
 	info->file = hmdfs_open_file(con, recv->buf, recv->file_type,
 				     &info->file_id);
 	if (IS_ERR(info->file)) {
@@ -691,6 +740,17 @@ void hmdfs_server_atomic_open(struct hmdfs_peer *con,
 	struct atomic_open_request *recv = data;
 	struct atomic_open_response *resp = NULL;
 	struct hmdfs_open_info *info = NULL;
+	char *file_path = recv->buf;
+	char *file = recv->buf + recv->path_len + 1;
+
+	if (path_contain_dotdot(file_path, recv->path_len)) {
+		err = -EINVAL;
+		goto out;
+	}
+	if (path_contain_dotdot(file, recv->file_len)) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	info = kmalloc(sizeof(*info), GFP_KERNEL);
 	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
@@ -1032,6 +1092,11 @@ void hmdfs_server_readdir(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 
 	trace_hmdfs_server_readdir(readdir_recv);
 
+	if (path_contain_dotdot(readdir_recv->path, readdir_recv->path_len)) {
+		err = -EINVAL;
+		goto send_err;
+	}
+
 	lo_p_name = server_lookup_lower(con, readdir_recv->path, &lo_p);
 	if (IS_ERR(lo_p_name)) {
 		err = PTR_ERR(lo_p_name);
@@ -1091,6 +1156,14 @@ void hmdfs_server_mkdir(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 
 	mkdir_dir = mkdir_recv->path;
 	mkdir_name = mkdir_recv->path + path_len + 1;
+	if (path_contain_dotdot(mkdir_dir, mkdir_recv->path_len)) {
+		err = -EINVAL;
+		goto mkdir_out;
+	}
+	if (path_contain_dotdot(mkdir_name, mkdir_recv->name_len)) {
+		err = -EINVAL;
+		goto mkdir_out;
+	}
 
 	dent = hmdfs_root_mkdir(con->device_id, con->sbi->local_dst,
 				mkdir_dir, mkdir_name,
@@ -1133,6 +1206,14 @@ void hmdfs_server_create(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 
 	create_dir = create_recv->path;
 	create_name = create_recv->path + path_len + 1;
+	if (path_contain_dotdot(create_dir, create_recv->path_len)) {
+		err = -EINVAL;
+		goto create_out;
+	}
+	if (path_contain_dotdot(create_name, create_recv->name_len)) {
+		err = -EINVAL;
+		goto create_out;
+	}
 
 	dent = hmdfs_root_create(con->device_id, con->sbi->local_dst,
 				 create_dir, create_name,
@@ -1172,12 +1253,22 @@ void hmdfs_server_rmdir(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 
 	path = rmdir_recv->path;
 	name = rmdir_recv->path + le32_to_cpu(rmdir_recv->path_len) + 1;
+	if (path_contain_dotdot(rmdir_recv->path, rmdir_recv->path_len)) {
+		err = -EINVAL;
+		goto rmdir_out;
+	}
+	if (path_contain_dotdot(rmdir_recv->path, rmdir_recv->path_len)) {
+		err = -EINVAL;
+		goto rmdir_out;
+	}
+
 	err = kern_path(con->sbi->local_dst, 0, &root_path);
 	if (!err) {
 		err = hmdfs_root_rmdir(con->device_id, &root_path, path, name);
 		path_put(&root_path);
 	}
 
+rmdir_out:
 	hmdfs_send_err_response(con, cmd, err);
 }
 
@@ -1192,12 +1283,22 @@ void hmdfs_server_unlink(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 
 	path = unlink_recv->path;
 	name = unlink_recv->path + le32_to_cpu(unlink_recv->path_len) + 1;
+	if (path_contain_dotdot(path, unlink_recv->path_len)) {
+		err = -EINVAL;
+		goto unlink_out;
+	}
+	if (path_contain_dotdot(name, unlink_recv->name_len)) {
+		err = -EINVAL;
+		goto unlink_out;
+	}
+
 	err = kern_path(con->sbi->local_dst, 0, &root_path);
 	if (!err) {
 		err = hmdfs_root_unlink(con->device_id, &root_path, path, name);
 		path_put(&root_path);
 	}
 
+unlink_out:
 	hmdfs_send_err_response(con, cmd, err);
 }
 
@@ -1227,10 +1328,27 @@ void hmdfs_server_rename(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	name_old = recv->path + old_path_len + 1 + new_path_len + 1;
 	name_new = recv->path + old_path_len + 1 + new_path_len + 1 +
 		   old_name_len + 1;
+	if (path_contain_dotdot(path_old, old_path_len)) {
+		err = -EINVAL;
+		goto rename_out;
+	}
+	if (path_contain_dotdot(path_new, new_path_len)) {
+		err = -EINVAL;
+		goto rename_out;
+	}
+	if (path_contain_dotdot(name_old, old_name_len)) {
+		err = -EINVAL;
+		goto rename_out;
+	}
+	if (path_contain_dotdot(name_new, new_name_len)) {
+		err = -EINVAL;
+		goto rename_out;
+	}
 
 	err = hmdfs_root_rename(con->sbi, con->device_id, path_old, name_old,
 				path_new, name_new, flags);
 
+rename_out:
 	hmdfs_send_err_response(con, cmd, err);
 }
 
@@ -1528,6 +1646,11 @@ void hmdfs_server_setattr(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	struct iattr attr;
 	__u32 valid = le32_to_cpu(recv->valid);
 
+	if (path_contain_dotdot(recv->buf, recv->path_len)) {
+		err = -EINVAL;
+		goto out;
+	}
+
 	err = kern_path(con->sbi->local_dst, 0, &root_path);
 	if (err) {
 		hmdfs_err("kern_path failed err = %d", err);
@@ -1615,6 +1738,11 @@ void hmdfs_server_getattr(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	struct inode *inode = NULL;
 	unsigned int recv_flags = le32_to_cpu(recv->lookup_flags);
 	unsigned int lookup_flags = 0;
+
+	if (path_contain_dotdot(recv->buf, recv->path_len)) {
+		err = -EINVAL;
+		goto err;
+	}
 
 	err = hmdfs_convert_lookup_flags(recv_flags, &lookup_flags);
 	if (err)
@@ -1707,6 +1835,11 @@ void hmdfs_server_statfs(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 	struct kstatfs *st = NULL;
 	int err = 0;
 
+	if (path_contain_dotdot(recv->path, recv->path_len)) {
+		err = -EINVAL;
+		goto out;
+	}
+
 	st = kzalloc(sizeof(*st), GFP_KERNEL);
 	if (!st) {
 		err = -ENOMEM;
@@ -1779,9 +1912,20 @@ void hmdfs_server_getxattr(struct hmdfs_peer *con,
 	char *name = recv->buf + recv->path_len + 1;
 	int err = -ENOMEM;
 
-	resp = kzalloc(size_read, GFP_KERNEL);
-	if (!resp)
+	if (path_contain_dotdot(file_path, recv->path_len)) {
+		err = -EINVAL;
 		goto err;
+	}
+	if (path_contain_dotdot(name, recv->name_len)) {
+		err = -EINVAL;
+		goto err;
+	}
+
+	resp = kzalloc(size_read, GFP_KERNEL);
+	if (!resp) {
+		err = -ENOMEM;
+		goto err;
+	}
 
 	err = kern_path(con->sbi->local_dst, LOOKUP_DIRECTORY, &root_path);
 	if (err) {
@@ -1831,20 +1975,25 @@ void hmdfs_server_setxattr(struct hmdfs_peer *con,
 	bool del = recv->del;
 	struct path root_path;
 	struct path path;
-	const char *file_path = NULL;
-	const char *name = NULL;
-	const void *value = NULL;
+	const char *file_path = recv->buf;
+	const char *name = recv->buf + recv->path_len + 1;
+	const void *value = name + recv->name_len + 1;
 	int err;
+
+	if (path_contain_dotdot(file_path, recv->path_len)) {
+		err = -EINVAL;
+		goto err;
+	}
+	if (path_contain_dotdot(name, recv->name_len)) {
+		err = -EINVAL;
+		goto err;
+	}
 
 	err = kern_path(con->sbi->local_dst, LOOKUP_DIRECTORY, &root_path);
 	if (err) {
 		hmdfs_info("kern_path failed err = %d", err);
 		goto err;
 	}
-
-	file_path = recv->buf;
-	name = recv->buf + recv->path_len + 1;
-	value = name + recv->name_len + 1;
 	err = vfs_path_lookup(root_path.dentry, root_path.mnt,
 			      file_path, 0, &path);
 	if (err) {
@@ -1873,10 +2022,15 @@ void hmdfs_server_listxattr(struct hmdfs_peer *con,
 	size_t size = le32_to_cpu(recv->size);
 	int size_read = sizeof(struct listxattr_response) + size;
 	struct listxattr_response *resp = NULL;
-	const char *file_path = NULL;
+	const char *file_path = recv->buf;
 	struct path root_path;
 	struct path path;
 	int err = 0;
+
+	if (path_contain_dotdot(file_path, recv->path_len)) {
+		err = -EINVAL;
+		goto err;
+	}
 
 	resp = kzalloc(size_read, GFP_KERNEL);
 	if (!resp) {
@@ -1889,8 +2043,6 @@ void hmdfs_server_listxattr(struct hmdfs_peer *con,
 		hmdfs_info("kern_path failed err = %d", err);
 		goto err_free_resp;
 	}
-
-	file_path = recv->buf;
 	err = vfs_path_lookup(root_path.dentry, root_path.mnt,
 			      file_path, 0, &path);
 	if (err) {
@@ -1931,6 +2083,11 @@ void hmdfs_server_get_drop_push(struct hmdfs_peer *con,
 	struct path root_path, path;
 	int err;
 	char *tmp_path = NULL;
+
+	if (path_contain_dotdot(dp_recv->path, dp_recv->path_len)) {
+		err = -EINVAL;
+		goto quickack;
+	}
 
 	err = kern_path(con->sbi->real_dst, 0, &root_path);
 	if (err) {
