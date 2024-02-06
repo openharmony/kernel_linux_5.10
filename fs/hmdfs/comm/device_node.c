@@ -258,20 +258,21 @@ static ssize_t sbi_status_show(struct kobject *kobj, struct sbi_attribute *attr,
 	struct tcp_handle *tcp = NULL;
 
 	sbi = to_sbi(kobj);
-	size += sprintf(buf + size, "peers status\n");
+	size += snprintf(buf + size, PAGE_SIZE - size, "peers status\n");
 
 	mutex_lock(&sbi->connections.node_lock);
 	list_for_each_entry(peer, &sbi->connections.node_list, list) {
-		size += sprintf(buf + size, "%llu %d\n", peer->device_id,
-			peer->status);
+		size += snprintf(buf + size, PAGE_SIZE - size, "%llu %d\n",
+			peer->device_id, peer->status);
 		// connection information
-		size += sprintf(
-			buf + size,
+		size += snprintf(
+			buf + size, PAGE_SIZE - size,
 			"\t socket_fd  connection_status  tcp_status  ... refcnt\n");
 		mutex_lock(&peer->conn_impl_list_lock);
 		list_for_each_entry(conn_impl, &peer->conn_impl_list, list) {
 			tcp = conn_impl->connect_handle;
-			size += sprintf(buf + size, "\t %d  \t%d  \t%d  \t%p  \t%ld\n",
+			size += snprintf(buf + size, PAGE_SIZE - size,
+					"\t %d  \t%d  \t%d  \t%p  \t%ld\n",
 					tcp->fd, conn_impl->status,
 					tcp->sock->state, tcp->sock, file_count(tcp->sock->file));
 		}
@@ -307,12 +308,13 @@ static ssize_t sbi_stat_show(struct kobject *kobj, struct sbi_attribute *attr,
 		mutex_lock(&peer->conn_impl_list_lock);
 		list_for_each_entry(conn_impl, &peer->conn_impl_list, list) {
 			tcp = conn_impl->connect_handle;
-			size += sprintf(buf + size, "socket_fd: %d\n", tcp->fd);
-			size += sprintf(buf + size,
+			size += snprintf(buf + size, PAGE_SIZE - size,
+					"socket_fd: %d\n", tcp->fd);
+			size += snprintf(buf + size, PAGE_SIZE - size,
 					"\tsend_msg %d \tsend_bytes %llu\n",
 					conn_impl->stat.send_message_count,
 					conn_impl->stat.send_bytes);
-			size += sprintf(buf + size,
+			size += snprintf(buf + size, PAGE_SIZE - size,
 					"\trecv_msg %d \trecv_bytes %llu\n",
 					conn_impl->stat.recv_message_count,
 					conn_impl->stat.recv_bytes);
