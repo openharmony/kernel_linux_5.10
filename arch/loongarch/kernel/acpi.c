@@ -29,11 +29,9 @@ enum acpi_irq_model_id acpi_irq_model = ACPI_IRQ_MODEL_LPIC;
 
 u64 acpi_saved_sp;
 
-#define MAX_CORE_PIC 256
-
 #define PREFIX			"ACPI: "
 
-struct acpi_madt_core_pic acpi_core_pic[NR_CPUS];
+struct acpi_madt_core_pic acpi_core_pic[MAX_CORE_PIC];
 
 int acpi_gsi_to_irq(u32 gsi, unsigned int *irqp)
 {
