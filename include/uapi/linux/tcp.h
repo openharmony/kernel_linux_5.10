@@ -128,11 +128,18 @@ enum {
 #define TCP_CM_INQ		TCP_INQ
 
 #define TCP_TX_DELAY		37	/* delay outgoing packets by XX usec */
-
+#define TCP_NB_URC		101	/* netibooster ultar-reliable connection */
 
 #define TCP_REPAIR_ON		1
 #define TCP_REPAIR_OFF		0
 #define TCP_REPAIR_OFF_NO_WP	-1	/* Turn off without window probes */
+
+struct tcp_nb_urc {
+	__u8	nb_urc_enabled;
+	__u8	syn_retries;
+	__u16	tcp_retries2;
+	__u32	nb_urc_rto;
+};
 
 struct tcp_repair_opt {
 	__u32	opt_code;

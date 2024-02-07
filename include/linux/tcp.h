@@ -365,6 +365,9 @@ struct tcp_sock {
 #else
 #define BPF_SOCK_OPS_TEST_FLAG(TP, ARG) 0
 #endif
+#ifdef CONFIG_TCP_NB_URC
+	u16 tcp_retries2;
+#endif /* CONFIG_TCP_NB_URC */
 
 	u16 timeout_rehash;	/* Timeout-triggered rehash attempts */
 

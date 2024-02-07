@@ -249,7 +249,11 @@ static int tcp_write_timeout(struct sock *sk)
 			__dst_negative_advice(sk);
 		}
 
+#ifdef CONFIG_TCP_NB_URC
+		retry_until = tcp_get_retries_limit(sk);
+#else
 		retry_until = READ_ONCE(net->ipv4.sysctl_tcp_retries2);
+#endif /* CONFIG_TCP_NB_URC */
 		if (sock_flag(sk, SOCK_DEAD)) {
 			const bool alive = icsk->icsk_rto < TCP_RTO_MAX;
 
@@ -380,7 +384,11 @@ static void tcp_probe_timer(struct sock *sk)
 		 msecs_to_jiffies(icsk->icsk_user_timeout))
 		goto abort;
 
+#ifdef CONFIG_TCP_NB_URC
+	max_probes = tcp_get_retries_limit(sk);
+#else
 	max_probes = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
+#endif /* CONFIG_TCP_NB_URC */
 	if (sock_flag(sk, SOCK_DEAD)) {
 		const bool alive = inet_csk_rto_backoff(icsk, TCP_RTO_MAX) < TCP_RTO_MAX;
 
