@@ -382,7 +382,6 @@ static int do_file(char const *const fname, void *addr)
 		break;
 	case EM_ARCOMPACT:
 	case EM_ARCV2:
-	case EM_LOONGARCH:
 	case EM_MICROBLAZE:
 	case EM_MIPS:
 	case EM_XTENSA:

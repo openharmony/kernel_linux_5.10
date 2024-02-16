@@ -137,7 +137,8 @@ static int eiointc_set_irq_affinity(struct irq_data *d, const struct cpumask *af
 		cpumask_and(&cpuspan_online_map, &priv->cpuspan_map, cpu_online_mask);
 
 		for_each_cpu(c, &complement_map) {
-			if (c == cpu) break; idx++;
+			if (c == cpu) break;
+			idx++;
 		}
 
 		idx = idx % cpumask_weight(&cpuspan_online_map);

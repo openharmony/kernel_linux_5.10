@@ -90,9 +90,9 @@ static int acpi_prepare_root_resources(struct acpi_pci_root_info *ci)
  *  - ioremap the config space
  */
 static struct pci_config_window *arch_pci_ecam_create(struct device *dev,
-		struct resource *cfgres, struct resource *busr, struct pci_ecam_ops *ops)
+		struct resource *cfgres, struct resource *busr, const struct pci_ecam_ops *ops)
 {
-	int i, err;
+	int err;
 	unsigned int bus_range, bsz;
 	struct resource *conflict;
 	struct pci_config_window *cfg;
