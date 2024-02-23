@@ -97,6 +97,8 @@ extern struct secondary_data cpuboot_data;
 extern asmlinkage void smpboot_entry(void);
 extern asmlinkage void start_secondary(void);
 
+extern void set_cpu_sibling_map(int cpu);
+extern void clear_cpu_sibling_map(int cpu);
 extern void calculate_cpu_foreign_map(void);
 
 /*
