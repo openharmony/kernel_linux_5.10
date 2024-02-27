@@ -143,7 +143,7 @@ struct dentry *hmdfs_device_lookup(struct inode *parent_inode,
 
 	trace_hmdfs_device_lookup(parent_inode, child_dentry, flags);
 	if (!strncmp(d_name, DEVICE_VIEW_LOCAL,
-		     sizeof(DEVICE_VIEW_LOCAL) - 1)) {
+		     sizeof(DEVICE_VIEW_LOCAL))) {
 		err = init_hmdfs_dentry_info(sbi, child_dentry,
 					     HMDFS_LAYER_SECOND_LOCAL);
 		if (err) {
@@ -170,7 +170,7 @@ struct dentry *hmdfs_device_lookup(struct inode *parent_inode,
 			goto out;
 		}
 	} else if (!strncmp(d_name, DEVICE_VIEW_CLOUD,
-		     sizeof(DEVICE_VIEW_CLOUD) - 1)) {
+		     sizeof(DEVICE_VIEW_CLOUD))) {
 		err = init_hmdfs_dentry_info(sbi, child_dentry,
 					     HMDFS_LAYER_SECOND_CLOUD);
 		if (err) {

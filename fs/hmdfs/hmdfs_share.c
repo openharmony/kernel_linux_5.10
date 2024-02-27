@@ -157,13 +157,13 @@ bool in_share_dir(struct dentry *child_dentry)
 
 inline bool is_share_dir(struct inode *inode, const char *name)
 {
-        return (S_ISDIR(inode->i_mode) &&
-		!strncmp(name, SHARE_RESERVED_DIR, strlen(SHARE_RESERVED_DIR)));
+	return (S_ISDIR(inode->i_mode) &&
+		!strncmp(name, SHARE_RESERVED_DIR, sizeof(SHARE_RESERVED_DIR)));
 }
 
 int get_path_from_share_table(struct hmdfs_sb_info *sbi,
-			        struct dentry *cur_dentry,
-                                struct path *src_path)
+			      struct dentry *cur_dentry,
+			      struct path *src_path)
 {
 	struct hmdfs_share_item *item;
 	const char *path_name;
