@@ -1467,10 +1467,9 @@ done:
 		 * the other timer registers before skipping the
 		 * timestamping request.
 		 */
-		unsigned long flags;
-
-		spin_lock_irqsave(&adapter->ptp_tx_lock, flags);
-		if (adapter->tstamp_config.tx_type == HWTSTAMP_TX_ON && !adapter->ptp_tx_skb) {
+		if (adapter->tstamp_config.tx_type == HWTSTAMP_TX_ON &&
+		    !test_and_set_bit_lock(__IGC_PTP_TX_IN_PROGRESS,
+					   &adapter->state)) {
 			skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
 			tx_flags |= IGC_TX_FLAGS_TSTAMP;
 
@@ -1479,8 +1478,6 @@ done:
 		} else {
 			adapter->tx_hwtstamp_skipped++;
 		}
-
-		spin_unlock_irqrestore(&adapter->ptp_tx_lock, flags);
 	}
 
 	/* record initial flags and protocol */
@@ -1572,36 +1569,14 @@ static void igc_rx_checksum(struct igc_ring *ring,
 		   le32_to_cpu(rx_desc->wb.upper.status_error));
 }
 
-/* Mapping HW RSS Type to enum pkt_hash_types */
-static const enum pkt_hash_types igc_rss_type_table[IGC_RSS_TYPE_MAX_TABLE] = {
-	[IGC_RSS_TYPE_NO_HASH]		= PKT_HASH_TYPE_L2,
-	[IGC_RSS_TYPE_HASH_TCP_IPV4]	= PKT_HASH_TYPE_L4,
-	[IGC_RSS_TYPE_HASH_IPV4]	= PKT_HASH_TYPE_L3,
-	[IGC_RSS_TYPE_HASH_TCP_IPV6]	= PKT_HASH_TYPE_L4,
-	[IGC_RSS_TYPE_HASH_IPV6_EX]	= PKT_HASH_TYPE_L3,
-	[IGC_RSS_TYPE_HASH_IPV6]	= PKT_HASH_TYPE_L3,
-	[IGC_RSS_TYPE_HASH_TCP_IPV6_EX] = PKT_HASH_TYPE_L4,
-	[IGC_RSS_TYPE_HASH_UDP_IPV4]	= PKT_HASH_TYPE_L4,
-	[IGC_RSS_TYPE_HASH_UDP_IPV6]	= PKT_HASH_TYPE_L4,
-	[IGC_RSS_TYPE_HASH_UDP_IPV6_EX] = PKT_HASH_TYPE_L4,
-	[10] = PKT_HASH_TYPE_NONE, /* RSS Type above 9 "Reserved" by HW  */
-	[11] = PKT_HASH_TYPE_NONE, /* keep array sized for SW bit-mask   */
-	[12] = PKT_HASH_TYPE_NONE, /* to handle future HW revisons       */
-	[13] = PKT_HASH_TYPE_NONE,
-	[14] = PKT_HASH_TYPE_NONE,
-	[15] = PKT_HASH_TYPE_NONE,
-};
-
 static inline void igc_rx_hash(struct igc_ring *ring,
 			       union igc_adv_rx_desc *rx_desc,
 			       struct sk_buff *skb)
 {
-	if (ring->netdev->features & NETIF_F_RXHASH) {
-		u32 rss_hash = le32_to_cpu(rx_desc->wb.lower.hi_dword.rss);
-		u32 rss_type = igc_rss_type(rx_desc);
-
-		skb_set_hash(skb, rss_hash, igc_rss_type_table[rss_type]);
-	}
+	if (ring->netdev->features & NETIF_F_RXHASH)
+		skb_set_hash(skb,
+			     le32_to_cpu(rx_desc->wb.lower.hi_dword.rss),
+			     PKT_HASH_TYPE_L3);
 }
 
 /**
@@ -5282,7 +5257,6 @@ static int igc_probe(struct pci_dev *pdev,
 	netdev->features |= NETIF_F_TSO;
 	netdev->features |= NETIF_F_TSO6;
 	netdev->features |= NETIF_F_TSO_ECN;
-	netdev->features |= NETIF_F_RXHASH;
 	netdev->features |= NETIF_F_RXCSUM;
 	netdev->features |= NETIF_F_HW_CSUM;
 	netdev->features |= NETIF_F_SCTP_CRC;

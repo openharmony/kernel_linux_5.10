@@ -134,7 +134,7 @@ static const struct {
 
 /**
  * iw_valid_channel - validate channel in regulatory domain
- * @reg_domain: regulatory domain
+ * @reg_comain: regulatory domain
  * @channel: channel to validate
  *
  * Returns 0 if invalid in the specified regulatory domain, non-zero if valid.
@@ -458,9 +458,11 @@ out:
 /**
  * wl3501_send_pkt - Send a packet.
  * @this: Card
- * @data: Ethernet raw frame.  (e.g. data[0] - data[5] is Dest MAC Addr,
+ *
+ * Send a packet.
+ *
+ * data = Ethernet raw frame.  (e.g. data[0] - data[5] is Dest MAC Addr,
  *                                   data[6] - data[11] is Src MAC Addr)
- * @len: Packet length
  * Ref: IEEE 802.11
  */
 static int wl3501_send_pkt(struct wl3501_card *this, u8 *data, u16 len)
@@ -1862,7 +1864,6 @@ static int wl3501_probe(struct pcmcia_device *p_dev)
 {
 	struct net_device *dev;
 	struct wl3501_card *this;
-	int ret;
 
 	/* The io structure describes IO port mapping */
 	p_dev->resource[0]->end	= 16;
@@ -1874,7 +1875,8 @@ static int wl3501_probe(struct pcmcia_device *p_dev)
 
 	dev = alloc_etherdev(sizeof(struct wl3501_card));
 	if (!dev)
-		return -ENOMEM;
+		goto out_link;
+
 
 	dev->netdev_ops		= &wl3501_netdev_ops;
 	dev->watchdog_timeo	= 5 * HZ;
@@ -1887,15 +1889,9 @@ static int wl3501_probe(struct pcmcia_device *p_dev)
 	netif_stop_queue(dev);
 	p_dev->priv = dev;
 
-	ret = wl3501_config(p_dev);
-	if (ret)
-		goto out_free_etherdev;
-
-	return 0;
-
-out_free_etherdev:
-	free_netdev(dev);
-	return ret;
+	return wl3501_config(p_dev);
+out_link:
+	return -ENOMEM;
 }
 
 static int wl3501_config(struct pcmcia_device *link)
@@ -1951,7 +1947,8 @@ static int wl3501_config(struct pcmcia_device *link)
 		goto failed;
 	}
 
-	eth_hw_addr_set(dev, this->mac_addr);
+	for (i = 0; i < 6; i++)
+		dev->dev_addr[i] = ((char *)&this->mac_addr)[i];
 
 	/* print probe information */
 	printk(KERN_INFO "%s: wl3501 @ 0x%3.3x, IRQ %d, "
