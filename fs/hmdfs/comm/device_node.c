@@ -28,13 +28,6 @@
 DEFINE_MUTEX(hmdfs_sysfs_mutex);
 static struct kset *hmdfs_kset;
 
-struct hmdfs_disconnect_node_work {
-	struct hmdfs_peer *conn;
-	struct work_struct work;
-	atomic_t *cnt;
-	struct wait_queue_head *waitq;
-};
-
 static void ctrl_cmd_update_socket_handler(const char *buf, size_t len,
 					   struct hmdfs_sb_info *sbi)
 {
@@ -128,53 +121,6 @@ static void ctrl_cmd_off_line_handler(const char *buf, size_t len,
 	peer_put(node);
 }
 
-static void hmdfs_disconnect_node_work_fn(struct work_struct *base)
-{
-	struct hmdfs_disconnect_node_work *work =
-		container_of(base, struct hmdfs_disconnect_node_work, work);
-
-	hmdfs_disconnect_node_marked(work->conn);
-	if (atomic_dec_and_test(work->cnt))
-		wake_up(work->waitq);
-	kfree(work);
-}
-
-static void ctrl_cmd_off_line_all_handler(const char *buf, size_t len,
-					  struct hmdfs_sb_info *sbi)
-{
-	struct hmdfs_peer *node = NULL;
-	struct hmdfs_disconnect_node_work *work = NULL;
-	atomic_t cnt = ATOMIC_INIT(0);
-	wait_queue_head_t waitq;
-
-	if (unlikely(len != sizeof(struct offline_all_param))) {
-		hmdfs_err("Recved a invalid userbuf, len %zu, expect %zu\n",
-			  len, sizeof(struct offline_all_param));
-		return;
-	}
-
-	init_waitqueue_head(&waitq);
-	mutex_lock(&sbi->connections.node_lock);
-	list_for_each_entry(node, &sbi->connections.node_list, list) {
-		mutex_unlock(&sbi->connections.node_lock);
-		work = kmalloc(sizeof(*work), GFP_KERNEL);
-		if (work) {
-			atomic_inc(&cnt);
-			work->conn = node;
-			work->cnt = &cnt;
-			work->waitq = &waitq;
-			INIT_WORK(&work->work, hmdfs_disconnect_node_work_fn);
-			schedule_work(&work->work);
-		} else {
-			hmdfs_disconnect_node_marked(node);
-		}
-		mutex_lock(&sbi->connections.node_lock);
-	}
-	mutex_unlock(&sbi->connections.node_lock);
-
-	wait_event(waitq, !atomic_read(&cnt));
-}
-
 typedef void (*ctrl_cmd_handler)(const char *buf, size_t len,
 				 struct hmdfs_sb_info *sbi);
 
@@ -182,7 +128,6 @@ static const ctrl_cmd_handler cmd_handler[CMD_CNT] = {
 	[CMD_UPDATE_SOCKET] = ctrl_cmd_update_socket_handler,
 	[CMD_UPDATE_DEVSL] = ctrl_cmd_update_devsl_handler,
 	[CMD_OFF_LINE] = ctrl_cmd_off_line_handler,
-	[CMD_OFF_LINE_ALL] = ctrl_cmd_off_line_all_handler,
 };
 
 static ssize_t sbi_cmd_show(struct kobject *kobj, struct sbi_attribute *attr,
@@ -211,8 +156,6 @@ static const char *cmd2str(int cmd)
 		return "CMD_UPDATE_DEVSL";
 	case 2:
 		return "CMD_OFF_LINE";
-	case 3:
-		return "CMD_OFF_LINE_ALL";
 	default:
 		return "illegal cmd";
 	}
