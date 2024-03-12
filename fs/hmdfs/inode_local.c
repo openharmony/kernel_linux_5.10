@@ -746,28 +746,23 @@ rename_out:
 
 static bool symname_is_allowed(const char *symname)
 {
-	char *p;
-	char *buf = 0;
-	size_t symname_len;
+	char *p = NULL;
+	size_t len;
 
-	symname_len = strnlen(symname, PATH_MAX);
-	if (symname_len >= PATH_MAX)
+	len = strnlen(symname, PATH_MAX);
+	if (len >= PATH_MAX)
 		return false;
 
-	buf = kzalloc(PATH_MAX + 2, GFP_KERNEL);
-	if (!buf)
+	p = strstr(symname, "/../");
+	if (p)
 		return false;
 
-	buf[0] = '/';
-	strncpy(buf + 1, symname, symname_len);
-	strcat(buf, "/");
-	p = strstr(buf, "/../");
-	if (p) {
-		kfree(buf);
+	if (len == 2u && strncmp(symname, "..", 2u) == 0)
 		return false;
-	}
-
-	kfree(buf);
+	if (len >= 3u && strncmp(symname, "../", 3u) == 0)
+		return false;
+	if (len >= 3u && strncmp(symname + len - 3u, "/..", 3u) == 0)
+		return false;
 	return true;
 }
 
