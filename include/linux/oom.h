@@ -112,6 +112,7 @@ long oom_badness(struct task_struct *p,
 		unsigned long totalpages);
 
 extern bool out_of_memory(struct oom_control *oc);
+int oom_kill_memcg_member(struct task_struct *task, void *message);
 
 extern void exit_oom_victim(void);
 
