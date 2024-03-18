@@ -88,8 +88,9 @@ static int iget_test(struct inode *inode, void *data)
 	WARN_ON(ia->ino.domain < DOMAIN_ROOT ||
 		ia->ino.domain >= DOMAIN_INVALID);
 
-	if ((read_ino_domain(inode->i_ino) == DOMAIN_ROOT) ||
-	    (read_ino_domain(inode->i_ino) != ia->ino.domain))
+	if (read_ino_domain(inode->i_ino) == DOMAIN_ROOT)
+		return 1;
+	if (read_ino_domain(inode->i_ino) != ia->ino.domain)
 		return 0;
 
 	switch (ia->ino.domain) {
