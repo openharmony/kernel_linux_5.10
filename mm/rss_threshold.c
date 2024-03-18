@@ -5,6 +5,7 @@
  * Copyright (c) 2022 Huawei Technologies Co., Ltd.
  */
 #include <linux/seq_file.h>
+#include <linux/oom.h>
 #include <linux/mm.h>
 #include <linux/sched/mm.h>
 #include "../fs/proc/internal.h"
@@ -23,6 +24,13 @@ int proc_pid_rss(struct seq_file *m, struct pid_namespace *ns,
 	return 0;
 }
 
+static int rss_theashold_oom_kill(struct task_struct *task)
+{
+    if (task)
+        return oom_kill_memcg_member(task, "rss out of range\n");
+    return 0;
+}
+
 void listen_rss_threshold(struct mm_struct *mm)
 {
 	unsigned long total_rss;
@@ -38,15 +46,16 @@ void listen_rss_threshold(struct mm_struct *mm)
 		return;
 
 	if (mm->owner->comm)
-		pr_err("rss_threshold monitor:Pid:%d [%s] rss size:%lu KB is out of range:%lu KB\n",
-				mm->owner->pid, mm->owner->comm,
+		pr_err("rss_threshold monitor: Killing Pid:%d [%s] (tgid:%d) rss size:%lu KB is out of range:%lu KB\n",
+				mm->owner->pid, mm->owner->comm, mm->owner->tgid,
 				total_rss,
 				mm->rss_threshold);
 	else
-		pr_err("rss_threshold monitor:Pid:%d [NULL] rss size:%lu KB is out of range:%lu KB\n",
-				mm->owner->pid,
+		pr_err("rss_threshold monitor: Killing Pid:%d [NULL] tgid:%d rss size:%lu KB is out of range:%lu KB\n",
+				mm->owner->pid, mm->owner->tgid,
 				total_rss,
 				mm->rss_threshold);
+	rss_theashold_oom_kill(mm->owner);
 }
 
 static ssize_t rss_threshold_write(struct file *file, const char __user *buf,
