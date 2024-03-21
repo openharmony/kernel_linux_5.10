@@ -878,6 +878,11 @@ static int hmdfs_readfile_slice(struct sendmsg_wait_queue *msg_info,
 	loff_t offset;
 	ssize_t written_size;
 
+	if (filp == NULL) {
+		hmdfs_warning("recv_info filp is NULL \n");
+		return -EINVAL;
+	}
+
 	if (atomic_read(&recv_info->state) != FILE_RECV_PROCESS)
 		return -EBUSY;
 

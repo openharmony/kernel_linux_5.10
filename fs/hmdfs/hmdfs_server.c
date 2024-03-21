@@ -37,7 +37,7 @@ static void find_first_no_slash(const char **name, int *len)
 	const char *s = *name;
 	int l = *len;
 
-	while (*s == '/' && l > 0) {
+	while (l > 0 && *s == '/') {
 		s++;
 		l--;
 	}
@@ -51,7 +51,7 @@ static void find_first_slash(const char **name, int *len)
 	const char *s = *name;
 	int l = *len;
 
-	while (*s != '/' && l > 0) {
+	while (l > 0 && *s != '/') {
 		s++;
 		l--;
 	}
