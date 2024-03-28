@@ -655,6 +655,9 @@ static int verify_getxattr_resp(size_t msg_len, void *msg)
 {
 	struct getxattr_response *resp = msg;
 
+	if (resp->size != sizeof(*resp->value))
+		return -EINVAL;
+
 	if (msg_len < sizeof(*resp))
 		return -EINVAL;
 
@@ -732,6 +735,9 @@ static int verify_listxattr_req(size_t msg_len, void *msg)
 static int verify_listxattr_resp(size_t msg_len, void *msg)
 {
 	struct listxattr_response *resp = msg;
+
+	if (resp->size != sizeof(*resp->list))
+		return -EINVAL;
 
 	if (msg_len < sizeof(*resp))
 		return -EINVAL;
