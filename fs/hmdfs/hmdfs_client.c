@@ -41,6 +41,7 @@ int hmdfs_send_open(struct hmdfs_peer *con, const char *send_buf,
 		.data = open_req,
 		.len = send_len,
 		.out_buf = NULL,
+		.local_filp = NULL,
 	};
 	hmdfs_init_cmd(&sm.operations, F_OPEN);
 
@@ -81,6 +82,7 @@ void hmdfs_send_close(struct hmdfs_peer *con, const struct hmdfs_fid *fid)
 	struct hmdfs_send_command sm = {
 		.data = release_req,
 		.len = send_len,
+		.local_filp = NULL,
 	};
 	hmdfs_init_cmd(&sm.operations, F_RELEASE);
 
@@ -104,6 +106,7 @@ int hmdfs_send_fsync(struct hmdfs_peer *con, const struct hmdfs_fid *fid,
 		.data = fsync_req,
 		.len = sizeof(struct fsync_request),
 		.out_buf = NULL,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_FSYNC);
@@ -132,6 +135,7 @@ int hmdfs_client_readpage(struct hmdfs_peer *con, const struct hmdfs_fid *fid,
 	struct hmdfs_send_command sm = {
 		.data = read_data,
 		.len = send_len,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_READPAGE);
@@ -467,6 +471,7 @@ int hmdfs_client_start_mkdir(struct hmdfs_peer *con,
 		.data = mkdir_req,
 		.len = send_len,
 		.out_buf = NULL,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_MKDIR);
@@ -515,6 +520,7 @@ int hmdfs_client_start_create(struct hmdfs_peer *con,
 		.data = create_req,
 		.len = send_len,
 		.out_buf = NULL,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_CREATE);
@@ -561,6 +567,7 @@ int hmdfs_client_start_rmdir(struct hmdfs_peer *con, const char *path,
 		.data = rmdir_req,
 		.len = send_len,
 		.out_buf = NULL,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_RMDIR);
@@ -591,6 +598,7 @@ int hmdfs_client_start_unlink(struct hmdfs_peer *con, const char *path,
 		.data = unlink_req,
 		.len = send_len,
 		.out_buf = NULL,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_UNLINK);
@@ -626,6 +634,7 @@ int hmdfs_client_start_rename(struct hmdfs_peer *con, const char *old_path,
 		.data = rename_req,
 		.len = send_len,
 		.out_buf = NULL,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_RENAME);
@@ -663,6 +672,7 @@ int hmdfs_send_setattr(struct hmdfs_peer *con, const char *send_buf,
 	struct hmdfs_send_command sm = {
 		.data = setattr_req,
 		.len = send_len,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_SETATTR);
@@ -722,6 +732,7 @@ int hmdfs_send_getattr(struct hmdfs_peer *con, const char *send_buf,
 		.data = req,
 		.len = send_len,
 		.out_buf = NULL,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_GETATTR);
@@ -777,6 +788,7 @@ int hmdfs_send_statfs(struct hmdfs_peer *con, const char *path,
 		.data = req,
 		.len = send_len,
 		.out_buf = NULL,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_STATFS);
@@ -860,6 +872,7 @@ int hmdfs_send_getxattr(struct hmdfs_peer *con, const char *send_buf,
 		.data = req,
 		.len = send_len,
 		.out_buf = NULL,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_GETXATTR);
@@ -898,6 +911,7 @@ int hmdfs_send_setxattr(struct hmdfs_peer *con, const char *send_buf,
 	struct hmdfs_send_command sm = {
 		.data = req,
 		.len = send_len,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_SETXATTR);
@@ -948,6 +962,7 @@ ssize_t hmdfs_send_listxattr(struct hmdfs_peer *con, const char *send_buf,
 		.data = req,
 		.len = send_len,
 		.out_buf = NULL,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_LISTXATTR);
@@ -1019,6 +1034,7 @@ void hmdfs_send_drop_push(struct hmdfs_peer *con, const char *path)
 	struct hmdfs_send_command sm = {
 		.data = dp_req,
 		.len = send_len,
+		.local_filp = NULL,
 	};
 
 	hmdfs_init_cmd(&sm.operations, F_DROP_PUSH);
