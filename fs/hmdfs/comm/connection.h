@@ -331,8 +331,9 @@ void hmdfs_disconnect_node(struct hmdfs_peer *node);
 void connection_to_working(struct hmdfs_peer *node);
 
 int hmdfs_alloc_msg_idr(struct hmdfs_peer *peer, enum MSG_IDR_TYPE type,
-			void *ptr);
-struct hmdfs_msg_idr_head *hmdfs_find_msg_head(struct hmdfs_peer *peer, int id);
+			void *ptr, struct hmdfs_cmd operations);
+struct hmdfs_msg_idr_head *hmdfs_find_msg_head(struct hmdfs_peer *peer, int id,
+					       struct hmdfs_cmd operations);
 
 static inline void hmdfs_start_process_offline(struct hmdfs_peer *peer)
 {

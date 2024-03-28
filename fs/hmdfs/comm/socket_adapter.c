@@ -96,12 +96,13 @@ static void recv_info_init(struct file_recv_info *recv_info)
 	atomic_set(&recv_info->state, FILE_RECV_PROCESS);
 }
 
-static int msg_init(struct hmdfs_peer *con, struct sendmsg_wait_queue *msg_wq)
+static int msg_init(struct hmdfs_peer *con, struct sendmsg_wait_queue *msg_wq,
+		    struct hmdfs_cmd operations)
 {
 	int ret = 0;
 	struct file_recv_info *recv_info = &msg_wq->recv_info;
 
-	ret = hmdfs_alloc_msg_idr(con, MSG_IDR_MESSAGE_SYNC, msg_wq);
+	ret = hmdfs_alloc_msg_idr(con, MSG_IDR_MESSAGE_SYNC, msg_wq, operations);
 	if (unlikely(ret))
 		return ret;
 
@@ -279,7 +280,8 @@ static struct hmdfs_msg_parasite *mp_alloc(struct hmdfs_peer *peer,
 	if (unlikely(!mp))
 		return ERR_PTR(-ENOMEM);
 
-	ret = hmdfs_alloc_msg_idr(peer, MSG_IDR_MESSAGE_ASYNC, mp);
+	ret = hmdfs_alloc_msg_idr(peer, MSG_IDR_MESSAGE_ASYNC, mp,
+				  mp->head.send_cmd_operations);
 	if (unlikely(ret)) {
 		kfree(mp);
 		return ERR_PTR(ret);
@@ -437,7 +439,7 @@ int hmdfs_sendmessage_request(struct hmdfs_peer *con,
 			ret = -ENOMEM;
 			goto free_filp;
 		}
-		ret = msg_init(con, msg_wq);
+		ret = msg_init(con, msg_wq, sm->operations);
 		if (ret) {
 			kfree(msg_wq);
 			msg_wq = NULL;
@@ -674,7 +676,7 @@ int hmdfs_sendpage_request(struct hmdfs_peer *con,
 		goto unlock;
 	}
 	async_work->start = start;
-	ret = hmdfs_alloc_msg_idr(con, MSG_IDR_PAGE, async_work);
+	ret = hmdfs_alloc_msg_idr(con, MSG_IDR_PAGE, async_work, sm->operations);
 	if (ret) {
 		hmdfs_err("alloc msg_id failed, err %d", ret);
 		goto unlock;
@@ -911,7 +913,7 @@ static void hmdfs_file_response_work_fn(struct work_struct *ptr)
 		hmdfs_override_creds(desp->peer->sbi->cred);
 
 	msg_info = (struct sendmsg_wait_queue *)hmdfs_find_msg_head(desp->peer,
-					le32_to_cpu(desp->head->msg_id));
+		le32_to_cpu(desp->head->msg_id), desp->head->operations);
 	if (!msg_info || atomic_read(&msg_info->valid) != MSG_Q_SEND) {
 		hmdfs_client_resp_statis(desp->peer->sbi, cmd, HMDFS_RESP_DELAY,
 					 0, 0);
@@ -963,7 +965,7 @@ int hmdfs_response_handle_sync(struct hmdfs_peer *con,
 	bool woke = false;
 	u8 cmd = head->operations.command;
 
-	msg_head = hmdfs_find_msg_head(con, msg_id);
+	msg_head = hmdfs_find_msg_head(con, msg_id, head->operations);
 	if (!msg_head)
 		goto out;
 
