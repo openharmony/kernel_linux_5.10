@@ -279,6 +279,9 @@
 #include <linux/uaccess.h>
 #include <asm/ioctls.h>
 #include <net/busy_poll.h>
+#ifdef CONFIG_LOWPOWER_PROTOCOL
+#include <net/lowpower_protocol.h>
+#endif /* CONFIG_LOWPOWER_PROTOCOL */
 
 DEFINE_PER_CPU(unsigned int, tcp_orphan_count);
 EXPORT_PER_CPU_SYMBOL_GPL(tcp_orphan_count);
@@ -1553,9 +1556,13 @@ void tcp_cleanup_rbuf(struct sock *sk, int copied)
 
 	if (inet_csk_ack_scheduled(sk)) {
 		const struct inet_connection_sock *icsk = inet_csk(sk);
+		__u16 rcv_mss = icsk->icsk_ack.rcv_mss;
+#ifdef CONFIG_LOWPOWER_PROTOCOL
+		rcv_mss *= tcp_ack_num(sk);
+#endif /* CONFIG_LOWPOWER_PROTOCOL */
 
 		if (/* Once-per-two-segments ACK was not sent by tcp_input.c */
-		    tp->rcv_nxt - tp->rcv_wup > icsk->icsk_ack.rcv_mss ||
+		    tp->rcv_nxt - tp->rcv_wup > rcv_mss ||
 		    /*
 		     * If this read emptied read buffer, we send ACK, if
 		     * connection is not bidirectional, user drained
@@ -3156,7 +3163,8 @@ int tcp_sock_set_keepcnt(struct sock *sk, int val)
 EXPORT_SYMBOL(tcp_sock_set_keepcnt);
 
 #ifdef CONFIG_TCP_NB_URC
-static int tcp_set_nb_urc(struct sock *sk, sockptr_t optval, int optlen) {
+static int tcp_set_nb_urc(struct sock *sk, sockptr_t optval, int optlen)
+{
 	int err = 0;
 	struct tcp_nb_urc opt = {};
 	struct inet_connection_sock *icsk = inet_csk(sk);

@@ -141,6 +141,9 @@
 #include <linux/mroute.h>
 #include <linux/netlink.h>
 #include <net/dst_metadata.h>
+#ifdef CONFIG_LOWPOWER_PROTOCOL
+#include <net/lowpower_protocol.h>
+#endif /* CONFIG_LOWPOWER_PROTOCOL */
 
 /*
  *	Process Router Attention IP option (RFC 2113)
@@ -243,11 +246,19 @@ int ip_local_deliver(struct sk_buff *skb)
 	 *	Reassemble IP fragments.
 	 */
 	struct net *net = dev_net(skb->dev);
+#ifdef CONFIG_LOWPOWER_PROTOCOL
+	int ret;
+#endif /* CONFIG_LOWPOWER_PROTOCOL */
 
 	if (ip_is_fragment(ip_hdr(skb))) {
 		if (ip_defrag(net, skb, IP_DEFRAG_LOCAL_DELIVER))
 			return 0;
 	}
+
+#ifdef CONFIG_LOWPOWER_PROTOCOL
+	if (netfilter_bypass_enable(net, skb, ip_local_deliver_finish, &ret))
+		return ret;
+#endif /* CONFIG_LOWPOWER_PROTOCOL */
 
 	return NF_HOOK(NFPROTO_IPV4, NF_INET_LOCAL_IN,
 		       net, NULL, skb, skb->dev, NULL,
