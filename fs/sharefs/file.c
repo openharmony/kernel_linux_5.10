@@ -254,6 +254,8 @@ const struct file_operations sharefs_main_fops = {
 	.read_iter	= sharefs_read_iter,
 	.write_iter	= sharefs_write_iter,
 	.mmap		= sharefs_file_mmap,
+	.splice_read = generic_file_splice_read,
+	.splice_write = iter_file_splice_write,
 };
 
 /* trimmed directory options */
