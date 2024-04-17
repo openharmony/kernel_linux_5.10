@@ -44,7 +44,9 @@
 #include <linux/gfp.h>
 #include <linux/module.h>
 #include <linux/static_key.h>
-
+#ifdef CONFIG_LOWPOWER_PROTOCOL
+#include <net/lowpower_protocol.h>
+#endif /* CONFIG_LOWPOWER_PROTOCOL */
 #include <trace/events/tcp.h>
 
 /* Refresh clocks of a TCP socket,
@@ -3700,6 +3702,9 @@ static void tcp_connect_init(struct sock *sk)
 				  &rcv_wscale,
 				  rcv_wnd);
 
+#ifdef CONFIG_LOWPOWER_PROTOCOL
+	tp->rcv_wnd = TCP_RCV_WND_INIT;
+#endif /* CONFIG_LOWPOWER_PROTOCOL */
 	tp->rx_opt.rcv_wscale = rcv_wscale;
 	tp->rcv_ssthresh = tp->rcv_wnd;
 

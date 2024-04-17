@@ -466,6 +466,13 @@ config TCP_NB_URC
           This option enables the NetiBooster Ultra-Reliable Connection feature.
           When enabled, the kernel will include support for CONFIG_TCP_NB_URC.
 
+config LOWPOWER_PROTOCOL
+        bool "lowpower protocol"
+        default n
+        help
+          This option enables the lowpower protocol feature.
+          When enabled, the kernel will include support for CONFIG_LOWPOWER_PROTOCOL.
+
 endif   # if NET
 
 # Used by archs to tell that they support BPF JIT compiler plus which flavour.

@@ -117,6 +117,9 @@
 #endif
 #include <net/l3mdev.h>
 #include <net/compat.h>
+#ifdef CONFIG_LOWPOWER_PROTOCOL
+#include <net/lowpower_protocol.h>
+#endif /* CONFIG_LOWPOWER_PROTOCOL */
 
 #include <trace/events/sock.h>
 
@@ -1877,6 +1880,9 @@ static __net_init int inet_init_net(struct net *net)
 	net->ipv4.sysctl_igmp_llm_reports = 1;
 	net->ipv4.sysctl_igmp_qrv = 2;
 
+#ifdef CONFIG_LOWPOWER_PROTOCOL
+	lowpower_protocol_net_init(net);
+#endif /* CONFIG_LOWPOWER_PROTOCOL */
 	return 0;
 }
 
