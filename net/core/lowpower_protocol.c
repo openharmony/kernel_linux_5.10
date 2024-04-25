@@ -64,11 +64,16 @@ static bool foreground_uid_match(struct net *net, struct sock *sk)
 {
 	uid_t kuid;
 	uid_t foreground_uid;
+	struct sock *fullsk;
 
-	if (!sk)
+	if (!net || !sk)
 		return false;
 
-	kuid = sock_net_uid(net, sk).val;
+	fullsk = sk_to_full_sk(sk);
+	if (!fullsk || !sk_fullsock(fullsk))
+		return false;
+
+	kuid = sock_net_uid(net, fullsk).val;
 	foreground_uid = foreground_uid_atomic_read();
 	if (kuid != foreground_uid)
 		return false;
@@ -98,7 +103,7 @@ bool netfilter_bypass_enable(struct net *net, struct sk_buff *skb,
 			     int (*fun)(struct net *, struct sock *, struct sk_buff *),
 			     int *ret)
 {
-	if (!net || !skb || ip_hdr(skb)->protocol != IPPROTO_TCP)
+	if (!net || !skb || !ip_hdr(skb) || ip_hdr(skb)->protocol != IPPROTO_TCP)
 		return false;
 
 	if (foreground_uid_match(net, skb->sk)) {
