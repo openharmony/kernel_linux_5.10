@@ -266,9 +266,6 @@ struct dentry *hmdfs_lookup_local(struct inode *parent_inode,
 	flags &= ~LOOKUP_FOLLOW;
 	err = vfs_path_lookup(lower_parent_path.dentry, lower_parent_path.mnt,
 			      (child_dentry->d_name.name), 0, &lower_path);
-	if (err == -ENOENT && !sbi->s_case_sensitive)
-		err = __lookup_nosensitive(&lower_parent_path, child_dentry, 0,
-					   &lower_path);
 	if (err && err != -ENOENT) {
 		ret = ERR_PTR(err);
 		goto out_err;
