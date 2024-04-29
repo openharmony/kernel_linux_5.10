@@ -683,11 +683,6 @@ static int hmdfs_rename_cloud_merge(struct inode *old_dir,
 		goto rename_out;
 	}
 
-	if (hmdfs_d(old_dentry)->device_id != hmdfs_d(new_dentry)->device_id) {
-		ret = -EXDEV;
-		goto rename_out;
-	}
-
 	rec_op_para = kmalloc(sizeof(*rec_op_para), GFP_KERNEL);
 	if (!rec_op_para) {
 		ret = -ENOMEM;
