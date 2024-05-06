@@ -136,9 +136,9 @@ enum {
 
 struct tcp_nb_urc {
 	__u8	nb_urc_enabled;
-	__u8	syn_retries;
+	__u8	tcp_syn_retries;
 	__u16	tcp_retries2;
-	__u32	nb_urc_rto;
+	__u32	nb_urc_rto_ms;
 };
 
 struct tcp_repair_opt {
