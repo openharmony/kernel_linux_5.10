@@ -3163,6 +3163,10 @@ int tcp_sock_set_keepcnt(struct sock *sk, int val)
 EXPORT_SYMBOL(tcp_sock_set_keepcnt);
 
 #ifdef CONFIG_TCP_NB_URC
+#define NB_URC_RTO_MS_MIN 200 // 200ms
+#define NB_URC_RTO_MS_MAX (120000) // 12s
+#define NB_URC_RTO_MS_TO_HZ 1000
+
 static int tcp_set_nb_urc(struct sock *sk, sockptr_t optval, int optlen)
 {
 	int err = 0;
@@ -3179,10 +3183,15 @@ static int tcp_set_nb_urc(struct sock *sk, sockptr_t optval, int optlen)
 		return err;
 	}
 
-	icsk->icsk_syn_retries = opt.syn_retries;
+	if (opt.nb_urc_rto_ms < NB_URC_RTO_MS_MIN || opt.nb_urc_rto_ms > NB_URC_RTO_MS_MAX) {
+		err = -EINVAL;
+		return err;
+	}
+
+	icsk->icsk_syn_retries = opt.tcp_syn_retries;
 	tcp_sk(sk)->tcp_retries2 = opt.tcp_retries2;
 	icsk->icsk_nb_urc_enabled = opt.nb_urc_enabled;
-	icsk->icsk_nb_urc_rto = opt.nb_urc_rto;
+	icsk->icsk_nb_urc_rto = opt.nb_urc_rto_ms * HZ / NB_URC_RTO_MS_TO_HZ;
 
 	return err;
 }
