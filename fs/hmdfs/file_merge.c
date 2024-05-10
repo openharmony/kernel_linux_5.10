@@ -567,6 +567,7 @@ int hmdfs_file_open_merge(struct inode *inode, struct file *file)
 	} else {
 		gfi->lower_file = lower_file;
 		file->private_data = gfi;
+		hmdfs_update_upper_file(file, lower_file);
 	}
 	dput(parent);
 out_err:
