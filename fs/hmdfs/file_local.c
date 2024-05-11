@@ -20,17 +20,6 @@
 #include "hmdfs_share.h"
 #include "hmdfs_trace.h"
 
-static inline void update_upper_file(struct file *upper_file, struct file *lower_file)
-{
-	loff_t upper_size = i_size_read(upper_file->f_inode);
-	loff_t lower_size = i_size_read(lower_file->f_inode);
-
-	if (upper_file->f_inode->i_mapping && upper_size != lower_size) {
-		i_size_write(upper_file->f_inode, lower_size);
-		truncate_inode_pages(upper_file->f_inode->i_mapping, 0);
-	}
-}
-
 int hmdfs_file_open_local(struct inode *inode, struct file *file)
 {
 	int err = 0;
@@ -60,7 +49,7 @@ int hmdfs_file_open_local(struct inode *inode, struct file *file)
 	} else {
 		gfi->lower_file = lower_file;
 		file->private_data = gfi;
-		update_upper_file(file, lower_file);
+		hmdfs_update_upper_file(file, lower_file);
 		if (file->f_flags & (O_RDWR | O_WRONLY))
 			atomic_inc(&info->write_opened);
 	}

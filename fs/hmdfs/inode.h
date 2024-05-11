@@ -259,5 +259,6 @@ struct inode *hmdfs_iget5_locked_cloud(struct super_block *sb,
 				       struct hmdfs_peer *peer,
 				       struct hmdfs_lookup_cloud_ret *res);
 
+void hmdfs_update_upper_file(struct file *upper_file, struct file *lower_file);
 uint32_t make_ino_raw_cloud(uint8_t *cloud_id);
 #endif // INODE_H

@@ -343,3 +343,15 @@ struct inode *hmdfs_iget_locked_root(struct super_block *sb, uint64_t root_ino,
 
 	return iget5_locked(sb, ia.ino.ino_output, iget_test, iget_set, &ia);
 }
+
+
+void hmdfs_update_upper_file(struct file *upper_file, struct file *lower_file)
+{
+	loff_t upper_size = i_size_read(upper_file->f_inode);
+	loff_t lower_size = i_size_read(lower_file->f_inode);
+
+	if (upper_file->f_inode->i_mapping && upper_size != lower_size) {
+		i_size_write(upper_file->f_inode, lower_size);
+		truncate_inode_pages(upper_file->f_inode->i_mapping, 0);
+	}
+}
