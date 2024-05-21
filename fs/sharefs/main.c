@@ -186,6 +186,7 @@ static void __exit exit_sharefs_fs(void)
 
 module_init(init_sharefs_fs);
 module_exit(exit_sharefs_fs);
+
 MODULE_LICENSE("GPL V2");
 MODULE_AUTHOR("Jingjing Mao");
 MODULE_DESCRIPTION("Share File System");
