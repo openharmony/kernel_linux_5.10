@@ -157,8 +157,7 @@ static loff_t sharefs_file_llseek(struct file *file, loff_t offset, int whence)
 /*
  * Sharefs read_iter, redirect modified iocb to lower read_iter
  */
-ssize_t
-sharefs_read_iter(struct kiocb *iocb, struct iov_iter *iter)
+ssize_t sharefs_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 {
 	int err;
 	struct file *file = iocb->ki_filp;
@@ -188,8 +187,7 @@ out:
 /*
  * Sharefs write_iter, redirect modified iocb to lower write_iter
  */
-ssize_t
-sharefs_write_iter(struct kiocb *iocb, struct iov_iter *iter)
+ssize_t sharefs_write_iter(struct kiocb *iocb, struct iov_iter *iter)
 {
 	int err;
 	struct file *file = iocb->ki_filp;
