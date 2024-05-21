@@ -77,8 +77,7 @@ static int sharefs_getattr(const struct path *path, struct kstat *stat,
 	return ret;
 }
 
-static ssize_t
-sharefs_listxattr(struct dentry *dentry, char *buffer, size_t buffer_size)
+static ssize_t sharefs_listxattr(struct dentry *dentry, char *buffer, size_t buffer_size)
 {
 	int err;
 	struct dentry *lower_dentry;
