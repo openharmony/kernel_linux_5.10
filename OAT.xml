@@ -442,6 +442,11 @@
 				<filteritem type="filepath" name="tools/perf/tests/pe-file.exe.debug" desc="shield"/>
 				<filteritem type="filepath" name="arch/m68k/ifpsp060/ilsp.doc" desc="shield"/>
 				<filteritem type="filepath" name="arch/m68k/ifpsp060/isp.doc" desc="shield"/>
+				<filteritem type="filepath" name="arch/nios2/boot/compressed/vmlinux.scr" desc="shield"/>
+				<filteritem type="filepath" name="arch/sh/boot/romimage/vmlinux.scr" desc="shield"/>
+				<filteritem type="filepath" name="arch/h8300/boot/compressed/vmlinux.scr" desc="shield"/>
+				<filteritem type="filepath" name="arch/sh/boot/compressed/vmlinux.scr" desc="shield"/>
+				<filteritem type="filepath" name="arch/parisc/boot/compressed/vmlinux.scr" desc="shield"/>
             </filefilter>
         </filefilterlist>
     </oatconfig>
