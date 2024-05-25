@@ -473,6 +473,13 @@ config LOWPOWER_PROTOCOL
           This option enables the lowpower protocol feature.
           When enabled, the kernel will include support for CONFIG_LOWPOWER_PROTOCOL.
 
+config TCP_SOCK_DESTROY
+        bool "TCP socket destroy feature"
+        default n
+        help
+          This option enables the tcp sock destroy feature.
+          When enabled, the kernel will include support for CONFIG_TCP_SOCK_DESTROY.
+
 endif   # if NET
 
 # Used by archs to tell that they support BPF JIT compiler plus which flavour.

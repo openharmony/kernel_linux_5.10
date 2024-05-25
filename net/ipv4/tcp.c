@@ -4306,7 +4306,11 @@ int tcp_abort(struct sock *sk, int err)
 	}
 
 	/* Don't race with userspace socket closes such as tcp_close. */
-	lock_sock(sk);
+#ifdef CONFIG_TCP_SOCK_DESTROY
+	/* BPF context ensures sock locking. */
+	if (!has_current_bpf_ctx())
+#endif  /* CONFIG_TCP_SOCK_DESTROY */
+		lock_sock(sk);
 
 	if (sk->sk_state == TCP_LISTEN) {
 		tcp_set_state(sk, TCP_CLOSE);
@@ -4330,7 +4334,10 @@ int tcp_abort(struct sock *sk, int err)
 	bh_unlock_sock(sk);
 	local_bh_enable();
 	tcp_write_queue_purge(sk);
-	release_sock(sk);
+#ifdef CONFIG_TCP_SOCK_DESTROY
+	if (!has_current_bpf_ctx())
+#endif  /* CONFIG_TCP_SOCK_DESTROY */
+		release_sock(sk);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tcp_abort);
