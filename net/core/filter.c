@@ -78,6 +78,12 @@
 #include <linux/btf_ids.h>
 #include <net/tls.h>
 
+#ifdef CONFIG_TCP_SOCK_DESTROY
+#include <net/netfilter/ipv4/nf_reject.h>
+#include <net/netfilter/ipv6/nf_reject.h>
+#include <uapi/linux/netfilter.h>
+#endif
+
 static const struct bpf_func_proto *
 bpf_sk_base_func_proto(enum bpf_func_id func_id);
 
@@ -4616,6 +4622,57 @@ static const struct bpf_func_proto bpf_get_socket_cookie_proto = {
 	.arg1_type      = ARG_PTR_TO_CTX,
 };
 
+BPF_CALL_1(bpf_sock_tcp_send_reset, struct sk_buff *, skb)
+{
+#ifdef CONFIG_TCP_SOCK_DESTROY
+#ifdef CONFIG_NF_REJECT_IPV4
+	//destroy tcp
+	struct sock *sk = sk_to_full_sk(skb->sk);
+	if (sk->sk_protocol == IPPROTO_TCP) {
+		struct net *net = dev_net(skb->dev);
+		int hook = (1 << NF_INET_LOCAL_IN) | (1 << NF_INET_FORWARD) | (1 << NF_INET_LOCAL_OUT);
+		if (sk->sk_family == AF_INET) {
+			nf_send_reset(net, skb, hook);
+#ifdef CONFIG_NF_REJECT_IPV6
+		} else if (sk->sk_family == AF_INET6) {
+			nf_send_reset6(net, skb, hook);
+#endif
+		}
+	}
+#endif
+	return 0;
+#else
+	return -1;
+#endif
+}
+
+static const struct bpf_func_proto bpf_sock_tcp_send_reset_proto = {
+	.func           = bpf_sock_tcp_send_reset,
+	.gpl_only       = false,
+	.ret_type       = RET_INTEGER,
+	.arg1_type      = ARG_PTR_TO_CTX,
+};
+
+BPF_CALL_1(bpf_sock_destroy, struct sk_buff *, skb)
+{
+#ifdef CONFIG_TCP_SOCK_DESTROY
+	struct sock *sk = sk_to_full_sk(skb->sk);
+	if (!sk->sk_prot->diag_destroy || (sk->sk_protocol != IPPROTO_TCP)) {
+		return -EOPNOTSUPP;
+	}
+	return sk->sk_prot->diag_destroy(sk, ECONNABORTED);
+#else
+	return -1;
+#endif
+}
+
+static const struct bpf_func_proto bpf_sock_destroy_proto = {
+	.func           = bpf_sock_destroy,
+	.gpl_only       = false,
+	.ret_type       = RET_INTEGER,
+	.arg1_type      = ARG_PTR_TO_CTX,
+};
+
 BPF_CALL_1(bpf_get_socket_cookie_sock_addr, struct bpf_sock_addr_kern *, ctx)
 {
 	return __sock_gen_cookie(ctx->sk);
@@ -7094,6 +7151,8 @@ cg_skb_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
 		return &bpf_get_local_storage_proto;
 	case BPF_FUNC_sk_fullsock:
 		return &bpf_sk_fullsock_proto;
+	case BPF_FUNC_sock_tcp_send_reset:
+		return &bpf_sock_tcp_send_reset_proto;
 	case BPF_FUNC_sk_storage_get:
 		return &bpf_sk_storage_get_proto;
 	case BPF_FUNC_sk_storage_delete:
@@ -7126,6 +7185,8 @@ cg_skb_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
 	case BPF_FUNC_skb_ecn_set_ce:
 		return &bpf_skb_ecn_set_ce_proto;
 #endif
+	case BPF_FUNC_bpf_sock_destroy:
+		return &bpf_sock_destroy_proto;
 	default:
 		return sk_filter_func_proto(func_id, prog);
 	}

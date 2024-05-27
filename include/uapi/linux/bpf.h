@@ -3742,6 +3742,26 @@ union bpf_attr {
  * 	Return
  * 		The helper returns **TC_ACT_REDIRECT** on success or
  * 		**TC_ACT_SHOT** on error.
+ *
+ * int bpf_sock_tcp_send_reset(struct sk_buff *skb)
+ * 	Description
+ * 		Redirect If Netfirewall intercepts socket TCP interception,
+ * 		we need to actively send a reset packet to disconnect the current TCP connection.
+ * 	Return
+ * 		The helper returns Send packet reset sucess.
+ *
+ * int bpf_sock_destroy(struct sk_buff *skb)
+ * 	Description
+ * 		Destroy the given socket with ECONNABORTED error code.
+ * 		The function expects a non-NULL pointer to a socket, and invokes the
+ * 		protocol specific socket destroy handlers.
+ *
+ * 		The helper can only be called from BPF contexts that have acquired the socket
+ * 		locks.
+ * 	Return
+ * 		On error, may return EPROTONOSUPPORT, EINVAL.
+ * 		EPROTONOSUPPORT if protocol specific destroy handler is not supported.
+ * 		0 otherwise
  */
 #define __BPF_FUNC_MAPPER(FN)		\
 	FN(unspec),			\
@@ -3900,6 +3920,8 @@ union bpf_attr {
 	FN(per_cpu_ptr),		\
 	FN(this_cpu_ptr),		\
 	FN(redirect_peer),		\
+	FN(sock_tcp_send_reset),	\
+	FN(bpf_sock_destroy),		\
 	/* */
 
 /* integer value in 'imm' field of BPF_CALL instruction selects which helper
