@@ -4632,10 +4632,10 @@ BPF_CALL_1(bpf_sock_tcp_send_reset, struct sk_buff *, skb)
 		struct net *net = dev_net(skb->dev);
 		int hook = (1 << NF_INET_LOCAL_IN) | (1 << NF_INET_FORWARD) | (1 << NF_INET_LOCAL_OUT);
 		if (sk->sk_family == AF_INET) {
-			nf_send_reset(net, skb, hook);
+			nf_send_reset(net, sk, skb, hook);
 #ifdef CONFIG_NF_REJECT_IPV6
 		} else if (sk->sk_family == AF_INET6) {
-			nf_send_reset6(net, skb, hook);
+			nf_send_reset6(net, sk, skb, hook);
 #endif
 		}
 	}
