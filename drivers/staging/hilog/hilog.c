@@ -288,7 +288,8 @@ static void hilog_cover_old_log(size_t buf_len)
 		drop_log_lines++;
 		is_this_time_full = true;
 		is_last_time_full = true;
-		hilog_buffer_dec(sizeof(header) + header.len);
+		hilog_buffer_dec(sizeof(header));
+		hilog_buffer_dec(header.len);
 	}
 	if (is_last_time_full && !is_this_time_full) {
 		/* so we can only print one log if hilog ring buffer is full in a short time */
