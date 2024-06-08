@@ -29,7 +29,6 @@ static void sharefs_d_release(struct dentry *dentry)
 	 */
 	if (SHAREFS_D(dentry)) {
 		/* release and reset the lower paths */
-		sharefs_put_reset_lower_path(dentry);
 		free_dentry_private_data(dentry);
 	}
 	return;

@@ -31,6 +31,7 @@ static int sharefs_open(struct inode *inode, struct file *file)
 	int err = 0;
 	struct file *lower_file = NULL;
 	struct path lower_path;
+	struct inode *lower_inode = NULL;
 
 	/* don't open unhashed/deleted files */
 	if (d_unhashed(file->f_path.dentry)) {
@@ -66,7 +67,13 @@ static int sharefs_open(struct inode *inode, struct file *file)
 		kuid_t uid = inode->i_uid;
 		kgid_t gid = inode->i_gid;
 		mode_t mode = inode->i_mode;
-		fsstack_copy_attr_all(inode, sharefs_lower_inode(inode));
+		lower_inode = sharefs_get_lower_inode(file->f_path.dentry);
+		if (IS_ERR(lower_inode)) {
+			err = PTR_ERR(lower_inode);
+			goto out_err;
+		}
+		fsstack_copy_attr_all(inode, lower_inode);
+		iput(lower_inode);
 		inode->i_uid = uid;
 		inode->i_gid = gid;
 		inode->i_mode = mode;
