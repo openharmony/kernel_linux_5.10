@@ -117,17 +117,13 @@ static int sharefs_statfs(struct dentry *dentry, struct kstatfs *buf)
  */
 static void sharefs_evict_inode(struct inode *inode)
 {
-	struct inode *lower_inode;
-
 	truncate_inode_pages(&inode->i_data, 0);
 	clear_inode(inode);
 	/*
 	 * Decrement a reference to a lower_inode, which was incremented
 	 * by our read_inode when it was created initially.
 	 */
-	lower_inode = sharefs_lower_inode(inode);
 	sharefs_set_lower_inode(inode, NULL);
-	iput(lower_inode);
 }
 
 void __sharefs_log(const char *level, const bool ratelimited,
