@@ -640,11 +640,6 @@ void connection_handshake_recv_handler(struct connection *conn_impl, void *buf,
 		hmdfs_info(
 			"Recved handshake response: device_id = %llu, cmd->status = %hhu, tcp->fd = %d",
 			conn_impl->node->device_id, status, fd);
-		if (status == CONNECT_STAT_WAIT_REQUEST) {
-			// must be 10.1 device, no need to set ktls
-			connection_to_working(conn_impl->node);
-			goto out;
-		}
 
 		ret = hs_proc_msg_data(conn_impl, ops, data, data_len);
 		if (ret)
