@@ -91,7 +91,6 @@ extern int vfs_path_lookup(struct dentry *dentry, struct vfsmount *mnt,
 			   struct path *path);
 extern int sharefs_parse_options(struct sharefs_sb_info *sbi,
 				 const char *data);
-extern struct inode *sharefs_get_lower_inode(struct dentry *d);
 
 /*
  * inode to private data

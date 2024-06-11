@@ -141,7 +141,6 @@ struct inode *sharefs_iget(struct super_block *sb, struct inode *lower_inode)
 	fsstack_copy_inode_size(inode, lower_inode);
 
 	unlock_new_inode(inode);
-	iput(lower_inode);
 	return inode;
 }
 
@@ -215,7 +214,7 @@ static struct dentry *__sharefs_lookup(struct dentry *dentry,
 	d_set_d_op(dentry, &sharefs_dops);
 
 	if (IS_ROOT(dentry))
-		return NULL;
+		goto out;
 
 	name = dentry->d_name.name;
 
@@ -283,7 +282,6 @@ setup_lower:
 out:
 	if (err)
 		return ERR_PTR(err);
-	sharefs_put_lower_path(dentry, &lower_path);
 	return ret_dentry;
 }
 
