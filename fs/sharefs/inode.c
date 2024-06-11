@@ -14,39 +14,6 @@
 #include "authentication.h"
 #endif
 
-struct inode *sharefs_get_lower_inode(struct dentry *d)
-{
-	int err = 0;
-	struct path lower_path;
-	struct path lower_parent_dentry;
-	struct inode *lower_inode;
-	struct dentry *parent;
-
-	parent = dget_parent(d);
-	sharefs_get_lower_path(parent, &lower_parent_dentry);
-	err = vfs_path_lookup(lower_parent_dentry.dentry, lower_parent_dentry.mnt, 
-			      d->d_name.name, 0, &lower_path);
-	if (err)
-		goto out;
-
-	lower_inode = d_inode(lower_path.dentry);
-	if (!lower_inode) {
-		err = -ENOENT;
-	} else if (lower_inode->i_flags & S_DEAD) {
-		err = -ENOENT;
-	} else if (!igrab(lower_inode)) {
-		err = -ESTALE;
-	}
-
-	sharefs_put_lower_path(d, &lower_path);
-out:
-	sharefs_put_lower_path(parent, &lower_parent_dentry);
-	dput(parent);
-	if (err)
-		return ERR_PTR(err);
-	return lower_inode;
-}
-
 static const char *sharefs_get_link(struct dentry *dentry, struct inode *inode,
 				   struct delayed_call *done)
 {
@@ -118,10 +85,6 @@ static ssize_t sharefs_listxattr(struct dentry *dentry, char *buffer, size_t buf
 
 	sharefs_get_lower_path(dentry, &lower_path);
 	lower_dentry = lower_path.dentry;
-	if (d_inode(lower_dentry)->i_flags & S_DEAD) {
-		err = -ENOENT;
-		goto out;
-	}
 	if (!(d_inode(lower_dentry)->i_opflags & IOP_XATTR)) {
 		err = -EOPNOTSUPP;
 		goto out;
@@ -166,7 +129,6 @@ static int sharefs_create(struct inode *dir, struct dentry *dentry,
 	struct dentry *lower_parent_dentry = NULL;
 	struct path lower_path;
 	const struct cred *saved_cred = NULL;
-	struct inode *lower_inode = NULL;
 	__u16 child_perm;
 
 	saved_cred = sharefs_override_file_fsids(dir, &child_perm);
@@ -185,14 +147,8 @@ static int sharefs_create(struct inode *dir, struct dentry *dentry,
 	err = sharefs_interpose(dentry, dir->i_sb, &lower_path);
 	if (err)
 		goto out;
-	lower_inode = sharefs_get_lower_inode(dentry);
-	if (IS_ERR(lower_inode)) {
-		err = PTR_ERR(lower_inode);
-		goto out;
-	}
-	fsstack_copy_attr_times(dir, lower_inode);
+	fsstack_copy_attr_times(dir, sharefs_lower_inode(dir));
 	fsstack_copy_inode_size(dir, d_inode(lower_parent_dentry));
-	iput(lower_inode);
 
 out:
 	unlock_dir(lower_parent_dentry);
@@ -208,7 +164,6 @@ static int sharefs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	struct dentry *lower_parent_dentry = NULL;
 	struct path lower_path;
 	const struct cred *saved_cred = NULL;
-	struct inode *lower_inode = NULL;
 	__u16 child_perm;
 
 	saved_cred = sharefs_override_file_fsids(dir, &child_perm);
@@ -227,16 +182,11 @@ static int sharefs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	err = sharefs_interpose(dentry, dir->i_sb, &lower_path);
 	if (err)
 		goto out;
-	lower_inode = sharefs_get_lower_inode(dentry);
-	if (IS_ERR(lower_inode)) {
-		err = PTR_ERR(lower_inode);
-		goto out;
-	}
-	fsstack_copy_attr_times(dir, lower_inode);
+
+	fsstack_copy_attr_times(dir, sharefs_lower_inode(dir));
 	fsstack_copy_inode_size(dir, d_inode(lower_parent_dentry));
 	/* update number of links on parent directory */
-	set_nlink(dir, lower_inode->i_nlink);
-	iput(lower_inode);
+	set_nlink(dir, sharefs_lower_inode(dir)->i_nlink);
 
 out:
 	unlock_dir(lower_parent_dentry);
@@ -249,38 +199,24 @@ static int sharefs_unlink(struct inode *dir, struct dentry *dentry)
 {
 	int err;
 	struct dentry *lower_dentry = NULL;
-	struct inode *lower_dir_inode = NULL;
-	struct inode *lower_inode = NULL;
+	struct inode *lower_dir_inode = sharefs_lower_inode(dir);
 	struct dentry *lower_dir_dentry = NULL;
 	struct path lower_path;
 
-	lower_dir_inode = sharefs_get_lower_inode(dentry->d_parent);
-	if (IS_ERR(lower_dir_inode)) {
-		err = PTR_ERR(lower_dir_inode);
-		goto out;
-	}
-	lower_inode = sharefs_get_lower_inode(dentry);
-	if (IS_ERR(lower_inode)) {
-		err = PTR_ERR(lower_inode);
-		goto put_dir;
-	}
 	sharefs_get_lower_path(dentry, &lower_path);
 	lower_dentry = lower_path.dentry;
 	dget(lower_dentry);
 	lower_dir_dentry = lock_parent(lower_dentry);
 	err = vfs_unlink(lower_dir_inode, lower_dentry, NULL);
 	if (err)
-		goto put;
+		goto out;
 	fsstack_copy_attr_times(dir, lower_dir_inode);
 	fsstack_copy_inode_size(dir, lower_dir_inode);
-	set_nlink(dentry->d_inode, lower_inode->i_nlink);
+	set_nlink(dentry->d_inode,
+		  sharefs_lower_inode(dentry->d_inode)->i_nlink);
 	dentry->d_inode->i_ctime = dir->i_ctime;
 	d_drop(dentry);
 
-put:
-	iput(lower_dir_inode);
-put_dir:
-	iput(lower_inode);
 out:
 	unlock_dir(lower_dir_dentry);
 	dput(lower_dentry);
@@ -377,7 +313,7 @@ static int sharefs_setattr(struct dentry *dentry, struct iattr *ia)
 	int err;
 	struct dentry *lower_dentry;
 	struct inode *inode;
-	struct inode *lower_inode = NULL;
+	struct inode *lower_inode;
 	struct path lower_path;
 	struct iattr lower_ia;
 	
@@ -394,11 +330,7 @@ static int sharefs_setattr(struct dentry *dentry, struct iattr *ia)
 
 	sharefs_get_lower_path(dentry, &lower_path);
 	lower_dentry = lower_path.dentry;
-	lower_dentry = sharefs_get_lower_inode(dentry);
-	if (IS_ERR(lower_dentry)) {
-		err = PTR_ERR(lower_dentry);
-		goto out_err;
-	}
+	lower_inode = sharefs_lower_inode(inode);
 
 	/* prepare our own lower struct iattr (with the lower file) */
 	memcpy(&lower_ia, ia, sizeof(lower_ia));
@@ -451,7 +383,6 @@ static int sharefs_setattr(struct dentry *dentry, struct iattr *ia)
 	 */
 
 out:
-	iput(lower_inode);
 	sharefs_put_lower_path(dentry, &lower_path);
 out_err:
 	return err;
