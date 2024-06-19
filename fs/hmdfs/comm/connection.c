@@ -1241,21 +1241,24 @@ void head_put(struct hmdfs_msg_idr_head *head)
 	kref_put_lock(&head->ref, head_release, &head->peer->idr_lock);
 }
 
-struct hmdfs_msg_idr_head *hmdfs_find_msg_head(struct hmdfs_peer *peer, int id)
+struct hmdfs_msg_idr_head *hmdfs_find_msg_head(struct hmdfs_peer *peer,
+					int id, struct hmdfs_cmd operations)
 {
 	struct hmdfs_msg_idr_head *head = NULL;
 
 	spin_lock(&peer->idr_lock);
 	head = idr_find(&peer->msg_idr, id);
-	if (head)
+	if (head && head->send_cmd_operations.command == operations.command)
 		kref_get(&head->ref);
+	else
+		head = NULL;
 	spin_unlock(&peer->idr_lock);
 
 	return head;
 }
 
 int hmdfs_alloc_msg_idr(struct hmdfs_peer *peer, enum MSG_IDR_TYPE type,
-			void *ptr)
+			void *ptr, struct hmdfs_cmd operations)
 {
 	int ret = -EAGAIN;
 	struct hmdfs_msg_idr_head *head = ptr;
@@ -1270,6 +1273,7 @@ int hmdfs_alloc_msg_idr(struct hmdfs_peer *peer, enum MSG_IDR_TYPE type,
 		head->msg_id = ret;
 		head->type = type;
 		head->peer = peer;
+		head->send_cmd_operations = operations;
 		peer->msg_idr_process++;
 		ret = 0;
 	}
