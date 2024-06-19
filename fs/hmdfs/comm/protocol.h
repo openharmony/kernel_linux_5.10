@@ -60,6 +60,7 @@ enum MSG_IDR_TYPE {
 struct hmdfs_msg_idr_head {
 	__u32 type;
 	__u32 msg_id;
+	struct hmdfs_cmd send_cmd_operations;
 	struct kref ref;
 	struct hmdfs_peer *peer;
 };
