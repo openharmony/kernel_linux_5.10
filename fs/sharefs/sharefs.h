@@ -91,6 +91,9 @@ extern int vfs_path_lookup(struct dentry *dentry, struct vfsmount *mnt,
 			   struct path *path);
 extern int sharefs_parse_options(struct sharefs_sb_info *sbi,
 				 const char *data);
+extern int sharefs_get_lower_inode(struct dentry *d, struct inode **lower_path);
+extern int sharefs_get_lower_path(struct dentry *d, struct path *lower_path,
+				  bool try_to_create);
 
 /*
  * inode to private data
@@ -154,16 +157,18 @@ static inline void pathcpy(struct path *dst, const struct path *src)
 	dst->dentry = src->dentry;
 	dst->mnt = src->mnt;
 }
-/* Returns struct path.  Caller must path_put it. */
-static inline void sharefs_get_lower_path(const struct dentry *dent,
-					  struct path *lower_path)
+
+static inline void sharefs_get_lower_root_path(const struct dentry *dent,
+					       struct path *lower_root_path)
 {
-	spin_lock(&SHAREFS_D(dent)->lock);
-	pathcpy(lower_path, &SHAREFS_D(dent)->lower_path);
-	path_get(lower_path);
-	spin_unlock(&SHAREFS_D(dent)->lock);
-	return;
+	struct super_block *sb = dent->d_sb;
+
+	spin_lock(&SHAREFS_D(sb->s_root)->lock);
+	pathcpy(lower_root_path, &SHAREFS_D(sb->s_root)->lower_path);
+	path_get(lower_root_path);
+	spin_unlock(&SHAREFS_D(sb->s_root)->lock);
 }
+
 static inline void sharefs_put_lower_path(const struct dentry *dent,
 					  struct path *lower_path)
 {

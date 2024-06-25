@@ -141,6 +141,7 @@ struct inode *sharefs_iget(struct super_block *sb, struct inode *lower_inode)
 	fsstack_copy_inode_size(inode, lower_inode);
 
 	unlock_new_inode(inode);
+	iput(lower_inode);
 	return inode;
 }
 
@@ -199,14 +200,14 @@ int sharefs_interpose(struct dentry *dentry, struct super_block *sb,
  */
 static struct dentry *__sharefs_lookup(struct dentry *dentry,
 				      unsigned int flags,
-				      struct path *lower_parent_path)
+				      struct path *lower_parent_path,
+				      struct path *lower_path)
 {
 	int err = 0;
 	struct vfsmount *lower_dir_mnt;
 	struct dentry *lower_dir_dentry = NULL;
 	struct dentry *lower_dentry;
 	const char *name;
-	struct path lower_path;
 	struct qstr this;
 	struct dentry *ret_dentry = NULL;
 
@@ -214,7 +215,7 @@ static struct dentry *__sharefs_lookup(struct dentry *dentry,
 	d_set_d_op(dentry, &sharefs_dops);
 
 	if (IS_ROOT(dentry))
-		goto out;
+		return NULL;
 
 	name = dentry->d_name.name;
 
@@ -224,12 +225,12 @@ static struct dentry *__sharefs_lookup(struct dentry *dentry,
 
 	/* Use vfs_path_lookup to check if the dentry exists or not */
 	err = vfs_path_lookup(lower_dir_dentry, lower_dir_mnt, name, 0,
-			      &lower_path);
+			      lower_path);
 	/* no error: handle positive dentries */
 	if (!err) {
-		sharefs_set_lower_path(dentry, &lower_path);
+		sharefs_set_lower_path(dentry, lower_path);
 		ret_dentry =
-			__sharefs_interpose(dentry, dentry->d_sb, &lower_path);
+			__sharefs_interpose(dentry, dentry->d_sb, lower_path);
 		if (IS_ERR(ret_dentry)) {
 			err = PTR_ERR(ret_dentry);
 			 /* path_put underlying path on error */
@@ -267,9 +268,9 @@ static struct dentry *__sharefs_lookup(struct dentry *dentry,
 						lower_dentry, flags);
 
 setup_lower:
-	lower_path.dentry = lower_dentry;
-	lower_path.mnt = mntget(lower_dir_mnt);
-	sharefs_set_lower_path(dentry, &lower_path);
+	lower_path->dentry = lower_dentry;
+	lower_path->mnt = mntget(lower_dir_mnt);
+	sharefs_set_lower_path(dentry, lower_path);
 
 	/*
 	 * If the intent is to create a file, then don't return an error, so
@@ -290,14 +291,18 @@ struct dentry *sharefs_lookup(struct inode *dir, struct dentry *dentry,
 {
 	int err;
 	struct dentry *ret, *parent;
+	struct path lower_path;
 	struct path lower_parent_path;
 #ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
 	const struct cred *saved_cred = NULL;
 	__u16 permission;
 #endif
-
 	parent = dget_parent(dentry);
-	sharefs_get_lower_path(parent, &lower_parent_path);
+	err = sharefs_get_lower_path(parent, &lower_parent_path, 0);
+	if (err) {
+		dput(parent);
+		return ERR_PTR(err);
+	}
 #ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
 	saved_cred = sharefs_override_file_fsids(dir, &permission);
 	if (!saved_cred) {
@@ -305,14 +310,13 @@ struct dentry *sharefs_lookup(struct inode *dir, struct dentry *dentry,
 		goto out_err;
 	}
 #endif
-
 	/* allocate dentry private data.  We free it in ->d_release */
 	err = new_dentry_private_data(dentry);
 	if (err) {
 		ret = ERR_PTR(err);
 		goto out;
 	}
-	ret = __sharefs_lookup(dentry, flags, &lower_parent_path);
+	ret = __sharefs_lookup(dentry, flags, &lower_parent_path, &lower_path);
 	if (IS_ERR(ret)) {
 		sharefs_err("sharefs_lookup error!");
 		goto out;
@@ -327,6 +331,7 @@ struct dentry *sharefs_lookup(struct inode *dir, struct dentry *dentry,
 	fsstack_copy_attr_atime(d_inode(parent),
 				sharefs_lower_inode(d_inode(parent)));
 	fixup_perm_from_level(d_inode(parent), dentry);
+	sharefs_put_lower_path(dentry, &lower_path);
 out:
 #ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
 	sharefs_revert_fsids(saved_cred);

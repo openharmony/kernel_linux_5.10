@@ -181,6 +181,7 @@ static void __exit exit_sharefs_fs(void)
 	sharefs_destroy_inode_cache();
 	sharefs_destroy_dentry_cache();
 	unregister_filesystem(&sharefs_fs_type);
+	sharefs_exit_configfs();
 	pr_info("Completed sharefs module unload\n");
 }
 
