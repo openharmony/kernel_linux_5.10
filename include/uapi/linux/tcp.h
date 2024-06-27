@@ -128,17 +128,26 @@ enum {
 #define TCP_CM_INQ		TCP_INQ
 
 #define TCP_TX_DELAY		37	/* delay outgoing packets by XX usec */
-#define TCP_NB_URC		101	/* netibooster ultar-reliable connection */
 
 #define TCP_REPAIR_ON		1
 #define TCP_REPAIR_OFF		0
 #define TCP_REPAIR_OFF_NO_WP	-1	/* Turn off without window probes */
 
-struct tcp_nb_urc {
-	__u8	nb_urc_enabled;
-	__u8	tcp_syn_retries;
-	__u16	tcp_retries2;
-	__u32	nb_urc_rto_ms;
+#define TCP_NATA_URC		101	/* Nata ultar-reliable connection */
+struct tcp_nata_urc {
+	__u8	nata_urc_enabled;
+	__u8	nata_syn_retries;
+	__u16	nata_data_retries;
+	__u32	nata_rto_ms;
+};
+
+#define TCP_NATA_STL		102	/* Nata satellite connection */
+struct tcp_nata_stl {
+	__u8	nata_stl_enabled;
+	__u8	nata_syn_retries;
+	__u16	nata_data_retries;
+	__u32	nata_syn_rto_ms;
+	__u32	nata_data_rto_ms;
 };
 
 struct tcp_repair_opt {

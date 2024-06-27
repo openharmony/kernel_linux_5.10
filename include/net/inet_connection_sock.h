@@ -53,6 +53,14 @@ struct inet_connection_sock_af_ops {
 	void	    (*mtu_reduced)(struct sock *sk);
 };
 
+#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
+enum nata_retries_type_t {
+	NATA_NA = 0,
+	NATA_URC = 1,
+	NATA_STL = 2,
+};
+#endif
+
 /** inet_connection_sock - INET connection oriented sock
  *
  * @icsk_accept_queue:	   FIFO of established children
@@ -108,11 +116,13 @@ struct inet_connection_sock {
 	__u8			  icsk_syn_retries;
 	__u8			  icsk_probes_out;
 	__u16			  icsk_ext_hdr_len;
-#ifdef CONFIG_TCP_NB_URC
-	__u8			  icsk_nb_urc_enabled:1,
-				  icsk_nb_urc_reserved:7;
-	__u32			  icsk_nb_urc_rto;
-#endif /* CONFIG_TCP_NB_URC */
+#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
+	__u8			  nata_retries_enabled:1,
+				  nata_reserved:7;
+	__u8			  nata_retries_type;
+	__u32			  nata_syn_rto;
+	__u32			  nata_data_rto;
+#endif
 	struct {
 		__u8		  pending;	 /* ACK is pending			   */
 		__u8		  quick;	 /* Scheduled number of quick acks	   */
@@ -217,6 +227,24 @@ static inline void inet_csk_clear_xmit_timer(struct sock *sk, const int what)
 	}
 }
 
+#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
+static inline unsigned long get_nata_rto(struct sock *sk,
+					 struct inet_connection_sock *icsk,
+					 unsigned long when)
+{
+	if (!icsk->nata_retries_enabled)
+		return when;
+
+	if (icsk->nata_retries_type == NATA_STL)
+		return sk->sk_state == TCP_SYN_SENT ?
+		       icsk->nata_syn_rto : icsk->nata_data_rto;
+	if (icsk->nata_retries_type == NATA_URC)
+		return when >= icsk->nata_data_rto ? icsk->nata_data_rto : when;
+
+	return when;
+}
+#endif
+
 /*
  *	Reset the retransmission timer
  */
@@ -226,10 +254,9 @@ static inline void inet_csk_reset_xmit_timer(struct sock *sk, const int what,
 {
 	struct inet_connection_sock *icsk = inet_csk(sk);
 
-#ifdef CONFIG_TCP_NB_URC
-	if (icsk->icsk_nb_urc_enabled)
-		when = icsk->icsk_nb_urc_rto;
-#endif /* CONFIG_TCP_NB_URC */
+#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
+	when = get_nata_rto(sk, icsk, when);
+#endif
 
 	if (when > max_when) {
 		pr_debug("reset_xmit_timer: sk=%p %d when=0x%lx, caller=%p\n",

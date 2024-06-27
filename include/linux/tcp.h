@@ -365,9 +365,9 @@ struct tcp_sock {
 #else
 #define BPF_SOCK_OPS_TEST_FLAG(TP, ARG) 0
 #endif
-#ifdef CONFIG_TCP_NB_URC
-	u16 tcp_retries2;
-#endif /* CONFIG_TCP_NB_URC */
+#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
+	u16 nata_data_retries;
+#endif
 
 	u16 timeout_rehash;	/* Timeout-triggered rehash attempts */
 
