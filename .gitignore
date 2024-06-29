@@ -62,7 +62,6 @@ modules.order
 /vmlinux.symvers
 /vmlinux-gdb.py
 /vmlinuz
-/vmlinuz.efi
 /System.map
 /Module.markers
 /modules.builtin.modinfo

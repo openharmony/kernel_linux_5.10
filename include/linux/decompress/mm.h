@@ -31,7 +31,7 @@
 STATIC_RW_DATA unsigned long malloc_ptr;
 STATIC_RW_DATA int malloc_count;
 
-static void *malloc(size_t size)
+static void *malloc(int size)
 {
 	void *p;
 

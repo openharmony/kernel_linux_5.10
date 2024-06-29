@@ -25,7 +25,6 @@
 #include "hda_auto_parser.h"
 #include "hda_jack.h"
 #include "hda_generic.h"
-#include "hda_controller.h"
 
 /* keep halting ALC5505 DSP, for power saving */
 #define HALT_REALTEK_ALC5505
@@ -343,13 +342,6 @@ static void alc_fixup_micmute_led(struct hda_codec *codec,
 {
 	if (action == HDA_FIXUP_ACT_PROBE)
 		snd_hda_gen_add_micmute_led_cdev(codec, NULL);
-}
-
-int has_loongson_workaround(struct hda_codec *codec)
-{
-	struct azx *chip = bus_to_azx(&codec->bus->core);
-
-	return chip->driver_caps & AZX_DCAPS_LS2X_WORKAROUND;
 }
 
 /*
@@ -693,10 +685,10 @@ static int alc_auto_parse_customize_define(struct hda_codec *codec)
 		goto do_sku;
 	}
 
-	if (!codec->bus->pci && !has_loongson_workaround(codec))
+	if (!codec->bus->pci)
 		return -1;
 	ass = codec->core.subsystem_id & 0xffff;
-	if (codec->bus->pci && ass != codec->bus->pci->subsystem_device && (ass & 1))
+	if (ass != codec->bus->pci->subsystem_device && (ass & 1))
 		goto do_sku;
 
 	nid = 0x1d;

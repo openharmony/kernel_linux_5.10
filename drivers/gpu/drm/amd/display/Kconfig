@@ -26,7 +26,7 @@ config DRM_AMD_DC_DCN
 
 config DRM_AMD_DC_DCN3_0
         bool "DCN 3.0 family"
-        depends on DRM_AMD_DC && (X86 || LOONGARCH)
+        depends on DRM_AMD_DC && X86
         depends on DRM_AMD_DC_DCN
         help
             Choose this option if you want to have

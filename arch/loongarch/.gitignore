@@ -1,9 +1,0 @@
-*.lds
-*.raw
-calc_vmlinuz_load_addr
-elf-entry
-relocs
-vmlinux.*
-vmlinuz.*
-
-!kernel/vmlinux.lds.S

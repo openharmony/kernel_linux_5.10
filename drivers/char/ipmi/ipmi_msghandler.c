@@ -749,8 +749,7 @@ int ipmi_smi_watcher_register(struct ipmi_smi_watcher *watcher)
 	list_add(&watcher->link, &smi_watchers);
 
 	index = srcu_read_lock(&ipmi_interfaces_srcu);
-	list_for_each_entry_rcu(intf, &ipmi_interfaces, link,
-			lockdep_is_held(&smi_watchers_mutex)) {
+	list_for_each_entry_rcu(intf, &ipmi_interfaces, link) {
 		int intf_num = READ_ONCE(intf->intf_num);
 
 		if (intf_num == -1)
