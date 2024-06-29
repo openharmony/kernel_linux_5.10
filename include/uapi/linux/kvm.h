@@ -250,7 +250,6 @@ struct kvm_hyperv_exit {
 #define KVM_EXIT_ARM_NISV         28
 #define KVM_EXIT_X86_RDMSR        29
 #define KVM_EXIT_X86_WRMSR        30
-#define KVM_EXIT_LOONGARCH_IOCSR  36
 
 /* For KVM_EXIT_INTERNAL_ERROR */
 /* Emulate instruction failed. */
@@ -320,13 +319,6 @@ struct kvm_run {
 			__u32 len;
 			__u8  is_write;
 		} mmio;
-		/* KVM_EXIT_LOONGARCH_IOCSR */
-		struct {
-			__u64 phys_addr;
-			__u8  data[8];
-			__u32 len;
-			__u8  is_write;
-		} iocsr_io;
 		/* KVM_EXIT_HYPERCALL */
 		struct {
 			__u64 nr;
@@ -703,16 +695,6 @@ struct kvm_s390_irq_state {
 	__u32 reserved[4];  /* will stay unused for compatibility reasons */
 };
 
-struct kvm_loongarch_vcpu_state {
-	__u8 online_vcpus;
-	__u8 is_migrate;
-	__u32 cpu_freq;
-	__u32 count_ctl;
-	__u64 irq_pending;
-	__u64 irq_clear;
-	__u64 core_ext_ioisr[4];
-};
-
 /* for KVM_SET_GUEST_DEBUG */
 
 #define KVM_GUESTDBG_ENABLE		0x00000001
@@ -1071,9 +1053,6 @@ struct kvm_ppc_resize_hpt {
 #define KVM_CAP_X86_USER_SPACE_MSR 188
 #define KVM_CAP_X86_MSR_FILTER 189
 #define KVM_CAP_ENFORCE_PV_FEATURE_CPUID 190
-#define KVM_CAP_LOONGARCH_FPU 191
-#define KVM_CAP_LOONGARCH_LSX 192
-#define KVM_CAP_LOONGARCH_VZ 193
 
 #ifdef KVM_CAP_IRQ_ROUTING
 
@@ -1221,7 +1200,6 @@ struct kvm_dirty_tlb {
 #define KVM_REG_ARM64		0x6000000000000000ULL
 #define KVM_REG_MIPS		0x7000000000000000ULL
 #define KVM_REG_RISCV		0x8000000000000000ULL
-#define KVM_REG_LOONGARCH	0x9000000000000000ULL
 
 #define KVM_REG_SIZE_SHIFT	52
 #define KVM_REG_SIZE_MASK	0x00f0000000000000ULL
@@ -1578,13 +1556,6 @@ struct kvm_pv_cmd {
 
 /* Available with KVM_CAP_X86_MSR_FILTER */
 #define KVM_X86_SET_MSR_FILTER	_IOW(KVMIO,  0xc6, struct kvm_msr_filter)
-
-#define KVM_LOONGARCH_GET_VCPU_STATE    _IOR(KVMIO,   0xd0, struct kvm_loongarch_vcpu_state)
-#define KVM_LOONGARCH_SET_VCPU_STATE    _IOW(KVMIO,   0xd1, struct kvm_loongarch_vcpu_state)
-#define KVM_LOONGARCH_GET_CPUCFG        _IOR(KVMIO,   0xd2, struct kvm_cpucfg)
-#define KVM_LOONGARCH_GET_IOCSR     _IOR(KVMIO,   0xd3, struct kvm_iocsr_entry)
-#define KVM_LOONGARCH_SET_IOCSR		_IOW(KVMIO,   0xd4, struct kvm_iocsr_entry)
-#define KVM_LOONGARCH_SET_CPUCFG        _IOR(KVMIO,   0xd5, struct kvm_cpucfg)
 
 /* Secure Encrypted Virtualization command */
 enum sev_cmd_id {

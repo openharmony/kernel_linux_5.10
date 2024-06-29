@@ -156,7 +156,6 @@ static int arch__associate_ins_ops(struct arch* arch, const char *name, struct i
 #include "arch/powerpc/annotate/instructions.c"
 #include "arch/s390/annotate/instructions.c"
 #include "arch/sparc/annotate/instructions.c"
-#include "arch/loongarch/annotate/instructions.c"
 
 static struct arch architectures[] = {
 	{
@@ -199,13 +198,6 @@ static struct arch architectures[] = {
 	{
 		.name = "sparc",
 		.init = sparc__annotate_init,
-		.objdump = {
-			.comment_char = '#',
-		},
-	},
-	{
-		.name = "loongarch",
-		.init = loongarch__annotate_init,
 		.objdump = {
 			.comment_char = '#',
 		},

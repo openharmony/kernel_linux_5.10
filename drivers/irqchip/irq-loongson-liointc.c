@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  *  Copyright (C) 2020, Jiaxun Yang <jiaxun.yang@flygoat.com>
- *			Jianmin Lv <lvjianmin@loongson.cn>
  *  Loongson Local IO Interrupt Controller support
  */
 
@@ -17,13 +16,13 @@
 #include <linux/smp.h>
 #include <linux/irqchip/chained_irq.h>
 
-#include <loongson.h>
+#include <boot_param.h>
 
 #define LIOINTC_CHIP_IRQ	32
-#define LIOINTC_NUM_PARENT	4
+#define LIOINTC_NUM_PARENT 4
 
 #define LIOINTC_INTC_CHIP_START	0x20
-#define LIOINTC_MEM_SIZE	0x80
+
 #define LIOINTC_REG_INTC_STATUS	(LIOINTC_INTC_CHIP_START + 0x20)
 #define LIOINTC_REG_INTC_EN_STATUS	(LIOINTC_INTC_CHIP_START + 0x04)
 #define LIOINTC_REG_INTC_ENABLE	(LIOINTC_INTC_CHIP_START + 0x08)
@@ -41,12 +40,9 @@ struct liointc_handler_data {
 };
 
 struct liointc_priv {
-	struct fwnode_handle    	*domain_handle;
 	struct irq_chip_generic		*gc;
 	struct liointc_handler_data	handler[LIOINTC_NUM_PARENT];
 	u8				map_cache[LIOINTC_CHIP_IRQ];
-	u32				int_pol;
-	u32				int_edge;
 	bool				has_lpc_irq_errata;
 };
 
@@ -55,11 +51,11 @@ static void liointc_chained_handle_irq(struct irq_desc *desc)
 	struct liointc_handler_data *handler = irq_desc_get_handler_data(desc);
 	struct irq_chip *chip = irq_desc_get_chip(desc);
 	struct irq_chip_generic *gc = handler->priv->gc;
-	u32 pending, offset = cpu_logical_map(smp_processor_id()) * 8;
+	u32 pending;
 
 	chained_irq_enter(chip, desc);
 
-	pending = readl(gc->reg_base + LIOINTC_REG_INTC_STATUS + offset);
+	pending = readl(gc->reg_base + LIOINTC_REG_INTC_STATUS);
 
 	if (!pending) {
 		/* Always blame LPC IRQ if we have that bug */
@@ -127,14 +123,6 @@ static int liointc_set_type(struct irq_data *data, unsigned int type)
 	return 0;
 }
 
-static void liointc_suspend(struct irq_chip_generic *gc)
-{
-	struct liointc_priv *priv = gc->private;
-
-	priv->int_pol = readl(gc->reg_base + LIOINTC_REG_INTC_POL);
-	priv->int_edge = readl(gc->reg_base + LIOINTC_REG_INTC_EDGE);
-}
-
 static void liointc_resume(struct irq_chip_generic *gc)
 {
 	struct liointc_priv *priv = gc->private;
@@ -147,51 +135,72 @@ static void liointc_resume(struct irq_chip_generic *gc)
 	/* Restore map cache */
 	for (i = 0; i < LIOINTC_CHIP_IRQ; i++)
 		writeb(priv->map_cache[i], gc->reg_base + i);
-	writel(priv->int_pol, gc->reg_base + LIOINTC_REG_INTC_POL);
-	writel(priv->int_edge, gc->reg_base + LIOINTC_REG_INTC_EDGE);
 	/* Restore mask cache */
 	writel(gc->mask_cache, gc->reg_base + LIOINTC_REG_INTC_ENABLE);
 	irq_gc_unlock_irqrestore(gc, flags);
 }
 
-static int parent_irq[LIOINTC_NUM_PARENT];
-static u32 parent_int_map[LIOINTC_NUM_PARENT];
-static const char *const parent_names[] = {"int0", "int1", "int2", "int3"};
+static const char * const parent_names[] = {"int0", "int1", "int2", "int3"};
 
-static int liointc_init(phys_addr_t addr, unsigned long size, int revision,
-		struct fwnode_handle *domain_handle, struct device_node *node)
+int __init liointc_of_init(struct device_node *node,
+				struct device_node *parent)
 {
-	int i, err;
-	void __iomem *base;
-	struct irq_chip_type *ct;
 	struct irq_chip_generic *gc;
 	struct irq_domain *domain;
+	struct irq_chip_type *ct;
 	struct liointc_priv *priv;
+	void __iomem *base;
+	u32 of_parent_int_map[LIOINTC_NUM_PARENT];
+	int parent_irq[LIOINTC_NUM_PARENT];
+	bool have_parent = FALSE;
+	int sz, i, err = 0;
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
 
-	base = ioremap(addr, size);
-	if (!base)
+	base = of_iomap(node, 0);
+	if (!base) {
+		err = -ENODEV;
 		goto out_free_priv;
+	}
 
-	priv->domain_handle = domain_handle;
-
-	for (i = 0; i < LIOINTC_NUM_PARENT; i++)
-		priv->handler[i].parent_int_map = parent_int_map[i];
-
-	/* Setup IRQ domain */
-	domain = irq_domain_create_linear(domain_handle, LIOINTC_CHIP_IRQ,
-					&irq_generic_chip_ops, priv);
-	if (!domain) {
-		pr_err("loongson-liointc: cannot add IRQ domain\n");
+	for (i = 0; i < LIOINTC_NUM_PARENT; i++) {
+		parent_irq[i] = of_irq_get_byname(node, parent_names[i]);
+		if (parent_irq[i] > 0)
+			have_parent = TRUE;
+	}
+	if (!have_parent) {
+		err = -ENODEV;
 		goto out_iounmap;
 	}
 
-	err = irq_alloc_domain_generic_chips(domain, LIOINTC_CHIP_IRQ, 1,
-					(node ? node->full_name : "LIOINTC"),
-					handle_level_irq, 0, IRQ_NOPROBE, 0);
+	sz = of_property_read_variable_u32_array(node,
+						"loongson,parent_int_map",
+						&of_parent_int_map[0],
+						LIOINTC_NUM_PARENT,
+						LIOINTC_NUM_PARENT);
+	if (sz < 4) {
+		pr_err("loongson-liointc: No parent_int_map\n");
+		err = -ENODEV;
+		goto out_iounmap;
+	}
+
+	for (i = 0; i < LIOINTC_NUM_PARENT; i++)
+		priv->handler[i].parent_int_map = of_parent_int_map[i];
+
+	/* Setup IRQ domain */
+	domain = irq_domain_add_linear(node, 32,
+					&irq_generic_chip_ops, priv);
+	if (!domain) {
+		pr_err("loongson-liointc: cannot add IRQ domain\n");
+		err = -EINVAL;
+		goto out_iounmap;
+	}
+
+	err = irq_alloc_domain_generic_chips(domain, 32, 1,
+					node->full_name, handle_level_irq,
+					IRQ_NOPROBE, 0, 0);
 	if (err) {
 		pr_err("loongson-liointc: unable to register IRQ domain\n");
 		goto out_free_domain;
@@ -225,7 +234,6 @@ static int liointc_init(phys_addr_t addr, unsigned long size, int revision,
 	gc->private = priv;
 	gc->reg_base = base;
 	gc->domain = domain;
-	gc->suspend = liointc_suspend;
 	gc->resume = liointc_resume;
 
 	ct = gc->chip_types;
@@ -257,90 +265,8 @@ out_iounmap:
 out_free_priv:
 	kfree(priv);
 
-	return -EINVAL;
-}
-
-#ifdef CONFIG_OF
-
-static int __init liointc_of_init(struct device_node *node,
-				  struct device_node *parent)
-{
-	bool have_parent = FALSE;
-	int sz, i, index, revision, err = 0;
-	struct resource res;
-
-	if (!of_device_is_compatible(node, "loongson,liointc-2.0")) {
-		index = 0;
-		revision = 1;
-	} else {
-		index = of_property_match_string(node, "reg-names", "main");
-		revision = 2;
-	}
-
-	if (of_address_to_resource(node, index, &res))
-		return -EINVAL;
-
-	for (i = 0; i < LIOINTC_NUM_PARENT; i++) {
-		parent_irq[i] = of_irq_get_byname(node, parent_names[i]);
-		if (parent_irq[i] > 0)
-			have_parent = TRUE;
-	}
-	if (!have_parent)
-		return -ENODEV;
-
-	sz = of_property_read_variable_u32_array(node,
-						"loongson,parent_int_map",
-						&parent_int_map[0],
-						LIOINTC_NUM_PARENT,
-						LIOINTC_NUM_PARENT);
-	if (sz < 4) {
-		pr_err("loongson-liointc: No parent_int_map\n");
-		return -ENODEV;
-	}
-
-	err = liointc_init(res.start, resource_size(&res),
-			revision, of_node_to_fwnode(node), node);
-	if (err < 0)
-		return err;
-
-	return 0;
+	return err;
 }
 
 IRQCHIP_DECLARE(loongson_liointc_1_0, "loongson,liointc-1.0", liointc_of_init);
 IRQCHIP_DECLARE(loongson_liointc_1_0a, "loongson,liointc-1.0a", liointc_of_init);
-
-#endif
-
-#ifdef CONFIG_ACPI
-
-struct irq_domain *liointc_acpi_init(struct irq_domain *parent,
-				     struct acpi_madt_lio_pic *acpi_liointc)
-{
-	int ret;
-	struct fwnode_handle *domain_handle;
-
-	if (!acpi_liointc)
-		return NULL;
-
-	parent_int_map[0] = acpi_liointc->cascade_map[0];
-	parent_int_map[1] = acpi_liointc->cascade_map[1];
-
-	parent_irq[0] = irq_create_mapping(parent, acpi_liointc->cascade[0]);
-	if (!cpu_has_extioi)
-		parent_irq[1] = irq_create_mapping(parent, acpi_liointc->cascade[1]);
-
-	domain_handle = irq_domain_alloc_fwnode((phys_addr_t *)acpi_liointc);
-	if (!domain_handle) {
-		pr_err("Unable to allocate domain handle\n");
-		return NULL;
-	}
-
-	ret = liointc_init(acpi_liointc->address, acpi_liointc->size,
-			   1, domain_handle, NULL);
-	if (ret < 0)
-		return NULL;
-
-	return irq_find_matching_fwnode(domain_handle, DOMAIN_BUS_ANY);
-}
-
-#endif

@@ -301,12 +301,6 @@ struct irq_domain *msi_create_irq_domain(struct fwnode_handle *fwnode,
 	return domain;
 }
 
-/*
- * Return Val:
- * = 0: Success;
- * > 0: The modified nvec;
- * < 0: Error code.
- */
 int msi_domain_prepare_irqs(struct irq_domain *domain, struct device *dev,
 			    int nvec, msi_alloc_info_t *arg)
 {
@@ -413,10 +407,8 @@ int __msi_domain_alloc_irqs(struct irq_domain *domain, struct device *dev,
 	bool can_reserve;
 
 	ret = msi_domain_prepare_irqs(domain, dev, nvec, &arg);
-	if (ret < 0)
+	if (ret)
 		return ret;
-	if (ret > 0)
-		nvec = ret;
 
 	for_each_msi_entry(desc, dev) {
 		ops->set_desc(&arg, desc);

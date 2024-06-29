@@ -363,7 +363,6 @@ void efi_native_runtime_setup(void);
 #define LINUX_EFI_MEMRESERVE_TABLE_GUID		EFI_GUID(0x888eb0c6, 0x8ede, 0x4ff5,  0xa8, 0xf0, 0x9a, 0xee, 0x5c, 0xb9, 0x77, 0xc2)
 #define LINUX_EFI_INITRD_MEDIA_GUID		EFI_GUID(0x5568e427, 0x68fc, 0x4f3d,  0xac, 0x74, 0xca, 0x55, 0x52, 0x31, 0xcc, 0x68)
 #define LINUX_EFI_MOK_VARIABLE_TABLE_GUID	EFI_GUID(0xc451ed2b, 0x9694, 0x45d3,  0xba, 0xba, 0xed, 0x9f, 0x89, 0x88, 0xa3, 0x89)
-#define LINUX_EFI_BOOT_MEMMAP_GUID		EFI_GUID(0x800f683f, 0xd08b, 0x423a,  0xa2, 0x93, 0x96, 0x5c, 0x3c, 0x6f, 0xe2, 0xb4)
 
 /* OEM GUIDs */
 #define DELLEMC_EFI_RCI2_TABLE_GUID		EFI_GUID(0x2d9f28a2, 0xa886, 0x456a,  0x97, 0xa8, 0xf1, 0x1e, 0xf2, 0x4f, 0xf4, 0x55)
@@ -456,15 +455,6 @@ typedef union {
 	};
 	efi_system_table_32_t mixed_mode;
 } efi_system_table_t;
-
-struct efi_boot_memmap {
-	unsigned long		map_size;
-	unsigned long		desc_size;
-	u32			desc_ver;
-	unsigned long		map_key;
-	unsigned long		buff_size;
-	efi_memory_desc_t	map[];
-};
 
 /*
  * Architecture independent structure for describing a memory map for the
@@ -1287,10 +1277,5 @@ static inline struct efi_mokvar_table_entry *efi_mokvar_entry_find(
 	return NULL;
 }
 #endif
-
-struct linux_efi_initrd {
-	unsigned long	base;
-	unsigned long	size;
-};
 
 #endif /* _LINUX_EFI_H */
