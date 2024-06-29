@@ -460,11 +460,13 @@ void tcp_init_sock(struct sock *sk)
 
 	sk_sockets_allocated_inc(sk);
 	sk->sk_route_forced_caps = NETIF_F_GSO;
-#ifdef CONFIG_TCP_NB_URC
-	icsk->icsk_nb_urc_enabled = 0;
-	icsk->icsk_nb_urc_rto = TCP_TIMEOUT_INIT;
-	tp->tcp_retries2 = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
-#endif /* CONFIG_TCP_NB_URC */
+#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
+	icsk->nata_retries_enabled = 0;
+	icsk->nata_retries_type = NATA_NA;
+	icsk->nata_syn_rto = TCP_TIMEOUT_INIT;
+	icsk->nata_data_rto = TCP_TIMEOUT_INIT;
+	tp->nata_data_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
+#endif
 }
 EXPORT_SYMBOL(tcp_init_sock);
 
@@ -2849,11 +2851,13 @@ int tcp_disconnect(struct sock *sk, int flags)
 	icsk->icsk_rto = TCP_TIMEOUT_INIT;
 	icsk->icsk_rto_min = TCP_RTO_MIN;
 	icsk->icsk_delack_max = TCP_DELACK_MAX;
-#ifdef CONFIG_TCP_NB_URC
-	icsk->icsk_nb_urc_enabled = 0;
-	icsk->icsk_nb_urc_rto = TCP_TIMEOUT_INIT;
-	tp->tcp_retries2 = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
-#endif /* CONFIG_TCP_NB_URC */
+#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
+	icsk->nata_retries_enabled = 0;
+	icsk->nata_retries_type = NATA_NA;
+	icsk->nata_syn_rto = TCP_TIMEOUT_INIT;
+	icsk->nata_data_rto = TCP_TIMEOUT_INIT;
+	tp->nata_data_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
+#endif
 	tp->snd_ssthresh = TCP_INFINITE_SSTHRESH;
 	tp->snd_cwnd = TCP_INIT_CWND;
 	tp->snd_cwnd_cnt = 0;
@@ -3192,40 +3196,89 @@ int tcp_sock_set_keepcnt(struct sock *sk, int val)
 }
 EXPORT_SYMBOL(tcp_sock_set_keepcnt);
 
-#ifdef CONFIG_TCP_NB_URC
-#define NB_URC_RTO_MS_MIN 200 // 200ms
-#define NB_URC_RTO_MS_MAX (120000) // 12s
-#define NB_URC_RTO_MS_TO_HZ 1000
-
-static int tcp_set_nb_urc(struct sock *sk, sockptr_t optval, int optlen)
+#ifdef CONFIG_TCP_NATA_URC
+#define NATA_URC_RTO_MS_MIN   200      // 200ms
+#define NATA_URC_RTO_MS_MAX   120000   // 12s
+#define NATA_URC_RTO_MS_TO_HZ 1000
+static int tcp_set_nata_urc(struct sock *sk, sockptr_t optval, int optlen)
 {
-	int err = 0;
-	struct tcp_nb_urc opt = {};
+	int err = -EINVAL;
+	struct tcp_nata_urc opt = {};
 	struct inet_connection_sock *icsk = inet_csk(sk);
 
-	if (optlen != sizeof(struct tcp_nb_urc)) {
-		err = -EINVAL;
+	if (optlen != sizeof(struct tcp_nata_urc))
 		return err;
+
+	if (copy_from_sockptr(&opt, optval, optlen))
+		return err;
+
+	if (!opt.nata_urc_enabled) {
+		icsk->nata_retries_enabled = opt.nata_urc_enabled;
+		icsk->nata_retries_type = NATA_NA;
+		icsk->icsk_syn_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_syn_retries);
+		tcp_sk(sk)->nata_data_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
+		icsk->nata_syn_rto = TCP_TIMEOUT_INIT;
+		icsk->nata_data_rto = TCP_TIMEOUT_INIT;
+		return 0;
 	}
 
-	if (copy_from_sockptr(&opt, optval, sizeof(struct tcp_nb_urc))) {
-		err = -EINVAL;
+	if (opt.nata_rto_ms < NATA_URC_RTO_MS_MIN ||
+	    opt.nata_rto_ms > NATA_URC_RTO_MS_MAX )
 		return err;
-	}
 
-	if (opt.nb_urc_rto_ms < NB_URC_RTO_MS_MIN || opt.nb_urc_rto_ms > NB_URC_RTO_MS_MAX) {
-		err = -EINVAL;
-		return err;
-	}
-
-	icsk->icsk_syn_retries = opt.tcp_syn_retries;
-	tcp_sk(sk)->tcp_retries2 = opt.tcp_retries2;
-	icsk->icsk_nb_urc_enabled = opt.nb_urc_enabled;
-	icsk->icsk_nb_urc_rto = opt.nb_urc_rto_ms * HZ / NB_URC_RTO_MS_TO_HZ;
-
-	return err;
+	icsk->nata_retries_enabled = opt.nata_urc_enabled;
+	icsk->nata_retries_type = NATA_URC;
+	icsk->icsk_syn_retries = opt.nata_syn_retries;
+	tcp_sk(sk)->nata_data_retries = opt.nata_data_retries;
+	icsk->nata_data_rto = opt.nata_rto_ms * HZ / NATA_URC_RTO_MS_TO_HZ;
+	icsk->nata_syn_rto = icsk->nata_data_rto;
+	return 0;
 }
-#endif /* CONFIG_TCP_NB_URC */
+#endif
+
+#ifdef CONFIG_TCP_NATA_STL
+#define NATA_STL_SYN_RTO_MS_MIN  800    // 800ms
+#define NATA_STL_DATA_RTO_MS_MIN 1800   // 1800ms
+#define NATA_STL_RTO_MS_MAX      120000 // 12s
+#define NATA_STL_RTO_MS_TO_HZ    1000
+static int tcp_set_nata_stl(struct sock *sk, sockptr_t optval, int optlen)
+{
+	int err = -EINVAL;
+	struct tcp_nata_stl opt = {};
+	struct inet_connection_sock *icsk = inet_csk(sk);
+
+	if (optlen != sizeof(struct tcp_nata_stl))
+		return err;
+
+	if (copy_from_sockptr(&opt, optval, optlen))
+		return err;
+
+	if (!opt.nata_stl_enabled) {
+		icsk->nata_retries_enabled = opt.nata_stl_enabled;
+		icsk->nata_retries_type = NATA_NA;
+		icsk->icsk_syn_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_syn_retries);
+		tcp_sk(sk)->nata_data_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
+		icsk->nata_syn_rto = TCP_TIMEOUT_INIT;
+		icsk->nata_data_rto = TCP_TIMEOUT_INIT;
+		return 0;
+	}
+
+	if ((opt.nata_syn_rto_ms < NATA_STL_SYN_RTO_MS_MIN ||
+	     opt.nata_syn_rto_ms > NATA_STL_RTO_MS_MAX ||
+	     opt.nata_data_rto_ms < NATA_STL_DATA_RTO_MS_MIN ||
+	     opt.nata_data_rto_ms > NATA_STL_RTO_MS_MAX))
+		return err;
+
+	icsk->nata_retries_enabled = opt.nata_stl_enabled;
+	icsk->nata_retries_type = NATA_STL;
+	icsk->icsk_syn_retries = opt.nata_syn_retries;
+	tcp_sk(sk)->nata_data_retries = opt.nata_data_retries;
+	icsk->nata_syn_rto = opt.nata_syn_rto_ms * HZ / NATA_STL_RTO_MS_TO_HZ;
+	icsk->nata_data_rto = opt.nata_data_rto_ms * HZ / NATA_STL_RTO_MS_TO_HZ;
+	return 0;
+}
+#endif
+
 /*
  *	Socket option code for TCP.
  */
@@ -3532,11 +3585,16 @@ static int do_tcp_setsockopt(struct sock *sk, int level, int optname,
 			tcp_enable_tx_delay();
 		WRITE_ONCE(tp->tcp_tx_delay, val);
 		break;
-#ifdef CONFIG_TCP_NB_URC
-	case TCP_NB_URC:
-		err = tcp_set_nb_urc(sk, optval, optlen);
+#ifdef CONFIG_TCP_NATA_URC
+	case TCP_NATA_URC:
+		err = tcp_set_nata_urc(sk, optval, optlen);
 		break;
-#endif /* CONFIG_TCP_NB_URC */
+#endif
+#ifdef CONFIG_TCP_NATA_STL
+	case TCP_NATA_STL:
+		err = tcp_set_nata_stl(sk, optval, optlen);
+		break;
+#endif
 	default:
 		err = -ENOPROTOOPT;
 		break;
