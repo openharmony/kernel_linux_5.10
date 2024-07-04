@@ -20,6 +20,9 @@
 
 #include <net/inet_sock.h>
 #include <net/request_sock.h>
+#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
+#include <net/nata.h>
+#endif
 
 /* Cancel timers, when they are not required. */
 #undef INET_CSK_CLEAR_TIMERS
@@ -52,14 +55,6 @@ struct inet_connection_sock_af_ops {
 	void	    (*addr2sockaddr)(struct sock *sk, struct sockaddr *);
 	void	    (*mtu_reduced)(struct sock *sk);
 };
-
-#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
-enum nata_retries_type_t {
-	NATA_NA = 0,
-	NATA_URC = 1,
-	NATA_STL = 2,
-};
-#endif
 
 /** inet_connection_sock - INET connection oriented sock
  *
@@ -119,6 +114,7 @@ struct inet_connection_sock {
 #if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
 	__u8			  nata_retries_enabled:1,
 				  nata_reserved:7;
+	__u8			  nata_data_retries;
 	__u8			  nata_retries_type;
 	__u32			  nata_syn_rto;
 	__u32			  nata_data_rto;
@@ -230,18 +226,28 @@ static inline void inet_csk_clear_xmit_timer(struct sock *sk, const int what)
 #if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
 static inline unsigned long get_nata_rto(struct sock *sk,
 					 struct inet_connection_sock *icsk,
-					 unsigned long when)
+					 unsigned long when, const int what)
 {
-	if (!icsk->nata_retries_enabled)
+	unsigned long when_nata;
+	unsigned long shift;
+
+	if (!icsk->nata_retries_enabled || what != ICSK_TIME_RETRANS)
 		return when;
 
 	if (icsk->nata_retries_type == NATA_STL)
 		return sk->sk_state == TCP_SYN_SENT ?
-		       icsk->nata_syn_rto : icsk->nata_data_rto;
-	if (icsk->nata_retries_type == NATA_URC)
-		return when >= icsk->nata_data_rto ? icsk->nata_data_rto : when;
+			icsk->nata_syn_rto : icsk->nata_data_rto;
 
-	return when;
+	when_nata = icsk->nata_data_rto;
+	if (icsk->icsk_retransmits > icsk->nata_data_retries) {
+		shift = icsk->icsk_retransmits - icsk->nata_data_retries;
+		if (shift > MAX_SHIFT) {
+			when_nata = NATA_RTO_MAX;
+		} else {
+			when_nata <<= shift;
+		}
+	}
+	return min(when, when_nata);
 }
 #endif
 
@@ -255,7 +261,7 @@ static inline void inet_csk_reset_xmit_timer(struct sock *sk, const int what,
 	struct inet_connection_sock *icsk = inet_csk(sk);
 
 #if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
-	when = get_nata_rto(sk, icsk, when);
+	when = get_nata_rto(sk, icsk, when, what);
 #endif
 
 	if (when > max_when) {

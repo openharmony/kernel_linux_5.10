@@ -2415,16 +2415,4 @@ static inline u64 tcp_transmit_time(const struct sock *sk)
 	return 0;
 }
 
-#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
-static inline int tcp_get_retries_limit(struct sock *sk)
-{
-	struct tcp_sock *tp = tcp_sk(sk);
-
-	if (inet_csk(sk)->nata_retries_enabled)
-		return tp->nata_data_retries;
-
-	return READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
-}
-#endif
-
 #endif	/* _TCP_H */

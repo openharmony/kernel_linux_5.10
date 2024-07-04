@@ -4122,11 +4122,7 @@ void tcp_send_probe0(struct sock *sk)
 
 	icsk->icsk_probes_out++;
 	if (err <= 0) {
-#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
-		if (icsk->icsk_backoff < tcp_get_retries_limit(sk))
-#else
 		if (icsk->icsk_backoff < READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2))
-#endif
 			icsk->icsk_backoff++;
 		timeout = tcp_probe0_when(sk, TCP_RTO_MAX);
 	} else {
