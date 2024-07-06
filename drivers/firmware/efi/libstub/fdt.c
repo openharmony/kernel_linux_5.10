@@ -223,7 +223,6 @@ static
 efi_status_t allocate_new_fdt_and_exit_boot(void *handle,
 					    efi_loaded_image_t *image,
 					    unsigned long *new_fdt_addr,
-					    unsigned long max_addr,
 					    char *cmdline_ptr)
 {
 	unsigned long desc_size;
@@ -272,9 +271,9 @@ efi_status_t allocate_new_fdt_and_exit_boot(void *handle,
 	if (!fdt_addr)
 		efi_info("Generating empty DTB\n");
 
-	efi_info("Exiting boot services and installing virtual address map...\n");
+	efi_info("Exiting boot services...\n");
 
-	status = efi_allocate_pages(MAX_FDT_SIZE, new_fdt_addr, max_addr);
+	status = efi_allocate_pages(MAX_FDT_SIZE, new_fdt_addr, ULONG_MAX);
 	if (status != EFI_SUCCESS) {
 		efi_err("Unable to allocate memory for new device tree.\n");
 		goto fail;
@@ -314,16 +313,16 @@ efi_status_t allocate_new_fdt_and_exit_boot(void *handle,
 
 			/*
 			 * Set the virtual address field of all
-			 * EFI_MEMORY_RUNTIME entries to 0. This will signal
-			 * the incoming kernel that no virtual translation has
-			 * been installed.
+			 * EFI_MEMORY_RUNTIME entries to U64_MAX. This will
+			 * signal the incoming kernel that no virtual
+			 * translation has been installed.
 			 */
 			for (l = 0; l < priv.boot_memmap->map_size;
 			     l += priv.boot_memmap->desc_size) {
 				p = (void *)priv.boot_memmap->map + l;
 
 				if (p->attribute & EFI_MEMORY_RUNTIME)
-					p->virt_addr = 0;
+					p->virt_addr = U64_MAX;
 			}
 		}
 		return EFI_SUCCESS;
@@ -336,8 +335,8 @@ fail_free_new_fdt:
 
 fail:
 	efi_free(fdt_size, fdt_addr);
-
-	efi_bs_call(free_pool, priv.runtime_map);
+	if (!efi_novamap)
+		efi_bs_call(free_pool, priv.runtime_map);
 
 	return EFI_LOAD_ERROR;
 }
@@ -349,7 +348,6 @@ efi_status_t efi_boot_kernel(void *handle, efi_loaded_image_t *image,
 	efi_status_t status;
 
 	status = allocate_new_fdt_and_exit_boot(handle, image, &fdt_addr,
-						efi_get_max_fdt_addr(image_addr),
 						cmdline_ptr);
 	if (status != EFI_SUCCESS) {
 		efi_err("Failed to update FDT and exit boot services\n");
