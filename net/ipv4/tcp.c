@@ -282,6 +282,9 @@
 #ifdef CONFIG_LOWPOWER_PROTOCOL
 #include <net/lowpower_protocol.h>
 #endif /* CONFIG_LOWPOWER_PROTOCOL */
+#if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
+#include <net/nata.h>
+#endif
 
 DEFINE_PER_CPU(unsigned int, tcp_orphan_count);
 EXPORT_PER_CPU_SYMBOL_GPL(tcp_orphan_count);
@@ -465,7 +468,7 @@ void tcp_init_sock(struct sock *sk)
 	icsk->nata_retries_type = NATA_NA;
 	icsk->nata_syn_rto = TCP_TIMEOUT_INIT;
 	icsk->nata_data_rto = TCP_TIMEOUT_INIT;
-	tp->nata_data_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
+	icsk->nata_data_retries = 0;
 #endif
 }
 EXPORT_SYMBOL(tcp_init_sock);
@@ -2856,7 +2859,7 @@ int tcp_disconnect(struct sock *sk, int flags)
 	icsk->nata_retries_type = NATA_NA;
 	icsk->nata_syn_rto = TCP_TIMEOUT_INIT;
 	icsk->nata_data_rto = TCP_TIMEOUT_INIT;
-	tp->nata_data_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
+	icsk->nata_data_retries = 0;
 #endif
 	tp->snd_ssthresh = TCP_INFINITE_SSTHRESH;
 	tp->snd_cwnd = TCP_INIT_CWND;
@@ -3195,89 +3198,6 @@ int tcp_sock_set_keepcnt(struct sock *sk, int val)
 	return 0;
 }
 EXPORT_SYMBOL(tcp_sock_set_keepcnt);
-
-#ifdef CONFIG_TCP_NATA_URC
-#define NATA_URC_RTO_MS_MIN   200      // 200ms
-#define NATA_URC_RTO_MS_MAX   120000   // 12s
-#define NATA_URC_RTO_MS_TO_HZ 1000
-static int tcp_set_nata_urc(struct sock *sk, sockptr_t optval, int optlen)
-{
-	int err = -EINVAL;
-	struct tcp_nata_urc opt = {};
-	struct inet_connection_sock *icsk = inet_csk(sk);
-
-	if (optlen != sizeof(struct tcp_nata_urc))
-		return err;
-
-	if (copy_from_sockptr(&opt, optval, optlen))
-		return err;
-
-	if (!opt.nata_urc_enabled) {
-		icsk->nata_retries_enabled = opt.nata_urc_enabled;
-		icsk->nata_retries_type = NATA_NA;
-		icsk->icsk_syn_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_syn_retries);
-		tcp_sk(sk)->nata_data_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
-		icsk->nata_syn_rto = TCP_TIMEOUT_INIT;
-		icsk->nata_data_rto = TCP_TIMEOUT_INIT;
-		return 0;
-	}
-
-	if (opt.nata_rto_ms < NATA_URC_RTO_MS_MIN ||
-	    opt.nata_rto_ms > NATA_URC_RTO_MS_MAX )
-		return err;
-
-	icsk->nata_retries_enabled = opt.nata_urc_enabled;
-	icsk->nata_retries_type = NATA_URC;
-	icsk->icsk_syn_retries = opt.nata_syn_retries;
-	tcp_sk(sk)->nata_data_retries = opt.nata_data_retries;
-	icsk->nata_data_rto = opt.nata_rto_ms * HZ / NATA_URC_RTO_MS_TO_HZ;
-	icsk->nata_syn_rto = icsk->nata_data_rto;
-	return 0;
-}
-#endif
-
-#ifdef CONFIG_TCP_NATA_STL
-#define NATA_STL_SYN_RTO_MS_MIN  800    // 800ms
-#define NATA_STL_DATA_RTO_MS_MIN 1800   // 1800ms
-#define NATA_STL_RTO_MS_MAX      120000 // 12s
-#define NATA_STL_RTO_MS_TO_HZ    1000
-static int tcp_set_nata_stl(struct sock *sk, sockptr_t optval, int optlen)
-{
-	int err = -EINVAL;
-	struct tcp_nata_stl opt = {};
-	struct inet_connection_sock *icsk = inet_csk(sk);
-
-	if (optlen != sizeof(struct tcp_nata_stl))
-		return err;
-
-	if (copy_from_sockptr(&opt, optval, optlen))
-		return err;
-
-	if (!opt.nata_stl_enabled) {
-		icsk->nata_retries_enabled = opt.nata_stl_enabled;
-		icsk->nata_retries_type = NATA_NA;
-		icsk->icsk_syn_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_syn_retries);
-		tcp_sk(sk)->nata_data_retries = READ_ONCE(sock_net(sk)->ipv4.sysctl_tcp_retries2);
-		icsk->nata_syn_rto = TCP_TIMEOUT_INIT;
-		icsk->nata_data_rto = TCP_TIMEOUT_INIT;
-		return 0;
-	}
-
-	if ((opt.nata_syn_rto_ms < NATA_STL_SYN_RTO_MS_MIN ||
-	     opt.nata_syn_rto_ms > NATA_STL_RTO_MS_MAX ||
-	     opt.nata_data_rto_ms < NATA_STL_DATA_RTO_MS_MIN ||
-	     opt.nata_data_rto_ms > NATA_STL_RTO_MS_MAX))
-		return err;
-
-	icsk->nata_retries_enabled = opt.nata_stl_enabled;
-	icsk->nata_retries_type = NATA_STL;
-	icsk->icsk_syn_retries = opt.nata_syn_retries;
-	tcp_sk(sk)->nata_data_retries = opt.nata_data_retries;
-	icsk->nata_syn_rto = opt.nata_syn_rto_ms * HZ / NATA_STL_RTO_MS_TO_HZ;
-	icsk->nata_data_rto = opt.nata_data_rto_ms * HZ / NATA_STL_RTO_MS_TO_HZ;
-	return 0;
-}
-#endif
 
 /*
  *	Socket option code for TCP.
