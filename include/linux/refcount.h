@@ -274,12 +274,12 @@ static inline __must_check bool __refcount_sub_and_test(int i, refcount_t *r, in
 	if (oldp)
 		*oldp = old;
 
-	if (old == i) {
+	if (old > 0 && old == i) {
 		smp_acquire__after_ctrl_dep();
 		return true;
 	}
 
-	if (unlikely(old < 0 || old - i < 0))
+	if (unlikely(old <= 0 || old - i < 0))
 		refcount_warn_saturate(r, REFCOUNT_SUB_UAF);
 
 	return false;
