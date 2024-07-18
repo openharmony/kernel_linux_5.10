@@ -40,11 +40,8 @@ extern void sharefs_exit_configfs(void);
 
 void sharefs_root_inode_perm_init(struct inode *root_inode);
 void fixup_perm_from_level(struct inode *dir, struct dentry *dentry);
-#ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
-const struct cred *sharefs_override_file_fsids(struct inode *dir,
-				 __u16 *_perm);
+const struct cred *sharefs_override_file_fsids(struct inode *dir);
 void sharefs_revert_fsids(const struct cred *old_cred);
-#endif
 
 static inline bool is_read_only_auth(__u16 perm)
 {

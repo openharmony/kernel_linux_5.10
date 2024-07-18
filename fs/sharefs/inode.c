@@ -141,9 +141,8 @@ static int sharefs_create(struct inode *dir, struct dentry *dentry,
 	struct path lower_path;
 	const struct cred *saved_cred = NULL;
 	struct inode *lower_inode = NULL;
-	__u16 child_perm;
 
-	saved_cred = sharefs_override_file_fsids(dir, &child_perm);
+	saved_cred = sharefs_override_file_fsids(dir);
 	if (!saved_cred) {
 		err = -ENOMEM;
 		return err;
@@ -188,9 +187,8 @@ static int sharefs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	struct path lower_path;
 	const struct cred *saved_cred = NULL;
 	struct inode *lower_inode = NULL;
-	__u16 child_perm;
 
-	saved_cred = sharefs_override_file_fsids(dir, &child_perm);
+	saved_cred = sharefs_override_file_fsids(dir);
 	if (!saved_cred) {
 		err = -ENOMEM;
 		return err;
