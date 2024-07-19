@@ -295,7 +295,6 @@ struct dentry *sharefs_lookup(struct inode *dir, struct dentry *dentry,
 	struct path lower_parent_path;
 #ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
 	const struct cred *saved_cred = NULL;
-	__u16 permission;
 #endif
 	parent = dget_parent(dentry);
 	err = sharefs_get_lower_path(parent, &lower_parent_path, 0);
@@ -304,7 +303,7 @@ struct dentry *sharefs_lookup(struct inode *dir, struct dentry *dentry,
 		return ERR_PTR(err);
 	}
 #ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
-	saved_cred = sharefs_override_file_fsids(dir, &permission);
+	saved_cred = sharefs_override_file_fsids(dir);
 	if (!saved_cred) {
 		ret = ERR_PTR(-ENOMEM);
 		goto out_err;

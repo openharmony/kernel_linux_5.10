@@ -10,6 +10,7 @@
  */
 
 #include "sharefs.h"
+#include "authentication.h"
 
 /*
  * returns: 0: tell VFS to invalidate dentry in share directory
@@ -82,24 +83,34 @@ int sharefs_get_lower_path(struct dentry *d, struct path *lower_path,
 			   bool try_to_create)
 {
 	int err = -ENOMEM;
-	char *path_buf = kmalloc(PATH_MAX, GFP_KERNEL);
+	char *path_buf;
 	char *path_name = NULL;
 	struct path lower_root_path;
+	const struct cred *saved_cred = NULL;
 
+	if (unlikely(!d))
+		goto out;
+
+	path_buf = kmalloc(PATH_MAX, GFP_KERNEL);
 	if (unlikely(!path_buf)) 
 		goto out;
-	if (unlikely(!d))
-		goto out_free;
 	path_name = dentry_path_raw(d, path_buf, PATH_MAX);
 	if (IS_ERR(path_name)) {
 		err = PTR_ERR(path_name);
 		goto out_free;
 	}
+
 	sharefs_get_lower_root_path(d, &lower_root_path);
+	saved_cred = sharefs_override_file_fsids(d_inode(lower_root_path.dentry));
+	if (!saved_cred) {
+		sharefs_put_lower_path(d, &lower_root_path);
+		goto out_free;
+	}
 	spin_lock(&SHAREFS_D(d)->lock);
 	err = vfs_path_lookup(lower_root_path.dentry, lower_root_path.mnt,
 		path_name, LOOKUP_CREATE, lower_path);
 	spin_unlock(&SHAREFS_D(d)->lock);
+	sharefs_revert_fsids(saved_cred);
 	sharefs_put_lower_path(d, &lower_root_path);
 
 	if (err != -ENOENT || !try_to_create)
