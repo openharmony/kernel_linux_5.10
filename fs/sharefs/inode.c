@@ -14,53 +14,6 @@
 #include "authentication.h"
 #endif
 
-static const char *sharefs_get_link(struct dentry *dentry, struct inode *inode,
-				   struct delayed_call *done)
-{
-	DEFINE_DELAYED_CALL(lower_done);
-	int err;
-	struct dentry *lower_dentry;
-	struct path lower_path;
-	char *buf;
-	const char *lower_link;
-
-	if (!dentry)
-		return ERR_PTR(-ECHILD);
-
-	err = sharefs_get_lower_path(dentry, &lower_path, 0);
-	if (err)
-		return ERR_PTR(err);
-	lower_dentry = lower_path.dentry;
-
-	/*
-	 * get link from lower file system, but use a separate
-	 * delayed_call callback.
-	 */
-	lower_link = vfs_get_link(lower_dentry, &lower_done);
-	if (IS_ERR(lower_link)) {
-		buf = ERR_CAST(lower_link);
-		goto out;
-	}
-
-	/*
-	 * we can't pass lower link up: have to make private copy and
-	 * pass that.
-	 */
-	buf = kstrdup(lower_link, GFP_KERNEL);
-	do_delayed_call(&lower_done);
-	if (!buf) {
-		buf = ERR_PTR(-ENOMEM);
-		goto out;
-	}
-
-	fsstack_copy_attr_atime(d_inode(dentry), d_inode(lower_dentry));
-
-	set_delayed_call(done, kfree_link, buf);
-out:
-	sharefs_put_lower_path(dentry, &lower_path);
-	return buf;
-}
-
 static int sharefs_getattr(const struct path *path, struct kstat *stat,
 			   u32 request_mask, unsigned int flags)
 {
@@ -452,7 +405,7 @@ out_err:
 const struct inode_operations sharefs_symlink_iops = {
 	.permission	= sharefs_permission,
 	.getattr	= sharefs_getattr,
-	.get_link	= sharefs_get_link,
+	.get_link	= NULL,
 	.listxattr	= sharefs_listxattr,
 };
 
