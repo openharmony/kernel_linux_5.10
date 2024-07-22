@@ -286,6 +286,10 @@ static struct dentry *hmdfs_lookup_cloud_dentry(struct inode *parent_inode,
 		if (in_share_dir(child_dentry))
 			gdi->file_type = HM_SHARE;
 		inode = fill_inode_cloud(sb, lookup_result, parent_inode);
+		if (IS_ERR(inode)) {
+			ret = ERR_CAST(inode);
+			goto out;
+		}
 
 		check_and_fixup_ownership_remote(parent_inode,
 						 inode,
@@ -297,6 +301,7 @@ static struct dentry *hmdfs_lookup_cloud_dentry(struct inode *parent_inode,
 		ret = ERR_PTR(-ENOENT);
 	}
 
+out:
 	kfree(lookup_result);
 	return ret;
 }
