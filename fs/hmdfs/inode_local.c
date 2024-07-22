@@ -38,7 +38,6 @@ int init_hmdfs_dentry_info(struct hmdfs_sb_info *sbi, struct dentry *dentry,
 
 	if (!info)
 		return -ENOMEM;
-	dentry->d_fsdata = info;
 	INIT_LIST_HEAD(&info->cache_list_head);
 	INIT_LIST_HEAD(&info->remote_cache_list_head);
 	spin_lock_init(&info->cache_list_lock);
@@ -47,6 +46,7 @@ int init_hmdfs_dentry_info(struct hmdfs_sb_info *sbi, struct dentry *dentry,
 	spin_lock_init(&info->lock);
 	info->dentry_type = dentry_type;
 	info->device_id = 0;
+	dentry->d_fsdata = info;
 	if (dentry_type == HMDFS_LAYER_ZERO ||
 	    dentry_type == HMDFS_LAYER_FIRST_DEVICE ||
 	    dentry_type == HMDFS_LAYER_SECOND_LOCAL ||
