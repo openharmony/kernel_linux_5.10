@@ -46,7 +46,10 @@ struct code_sign_enable_arg {
 	__u32 sig_size;
 	__u32 __reserved1;
 	__u64 sig_ptr;
-	__u64 __reserved2[7];
+	__u64 __reserved2[5];
+	__u32 __reserved3;
+	__u32 pgtypeinfo_size;
+	__u64 pgtypeinfo_off;
 	__u64 tree_offset;
 	__u64 root_hash_ptr;
 	__u64 data_size;
