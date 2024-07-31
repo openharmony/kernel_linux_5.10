@@ -63,6 +63,8 @@ struct sharefs_sb_info {
 	struct super_block *lower_sb;
 	/* multi user */
 	unsigned int user_id;
+	bool override;
+	bool override_support_delete;
 };
 
 /* operations vectors defined in specific files */
