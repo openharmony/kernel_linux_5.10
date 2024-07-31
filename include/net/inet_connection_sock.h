@@ -231,8 +231,18 @@ static inline unsigned long get_nata_rto(struct sock *sk,
 	unsigned long when_nata;
 	unsigned long shift;
 
-	if (!icsk->nata_retries_enabled || what != ICSK_TIME_RETRANS)
+	if (!icsk->nata_retries_enabled)
 		return when;
+
+	switch (what) {
+	case ICSK_TIME_RETRANS:
+	case ICSK_TIME_EARLY_RETRANS:
+	case ICSK_TIME_LOSS_PROBE:
+	case ICSK_TIME_REO_TIMEOUT:
+		break;
+	default:
+		return when;
+	}
 
 	if (icsk->nata_retries_type == NATA_STL)
 		return sk->sk_state == TCP_SYN_SENT ?
