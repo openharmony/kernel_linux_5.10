@@ -601,9 +601,9 @@ lookup_err:
 
 	hmdfs_drop_remote_cache_dents(dentry->d_parent);
 	d_drop(dentry);
-	hmdfs_put_lower_path(&lower_path);
 
 path_err:
+	hmdfs_put_lower_path(&lower_path);
 	if (error)
 		hmdfs_clear_drop_flag(dentry->d_parent);
 	return error;
