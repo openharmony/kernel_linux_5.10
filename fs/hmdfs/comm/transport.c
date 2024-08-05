@@ -235,7 +235,7 @@ static int tcp_recvpage_tls(struct connection *connect,
 			      node->device_id, rd_err);
 
 	async_work = (struct hmdfs_async_work *)hmdfs_find_msg_head(node,
-						le32_to_cpu(recv->msg_id));
+						le32_to_cpu(recv->msg_id), recv->operations);
 	if (!async_work || !cancel_delayed_work(&async_work->d_work))
 		goto out;
 
