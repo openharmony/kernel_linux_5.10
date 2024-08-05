@@ -118,6 +118,8 @@ source "fs/crypto/Kconfig"
 
 source "fs/code_sign/Kconfig"
 
+source "fs/dec/Kconfig"
+
 source "fs/verity/Kconfig"
 
 source "fs/notify/Kconfig"
