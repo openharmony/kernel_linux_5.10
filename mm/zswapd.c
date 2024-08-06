@@ -195,8 +195,8 @@ void zswapd_status_show(struct seq_file *m)
 {
 	unsigned int buffers = calc_sys_cur_avail_buffers();
 
-	seq_printf(m, "buffer_size:%u\n", buffers);
-	seq_printf(m, "recent_refault:%llu\n", anon_refault_ratio);
+	seq_printf(m, "buffer_size %u\n", buffers);
+	seq_printf(m, "recent_refault %llu\n", anon_refault_ratio);
 }
 
 pid_t get_zswapd_pid(void)
