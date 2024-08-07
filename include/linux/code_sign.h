@@ -23,9 +23,10 @@ struct code_sign_descriptor {
 	__u8 root_hash[64];	/* Merkle tree root hash */
 	__u8 salt[32];		/* salt prepended to each hashed block */
 	__u32 flags;
-	__u32 __reserved1;   /* must be 0 */
+	__u32 pgtypeinfo_size;   /* size of page type info (in number of btis) */
 	__u64 tree_offset;  /* merkle tree offset in file */
-	__u8 __reserved2[127]; /* must be 0's */
+	__u64 pgtypeinfo_off;  /* offset of page type info */
+	__u8 __reserved2[119]; /* must be 0's */
 	__u8 cs_version;    /* code sign version */
 	__u8 signature[];	/* optional PKCS#7 signature */
 };

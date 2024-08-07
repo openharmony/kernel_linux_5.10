@@ -281,6 +281,11 @@ int fsverity_enable_with_descriptor(struct file *filp,
 	struct fsverity_info *vi;
 	int err;
 
+	if (vops == NULL) {
+		fsverity_err(inode, "current filesystem doesn't support fs-verity.");
+		return -ENOTTY;
+	}
+
 	/* Prepare the Merkle tree parameters */
 	err = fsverity_init_merkle_tree_params(&params, inode,
 					       desc->hash_algorithm,
@@ -564,6 +569,8 @@ static int code_sign_init_descriptor(struct inode *inode,
 	desc->data_size = cpu_to_le64(arg->data_size);
 	desc->tree_offset = cpu_to_le64(arg->tree_offset);
 	desc->cs_version = arg->cs_version;
+	desc->pgtypeinfo_size = cpu_to_le32(arg->pgtypeinfo_size);
+	desc->pgtypeinfo_off = cpu_to_le64(arg->pgtypeinfo_off);
 
 	/* Get root hash if a Merkle tree carried in file */
 	if (!IS_INSIDE_TREE(desc))
@@ -605,9 +612,6 @@ int fsverity_ioctl_enable_code_sign(struct file *filp, const void __user *uarg)
 	if (arg.version != 1)
 		return -EINVAL;
 
-	if (arg.cs_version != 1)
-		return -EINVAL;
-
 	if (arg.__reserved1 ||
 	    memchr_inv(arg.__reserved2, 0, sizeof(arg.__reserved2)))
 		return -EINVAL;
@@ -626,6 +630,9 @@ int fsverity_ioctl_enable_code_sign(struct file *filp, const void __user *uarg)
 
 	if (arg.sig_size > FS_VERITY_MAX_SIGNATURE_SIZE)
 		return -EMSGSIZE;
+	
+	if (arg.pgtypeinfo_off > arg.data_size - arg.pgtypeinfo_size)
+		return -EINVAL;
 
 	return check_file_and_enable_verity(filp, (struct fsverity_enable_arg *)&arg);
 }
