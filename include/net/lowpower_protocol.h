@@ -26,5 +26,6 @@ int tcp_ack_num(struct sock *sk);
 bool netfilter_bypass_enable(struct net *net, struct sk_buff *skb,
 			     int (*fun)(struct net *, struct sock *, struct sk_buff *),
 			     int *ret);
+bool dpa_uid_match(uid_t kuid);
 #endif /* CONFIG_LOWPOWER_PROTOCOL */
 #endif /* __LOWPOWER_PROTOCOL_H */
