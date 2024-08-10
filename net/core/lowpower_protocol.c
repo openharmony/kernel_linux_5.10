@@ -21,7 +21,7 @@
 static atomic_t g_foreground_uid = ATOMIC_INIT(FOREGROUND_UID_INIT);
 #define OPT_LEN 3
 #define TO_DECIMAL 10
-#define DPA_UID_LIST_CNT_MAX 500
+#define LIST_MAX 500
 #define DECIMAL_CHAR_NUM 10 // u32 decimal characters (4,294,967,295)
 static DEFINE_RWLOCK(g_dpa_rwlock);
 static u32 g_dpa_uid_list_cnt;
@@ -70,33 +70,53 @@ static int dpa_uid_show(struct seq_file *seq, void *v)
 	struct dpa_node *tmp_node = NULL;
 
 	read_lock(&g_dpa_rwlock);
+	seq_printf(seq, "uid list num: %u\n", g_dpa_uid_list_cnt);
 	list_for_each_entry_safe(node, tmp_node, &g_dpa_uid_list, list_node)
 		seq_printf(seq, "%u\n", node->uid);
 	read_unlock(&g_dpa_rwlock);
 	return 0;
 }
 
+// echo "add xx yy zz" > /proc/net/dpa_uid
+// echo "del xx yy zz" > /proc/net/dpa_uid
 static int dpa_uid_add(uid_t uid);
 static int dpa_uid_del(uid_t uid);
-static uid_t get_dpa_uid_from_buf(char *buf, size_t size);
+static int get_dpa_uids(char *buf, size_t size, u32 *uid_list,
+			u32 index_max, u32 *index);
 static int dpa_uid_write(struct file *file, char *buf, size_t size)
 {
-	uid_t uid = get_dpa_uid_from_buf(buf, size);
+	u32 dpa_list[LIST_MAX];
+	u32 index = 0;
+	int ret = -EINVAL;
+	int i;
 
-	if (!uid)
-		return -EINVAL;
+	if (get_dpa_uids(buf, size, dpa_list, LIST_MAX, &index) != 0) {
+		pr_err("[dpa-uid-cfg] fail to parse dpa uids\n");
+		return ret;
+	}
 
 	if (strncmp(buf, "add", OPT_LEN) == 0) {
-		return dpa_uid_add(uid);
+		for (i = 0; i < index; i++) {
+			ret = dpa_uid_add(dpa_list[i]);
+			if (ret != 0) {
+				pr_err("[dpa-uid-cfg] add fail, index=%u\n", i);
+				return ret;
+			}
+		}
 	} else if (strncmp(buf, "del", OPT_LEN) == 0) {
-		return dpa_uid_del(uid);
+		for (i = 0; i < index; i++) {
+			ret = dpa_uid_del(dpa_list[i]);
+			if (ret != 0) {
+				pr_err("[dpa-uid-cfg] del fail, index=%u\n", i);
+				return ret;
+			}
+		}
 	} else {
-		pr_err("[dpa-uid-cfg] opt unknown\n");
-		return -EINVAL;
+		pr_err("[dpa-uid-cfg] cmd unknown\n");
 	}
+	return ret;
 }
 
-// echo "add xx" > /proc/net/dpa_uid
 static int dpa_uid_add(uid_t uid)
 {
 	bool exist = false;
@@ -104,7 +124,7 @@ static int dpa_uid_add(uid_t uid)
 	struct dpa_node *tmp_node = NULL;
 
 	write_lock(&g_dpa_rwlock);
-	if (g_dpa_uid_list_cnt >= DPA_UID_LIST_CNT_MAX) {
+	if (g_dpa_uid_list_cnt >= LIST_MAX) {
 		write_unlock(&g_dpa_rwlock);
 		return -EFBIG;
 	}
@@ -128,7 +148,6 @@ static int dpa_uid_add(uid_t uid)
 	return 0;
 }
 
-// echo "del xx" > /proc/net/dpa_uid
 static int dpa_uid_del(uid_t uid)
 {
 	struct dpa_node *node = NULL;
@@ -147,55 +166,105 @@ static int dpa_uid_del(uid_t uid)
 	return 0;
 }
 
-static uid_t get_dpa_uid_from_buf(char *buf, size_t size)
+static uid_t parse_single_uid(char *begin, char *end)
 {
-	char *args = NULL;
-	char *args1 = NULL;
+	char *cur = NULL;
+	uid_t uid = 0;
+	u32 len = end - begin;
+
+	// u32 decimal characters (4,294,967,295)
+	if (len > DECIMAL_CHAR_NUM) {
+		pr_err("[dpa-uid-cfg] single uid len(%u) overflow\n", len);
+		return uid;
+	}
+
+	cur = begin;
+	while (cur < end) {
+		if (*cur < '0' || *cur > '9') {
+			pr_err("[dpa-uid-cfg] invalid character '%c'\n", *cur);
+			return uid;
+		}
+		cur++;
+	}
+
+	uid = simple_strtoul(begin, &begin, TO_DECIMAL);
+	if (!begin || !uid) {
+		pr_err("[dpa-uid-cfg] fail to change str to data");
+		return uid;
+	}
+
+	return uid;
+}
+
+static int parse_uids(char *args, u32 args_len, u32 *uid_list,
+		      u32 index_max, u32 *index)
+{
+	char *begin = args;
+	char *end = strchr(args, ' ');
 	uid_t uid = 0;
 	u32 len = 0;
+
+	while (end) {
+		// cur decimal characters cnt + ' ' or '\n'
+		len += end - begin + 1;
+		if (len > args_len || *index > index_max) {
+			pr_err("[dpa-uid-cfg] str len(%u) or index(%u) overflow\n",
+			       len, *index);
+			return -EINVAL;
+		}
+
+		uid = parse_single_uid(begin, end);
+		if (!uid)
+			return -EINVAL;
+		uid_list[(*index)++] = uid;
+		begin = ++end; // next decimal characters (skip ' ' or '\n')
+		end = strchr(begin, ' ');
+	}
+
+	// find last uid characters
+	end = strchr(begin, '\n');
+	if (!end) {
+		pr_err("[dpa-uid-cfg] last character is not '\\n'");
+		return -EINVAL;
+	}
+
+	// cur decimal characters cnt + ' ' or '\n'
+	len += end - begin + 1;
+	if (len > args_len || *index > index_max) {
+		pr_err("[dpa-uid-cfg] str len(%u) or last index(%u) overflow\n",
+			len, *index);
+		return -EINVAL;
+	}
+	uid = parse_single_uid(begin, end);
+	if (!uid)
+		return -EINVAL;
+	uid_list[(*index)++] = uid;
+	return 0;
+}
+
+static int get_dpa_uids(char *buf, size_t size, u32 *uid_list,
+			u32 index_max, u32 *index)
+{
+	char *args = NULL;
 	u32 opt_len;
 	u32 data_len;
 
-	// split into command and argslist
+	// split into cmd and argslist
 	args = strchr(buf, ' ');
 	if (!args) {
-		pr_err("[dpa-uid-cfg] no space separator\n");
-		return uid;
+		pr_err("[dpa-uid-cfg] cmd fmt invalid\n");
+		return -EINVAL;
 	}
 
-	// opt cmd is add or del, len is 3
+	// cmd is add or del, len is 3
 	opt_len = args - buf;
 	if (opt_len != OPT_LEN) {
-		pr_err("[dpa-uid-cfg] opt len invalid\n");
-		return uid;
+		pr_err("[dpa-uid-cfg] cmd len invalid\n");
+		return -EINVAL;
 	}
 
 	data_len = size - (opt_len + 1);
-	if (data_len > DECIMAL_CHAR_NUM + 1) {
-		pr_err("[dpa-uid-cfg] characters len(%u) out of scope\n", data_len);
-		return uid;
-	}
-
-	// u32 decimal characters (4,294,967,295)
-	args1 = ++args;
-	while (*args1 != '\n' && len < data_len) {
-		if (*args1 < '0' || *args1 > '9') {
-			pr_err("[dpa-uid-cfg] uid contains invalid character '%c'\n", *args1);
-			return uid;
-		}
-		args1++;
-		len++;
-	}
-
-	if (*args1 != '\n') {
-		pr_err("[dpa-uid-cfg] u32 characters len(%u) out of scope\n", len);
-		return uid;
-	}
-
-	uid = simple_strtoul(args, &args, TO_DECIMAL);
-	if (!args || !uid)
-		pr_err("[dpa-uid-cfg] fail to change uid-str to uid-data\n");
-	return uid;
+	return parse_uids(args + 1, data_len, uid_list, index_max, index);
 }
 
 bool dpa_uid_match(uid_t kuid)
