@@ -29,6 +29,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/suspend.h>
 #include <linux/switchtec.h>
+#include <linux/vgaarb.h>
 #include <asm/dma.h>	/* isa_dma_bridge_buggy */
 #include "pci.h"
 
@@ -205,6 +206,50 @@ static void quirk_mmio_always_on(struct pci_dev *dev)
 }
 DECLARE_PCI_FIXUP_CLASS_EARLY(PCI_ANY_ID, PCI_ANY_ID,
 				PCI_CLASS_BRIDGE_HOST, 8, quirk_mmio_always_on);
+
+static void aspeed_fixup_vgaarb(struct pci_dev *pdev)
+{
+	struct pci_dev *bridge;
+	struct pci_bus *bus;
+	struct pci_dev *vdevp = NULL;
+	u16 config;
+
+	bus = pdev->bus;
+	bridge = bus->self;
+
+	/* Is VGA routed to us? */
+	if (bridge && (pci_is_bridge(bridge))) {
+		pci_read_config_word(bridge, PCI_BRIDGE_CONTROL, &config);
+
+		/* Yes, this bridge is PCI bridge-to-bridge spec compliant,
+		 *  just return!
+		 */
+		if (config & PCI_BRIDGE_CTL_VGA)
+			return;
+
+		dev_warn(&pdev->dev, "VGA bridge control is not enabled\n");
+	}
+
+	/* Just return if the system already have a default device */
+	if (vga_default_device())
+		return;
+
+	/* No default vga device */
+	while ((vdevp = pci_get_class(PCI_CLASS_DISPLAY_VGA << 8, vdevp))) {
+		if (vdevp->vendor != 0x1a03) {
+			/* Have other vga devcie in the system, do nothing */
+			dev_info(&pdev->dev, "Another boot vga device: 0x%x:0x%x\n",
+				vdevp->vendor, vdevp->device);
+			return;
+		}
+	}
+
+	vga_set_default_device(pdev);
+
+	dev_info(&pdev->dev, "Boot vga device set as 0x%x:0x%x\n",
+			pdev->vendor, pdev->device);
+}
+DECLARE_PCI_FIXUP_CLASS_FINAL(0x1a03, 0x2000, PCI_CLASS_DISPLAY_VGA, 8, aspeed_fixup_vgaarb);
 
 /*
  * The Mellanox Tavor device gives false positive parity errors.  Mark this

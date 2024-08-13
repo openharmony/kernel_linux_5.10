@@ -55,6 +55,10 @@
 #include <asm/fpu/api.h>
 #define DC_FP_START() kernel_fpu_begin()
 #define DC_FP_END() kernel_fpu_end()
+#elif defined(CONFIG_LOONGARCH)
+#include <asm/fpu.h>
+#define DC_FP_START() kernel_fpu_begin()
+#define DC_FP_END() kernel_fpu_end()
 #elif defined(CONFIG_PPC64)
 #include <asm/switch_to.h>
 #include <asm/cputable.h>
