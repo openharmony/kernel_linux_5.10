@@ -304,12 +304,15 @@ int access_tokenid_get_permission(struct file *file, void __user *uarg)
 	struct token_perm_node *parent_node = NULL;
 	read_lock(&token_rwlock);
 	find_node_by_token(g_token_perm_root, get_perm_data.token, &target_node, &parent_node);
-	read_unlock(&token_rwlock);
-	if (target_node == NULL)
+	if (target_node == NULL) {
+		read_unlock(&token_rwlock);
 		return -ENODATA;
+	}
 
 	uint32_t bit_idx = get_perm_data.op_code % UINT32_T_BITS;
-	return (target_node->perm_data.perm[idx] & ((uint32_t)0x01 << bit_idx)) >> bit_idx;
+	int ret = (target_node->perm_data.perm[idx] & ((uint32_t)0x01 << bit_idx)) >> bit_idx;
+	read_unlock(&token_rwlock);
+	return ret;
 }
 
 typedef int (*access_token_id_func)(struct file *file, void __user *arg);
