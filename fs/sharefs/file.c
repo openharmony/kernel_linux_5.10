@@ -31,7 +31,6 @@ static int sharefs_open(struct inode *inode, struct file *file)
 	int err = 0;
 	struct file *lower_file = NULL;
 	struct path lower_path;
-	struct inode *lower_inode = NULL;
 
 	/* don't open unhashed/deleted files */
 	if (d_unhashed(file->f_path.dentry)) {
@@ -47,9 +46,7 @@ static int sharefs_open(struct inode *inode, struct file *file)
 	}
 
 	/* open lower object and link sharefs's file struct to lower's */
-	err = sharefs_get_lower_path(file->f_path.dentry, &lower_path, 0);
-	if (err)
-		goto out_free;
+	sharefs_get_lower_path(file->f_path.dentry, &lower_path);
 	lower_file = dentry_open(&lower_path, file->f_flags, current_cred());
 	path_put(&lower_path);
 	if (IS_ERR(lower_file)) {
@@ -63,21 +60,16 @@ static int sharefs_open(struct inode *inode, struct file *file)
 		sharefs_set_lower_file(file, lower_file);
 	}
 
-out_free:
 	if (err) {
 		kfree(SHAREFS_F(file));
 	} else {
 		kuid_t uid = inode->i_uid;
 		kgid_t gid = inode->i_gid;
 		mode_t mode = inode->i_mode;
-		err = sharefs_get_lower_inode(file->f_path.dentry, &lower_inode);
-		if (err)
-			goto out_err;
-		fsstack_copy_attr_all(inode, lower_inode);
+		fsstack_copy_attr_all(inode, sharefs_lower_inode(inode));
 		inode->i_uid = uid;
 		inode->i_gid = gid;
 		inode->i_mode = mode;
-		iput(lower_inode);
 	}
 out_err:
 	return err;
@@ -124,9 +116,7 @@ static int sharefs_fsync(struct file *file, loff_t start, loff_t end,
 	if (err)
 		goto out;
 	lower_file = sharefs_lower_file(file);
-	err = sharefs_get_lower_path(dentry, &lower_path, 0);
-	if (err)
-		goto out;
+	sharefs_get_lower_path(dentry, &lower_path);
 	err = vfs_fsync_range(lower_file, start, end, datasync);
 	sharefs_put_lower_path(dentry, &lower_path);
 out:
