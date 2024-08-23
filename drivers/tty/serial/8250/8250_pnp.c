@@ -13,6 +13,7 @@
 #include <linux/pnp.h>
 #include <linux/string.h>
 #include <linux/kernel.h>
+#include <linux/property.h>
 #include <linux/serial_core.h>
 #include <linux/bitops.h>
 
