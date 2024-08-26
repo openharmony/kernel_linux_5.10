@@ -375,10 +375,12 @@ static struct file *hmdfs_open_file(struct hmdfs_peer *con,
 		return file;
 	}
 
+	get_file(file);
 	id = insert_file_into_conn(con, file);
 	if (id < 0) {
 		hmdfs_err("file_id alloc failed! err=%d", id);
 		reset_item_opened_status(con->sbi, filename);
+		hmdfs_close_path(file);
 		hmdfs_close_path(file);
 		return ERR_PTR(id);
 	}
@@ -576,11 +578,13 @@ void hmdfs_server_open(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 		remove_file_from_conn(con, info->file_id);
 		hmdfs_close_path(info->file);
 	}
+	hmdfs_close_path(info->file);
 	kfree(resp);
 	kfree(info);
 	return;
 
 err_close:
+	hmdfs_close_path(info->file);
 	remove_file_from_conn(con, info->file_id);
 	hmdfs_close_path(info->file);
 err_free:
@@ -680,10 +684,12 @@ static int hmdfs_dentry_open(struct hmdfs_peer *con,
 		return err;
 	}
 
+	get_file(info->file);
 	info->file_id = insert_file_into_conn(con, info->file);
 	if (info->file_id < 0) {
 		err = info->file_id;
 		hmdfs_err("file_id alloc failed! err %d", err);
+		hmdfs_close_path(info->file);
 		hmdfs_close_path(info->file);
 		return err;
 	}
@@ -726,6 +732,7 @@ static int hmdfs_server_do_atomic_open(struct hmdfs_peer *con,
 fail_close:
 	if (err) {
 		remove_file_from_conn(con, info->file_id);
+		hmdfs_close_path(info->file);
 		hmdfs_close_path(info->file);
 	}
 put_child:
