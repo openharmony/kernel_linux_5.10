@@ -11,6 +11,20 @@
 #include <net/nata.h>
 #include <net/tcp.h>
 
+#define NATA_THIN_STREAM 4
+bool nata_thin_stream_check(struct sock *sk)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+	/* The server side focuses on syn-ack retransmission,
+	 * and the client side focuses on syn retransmission.
+	 */
+	if ((sk->sk_state == TCP_ESTABLISHED &&
+	    tp->packets_out <= NATA_THIN_STREAM) ||
+	    sk->sk_state == TCP_SYN_SENT)
+		return true;
+	return false;
+}
+
 #ifdef CONFIG_TCP_NATA_URC
 int tcp_set_nata_urc(struct sock *sk, sockptr_t optval, int optlen)
 {

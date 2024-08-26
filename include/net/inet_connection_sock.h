@@ -22,6 +22,7 @@
 #include <net/request_sock.h>
 #if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
 #include <net/nata.h>
+#include <net/inet_connection_nata.h>
 #endif
 
 /* Cancel timers, when they are not required. */
@@ -247,6 +248,9 @@ static inline unsigned long get_nata_rto(struct sock *sk,
 	if (icsk->nata_retries_type == NATA_STL)
 		return sk->sk_state == TCP_SYN_SENT ?
 			icsk->nata_syn_rto : icsk->nata_data_rto;
+
+	if (!nata_thin_stream_check(sk))
+		return when;
 
 	when_nata = icsk->nata_data_rto;
 	if (icsk->icsk_retransmits > icsk->nata_data_retries) {
