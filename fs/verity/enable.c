@@ -630,8 +630,9 @@ int fsverity_ioctl_enable_code_sign(struct file *filp, const void __user *uarg)
 
 	if (arg.sig_size > FS_VERITY_MAX_SIGNATURE_SIZE)
 		return -EMSGSIZE;
-	
-	if (arg.pgtypeinfo_off > arg.data_size - arg.pgtypeinfo_size)
+
+	// when calc pgtypeinfo_size trans bit size to byte size
+	if (arg.pgtypeinfo_off > arg.data_size - arg.pgtypeinfo_size / 8)
 		return -EINVAL;
 
 	return check_file_and_enable_verity(filp, (struct fsverity_enable_arg *)&arg);
