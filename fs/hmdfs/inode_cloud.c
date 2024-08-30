@@ -33,13 +33,16 @@ struct hmdfs_lookup_cloud_ret *lookup_cloud_dentry(struct dentry *child_dentry,
 					      const struct qstr *qstr,
 					      uint64_t dev_id)
 {
+	int err;
 	struct hmdfs_lookup_cloud_ret *lookup_ret;
 	struct hmdfs_dentry_cloud *dentry = NULL;
 	struct clearcache_item *cache_item = NULL;
 	struct hmdfs_dcache_lookup_ctx_cloud ctx;
 	struct hmdfs_sb_info *sbi = hmdfs_sb(child_dentry->d_sb);
 
-	get_cloud_cache_file(child_dentry->d_parent, sbi);
+	err = get_cloud_cache_file(child_dentry->d_parent, sbi);
+	if (unlikely(err != 0))
+		return NULL;
 	cache_item = hmdfs_find_cache_item(dev_id, child_dentry->d_parent);
 	if (!cache_item)
 		return NULL;
