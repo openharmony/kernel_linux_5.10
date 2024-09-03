@@ -75,8 +75,7 @@ void sharefs_root_inode_perm_init(struct inode *root_inode)
 	hii->perm = SHAREFS_PERM_FIX;
 }
 
-#ifdef CONFIG_SHAREFS_SUPPORT_OVERRIDE
-const struct cred *sharefs_override_file_fsids(struct inode *dir, __u16 *_perm)
+const struct cred *sharefs_override_file_fsids(struct inode *dir)
 {
 	struct cred *cred = NULL;
 	cred = prepare_creds();
@@ -95,4 +94,3 @@ void sharefs_revert_fsids(const struct cred *old_cred)
 	revert_creds(old_cred);
 	put_cred(cur_cred);
 }
-#endif
