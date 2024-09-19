@@ -160,11 +160,15 @@ static void find_node_by_token(struct token_perm_node *root_node, uint32_t token
 	}
 }
 
-static int add_node_to_tree(struct token_perm_node *root_node, struct token_perm_node *node)
+static int add_node_to_tree(struct token_perm_node **root_node, struct token_perm_node *node)
 {
+	if (root_node == NULL) {
+		pr_err("%s: invalid root_node.\n", __func__);
+		return -EINVAL;
+	}
 	struct token_perm_node *target_node = NULL;
 	struct token_perm_node *parent_node = NULL;
-	find_node_by_token(root_node, node->perm_data.token, &target_node, &parent_node);
+	find_node_by_token(*root_node, node->perm_data.token, &target_node, &parent_node);
 	if (target_node != NULL) {
 		target_node->perm_data = node->perm_data;
 		return 0;
@@ -174,7 +178,7 @@ static int add_node_to_tree(struct token_perm_node *root_node, struct token_perm
 		return -EDQUOT;
 	}
 	if (parent_node == NULL) {
-		g_token_perm_root = node;
+		*root_node = node;
 	} else if (parent_node->perm_data.token > node->perm_data.token) {
 		parent_node->left = node;
 	} else {
@@ -184,11 +188,15 @@ static int add_node_to_tree(struct token_perm_node *root_node, struct token_perm
 	return 1;
 }
 
-static struct token_perm_node *remove_node_by_token(struct token_perm_node *root_node, uint32_t token)
+static struct token_perm_node *remove_node_by_token(struct token_perm_node **root_node, uint32_t token)
 {
+	if (root_node == NULL) {
+		pr_err("%s: invalid root_node.\n", __func__);
+		return NULL;
+	}
 	struct token_perm_node *target_node = NULL;
 	struct token_perm_node *parent_node = NULL;
-	find_node_by_token(root_node, token, &target_node, &parent_node);
+	find_node_by_token(*root_node, token, &target_node, &parent_node);
 	if (target_node == NULL) {
 		pr_err("%s: target token to be removed not found.\n", __func__);
 		return NULL;
@@ -196,7 +204,7 @@ static struct token_perm_node *remove_node_by_token(struct token_perm_node *root
 
 	struct token_perm_node **new_node_addr = NULL;
 	if (parent_node == NULL) {
-		new_node_addr = &root_node;
+		new_node_addr = root_node;
 	} else if (parent_node->perm_data.token > token) {
 		new_node_addr = &(parent_node->left);
 	} else {
@@ -226,7 +234,7 @@ int access_tokenid_add_permission(struct file *file, void __user *uarg)
 	}
 
 	write_lock(&token_rwlock);
-	int ret = add_node_to_tree(g_token_perm_root, node);
+	int ret = add_node_to_tree(&g_token_perm_root, node);
 	write_unlock(&token_rwlock);
 	if (ret <= 0) {
 		kmem_cache_free(g_cache, node);
@@ -245,11 +253,10 @@ int access_tokenid_remove_permission(struct file *file, void __user *uarg)
 		return -EFAULT;
 
 	write_lock(&token_rwlock);
-	struct token_perm_node *target_node = remove_node_by_token(g_token_perm_root, token);
-	write_unlock(&token_rwlock);
-
+	struct token_perm_node *target_node = remove_node_by_token(&g_token_perm_root, token);
 	if (target_node != NULL)
 		kmem_cache_free(g_cache, target_node);
+	write_unlock(&token_rwlock);
 
 	return 0;
 }
