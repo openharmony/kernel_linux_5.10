@@ -308,6 +308,7 @@ out:
 	sharefs_put_lower_path(new_dentry, &lower_new_path);
 	return err;
 }
+#endif
 
 static int sharefs_setattr(struct dentry *dentry, struct iattr *ia)
 {
@@ -388,7 +389,6 @@ out:
 out_err:
 	return err;
 }
-#endif
 
 const struct inode_operations sharefs_symlink_iops = {
 	.permission	= sharefs_permission,
@@ -408,15 +408,13 @@ const struct inode_operations sharefs_dir_iops = {
 	.rename		= sharefs_rename,
 	.create		= sharefs_create,
 	.mkdir		= sharefs_mkdir,
-	.setattr	= sharefs_setattr,
 #endif
+	.setattr	= sharefs_setattr,
 };
 
 const struct inode_operations sharefs_main_iops = {
 	.permission	= sharefs_permission,
 	.getattr	= sharefs_getattr,
 	.listxattr	= sharefs_listxattr,
-#ifdef CONFIG_SHAREFS_SUPPORT_WRITE
 	.setattr        = sharefs_setattr,
-#endif
 };
