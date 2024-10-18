@@ -281,7 +281,7 @@ static struct hmdfs_msg_parasite *mp_alloc(struct hmdfs_peer *peer,
 		return ERR_PTR(-ENOMEM);
 
 	ret = hmdfs_alloc_msg_idr(peer, MSG_IDR_MESSAGE_ASYNC, mp,
-				  mp->head.send_cmd_operations);
+				  req->operations);
 	if (unlikely(ret)) {
 		kfree(mp);
 		return ERR_PTR(ret);
