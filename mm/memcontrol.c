@@ -7320,6 +7320,7 @@ void mem_cgroup_swapout(struct page *page, swp_entry_t entry)
 	VM_BUG_ON_PAGE(oldid, page);
 	mod_memcg_state(swap_memcg, MEMCG_SWAP, nr_entries);
 
+	page_unqueue_deferred_split(page);
 	page->mem_cgroup = NULL;
 
 	if (!mem_cgroup_is_root(memcg))
