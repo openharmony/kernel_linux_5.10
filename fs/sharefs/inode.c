@@ -308,12 +308,7 @@ static int sharefs_setattr(struct dentry *dentry, struct iattr *ia)
 		truncate_setsize(inode, ia->ia_size);
 	}
 
-	/*
-	 * mode change is for clearing setuid/setgid bits. Allow lower fs
-	 * to interpret this in its own way.
-	 */
-	if (lower_ia.ia_valid & (ATTR_KILL_SUID | ATTR_KILL_SGID))
-		lower_ia.ia_valid &= ~ATTR_MODE;
+	lower_ia.ia_valid &= ~(ATTR_MODE|ATTR_UID|ATTR_GID);
 
 	/* notify the (possibly copied-up) lower inode */
 	/*
