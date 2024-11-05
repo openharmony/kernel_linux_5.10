@@ -21,6 +21,9 @@
 #define BIG_DATA_BYTES 200000
 #define TCP_ACK_NUM 30
 
+typedef void(*ext_init)(void);
+void regist_dpa_init(ext_init fun);
+
 void __net_init lowpower_protocol_net_init(struct net *net);
 int tcp_ack_num(struct sock *sk);
 bool netfilter_bypass_enable(struct net *net, struct sk_buff *skb,

@@ -30,6 +30,7 @@ struct dpa_node {
 	struct list_head list_node;
 	uid_t uid;
 };
+static ext_init g_dpa_init_fun;
 
 static void foreground_uid_atomic_set(uid_t val)
 {
@@ -83,6 +84,7 @@ static int dpa_uid_add(uid_t uid);
 static int dpa_uid_del(uid_t uid);
 static int get_dpa_uids(char *buf, size_t size, u32 *uid_list,
 			u32 index_max, u32 *index);
+static void dpa_ext_init(void);
 static int dpa_uid_write(struct file *file, char *buf, size_t size)
 {
 	u32 dpa_list[LIST_MAX];
@@ -96,6 +98,7 @@ static int dpa_uid_write(struct file *file, char *buf, size_t size)
 	}
 
 	if (strncmp(buf, "add", OPT_LEN) == 0) {
+		dpa_ext_init();
 		for (i = 0; i < index; i++) {
 			ret = dpa_uid_add(dpa_list[i]);
 			if (ret != 0) {
@@ -287,6 +290,19 @@ bool dpa_uid_match(uid_t kuid)
 	return match;
 }
 EXPORT_SYMBOL(dpa_uid_match);
+
+void regist_dpa_init(ext_init fun)
+{
+	if (!fun)
+		return;
+	g_dpa_init_fun = fun;
+}
+
+static void dpa_ext_init(void)
+{
+	if (g_dpa_init_fun)
+		g_dpa_init_fun();
+}
 
 // call this fun in net/ipv4/af_inet.c inet_init_net()
 void __net_init lowpower_protocol_net_init(struct net *net)
