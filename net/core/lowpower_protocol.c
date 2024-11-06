@@ -314,7 +314,6 @@ void __net_init lowpower_protocol_net_init(struct net *net)
 					  NULL))
 		pr_err("fail to create /proc/net/foreground_uid");
 
-	INIT_LIST_HEAD(&g_dpa_uid_list);
 	if (!proc_create_net_single_write("dpa_uid", 0644,
 					  net->proc_net,
 					  dpa_uid_show,
@@ -375,4 +374,12 @@ bool netfilter_bypass_enable(struct net *net, struct sk_buff *skb,
 	}
 	return false;
 }
+
+static int __init lowpower_register(void)
+{
+	INIT_LIST_HEAD(&g_dpa_uid_list);
+	return 0;
+}
+
+module_init(lowpower_register);
 #endif /* CONFIG_LOWPOWER_PROTOCOL */
