@@ -1877,17 +1877,6 @@ static const struct nla_policy ifla_policy[IFLA_MAX+1] = {
 				    .len = ALTIFNAMSIZ - 1 },
 	[IFLA_PERM_ADDRESS]	= { .type = NLA_REJECT },
 	[IFLA_PROTO_DOWN_REASON] = { .type = NLA_NESTED },
-<<<<<<< HEAD
-=======
-	[IFLA_NEW_IFINDEX]	= NLA_POLICY_MIN(NLA_S32, 1),
-	[IFLA_PARENT_DEV_NAME]	= { .type = NLA_NUL_STRING },
-	[IFLA_GRO_MAX_SIZE]	= { .type = NLA_U32 },
-	[IFLA_TSO_MAX_SIZE]	= { .type = NLA_REJECT },
-	[IFLA_TSO_MAX_SEGS]	= { .type = NLA_REJECT },
-	[IFLA_ALLMULTI]		= { .type = NLA_REJECT },
-	[IFLA_GSO_IPV4_MAX_SIZE]	= NLA_POLICY_MIN(NLA_U32, MAX_TCP_HEADER + 1),
-	[IFLA_GRO_IPV4_MAX_SIZE]	= { .type = NLA_U32 },
->>>>>>> 9ab5cf19fb0e (net: fix crash when config small gso_max_size/gso_ipv4_max_size)
 };
 
 static const struct nla_policy ifla_info_policy[IFLA_INFO_MAX+1] = {
