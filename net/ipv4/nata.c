@@ -26,6 +26,64 @@ bool nata_thin_stream_check(struct sock *sk)
 }
 
 #ifdef CONFIG_TCP_NATA_URC
+int na_push_rto_ms __read_mostly = 200;
+module_param(na_push_rto_ms, int, 0644);
+MODULE_PARM_DESC(na_push_rto_ms, "config the max rto, default 200ms, < 150 means disable");
+EXPORT_SYMBOL(na_push_rto_ms);
+
+int na_push_data_retries __read_mostly = 10;
+module_param(na_push_data_retries, int, 0644);
+MODULE_PARM_DESC(na_push_data_retries, "config the data-pkt fast retransmit change times, default 10, 0 means disable, cannot greater than 50");
+EXPORT_SYMBOL(na_push_data_retries);
+
+int na_push_syn_retries __read_mostly = 16;
+module_param(na_push_syn_retries, int, 0644);
+MODULE_PARM_DESC(na_push_syn_retries, "config the syn-pkt max reties, default 16, 0 means disable, cannot greater than 50");
+EXPORT_SYMBOL(na_push_syn_retries);
+
+static int na_push_port_list[PUSH_PORT_CNT_MAX] __read_mostly = {0};
+static int na_push_port_count = PUSH_PORT_CNT_MAX;
+module_param_array(na_push_port_list, int, &na_push_port_count, 0644);
+MODULE_PARM_DESC(na_push_port_list, "config listen port list, up to 10 elms");
+
+bool na_push_port_check(__u16 port)
+{
+	int i;
+	for (i = 0; i < na_push_port_count; i++) {
+		if (na_push_port_list[i] && na_push_port_list[i] == port)
+		return true;
+	}
+
+	return false;
+}
+
+void tcp_set_nata_push_urc(struct sock *sk)
+{
+	struct inet_connection_sock *icsk = inet_csk(sk);
+
+	if (!na_push_port_check(ntohs(icsk->icsk_inet.inet_dport)))
+		return ;
+
+	if (na_push_rto_ms < NATA_URC_RTO_MS_MIN) {
+		na_push_rto_ms = NATA_URC_RTO_MS_MIN;
+	} else if (na_push_rto_ms > NATA_URC_RTO_MS_MAX) {
+		na_push_rto_ms = NATA_URC_RTO_MS_MAX;
+	}
+
+	if (na_push_data_retries > NATA_DATA_RETRIES_MAX)
+		na_push_data_retries = NATA_DATA_RETRIES_MAX;
+
+	if (na_push_syn_retries > NATA_SYN_RETRIES_MAX)
+		na_push_syn_retries = NATA_SYN_RETRIES_MAX;
+
+	icsk->nata_retries_enabled = true;
+	icsk->nata_retries_type = NATA_URC;
+	icsk->icsk_syn_retries = na_push_syn_retries;
+	icsk->nata_data_retries = na_push_data_retries;
+	icsk->nata_data_rto = na_push_rto_ms * HZ / NATA_URC_RTO_MS_TO_HZ;
+	icsk->nata_syn_rto = na_push_rto_ms;
+}
+
 int tcp_set_nata_urc(struct sock *sk, sockptr_t optval, int optlen)
 {
 	int err = -EINVAL;
