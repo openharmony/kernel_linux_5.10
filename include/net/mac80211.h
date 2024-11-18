@@ -856,6 +856,9 @@ enum mac80211_tx_info_flags {
  *	it can be sent out.
  * @IEEE80211_TX_CTRL_NO_SEQNO: Do not overwrite the sequence number that
  *	has already been assigned to this frame.
+ * @IEEE80211_TX_CTRL_DONT_USE_RATE_MASK: Don't use rate mask for this frame
+ *	which is transmitted due to scanning or offchannel TX, not in normal
+ *	operation on the interface.
  *
  * These flags are used in tx_info->control.flags.
  */
@@ -868,6 +871,7 @@ enum mac80211_tx_control_flags {
 	IEEE80211_TX_CTRL_SKIP_MPATH_LOOKUP	= BIT(5),
 	IEEE80211_TX_INTCFL_NEED_TXPROCESSING	= BIT(6),
 	IEEE80211_TX_CTRL_NO_SEQNO		= BIT(7),
+	IEEE80211_TX_CTRL_DONT_USE_RATE_MASK	= BIT(10),
 };
 
 /*

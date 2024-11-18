@@ -938,6 +938,13 @@ int f2fs_setattr(struct dentry *dentry, struct iattr *attr)
 				return err;
 		}
 
+		/*
+		 * wait for inflight dio, blocks should be removed after
+		 * IO completion.
+		 */
+		if (attr->ia_size < old_size)
+			inode_dio_wait(inode);
+
 		down_write(&F2FS_I(inode)->i_gc_rwsem[WRITE]);
 		down_write(&F2FS_I(inode)->i_mmap_sem);
 
@@ -1747,6 +1754,12 @@ static long f2fs_fallocate(struct file *file, int mode,
 	ret = file_modified(file);
 	if (ret)
 		goto out;
+
+	/*
+	 * wait for inflight dio, blocks should be removed after IO
+	 * completion.
+	 */
+	inode_dio_wait(inode);
 
 	if (mode & FALLOC_FL_PUNCH_HOLE) {
 		if (offset >= inode->i_size)
@@ -2629,6 +2642,11 @@ static int f2fs_defragment_range(struct f2fs_sb_info *sbi,
 
 	inode_lock(inode);
 
+	if (f2fs_is_atomic_file(inode)) {
+		err = -EINVAL;
+		goto out;
+	}
+
 	/* writeback all dirty pages in the range */
 	err = filemap_write_and_wait_range(inode->i_mapping, range->start,
 						range->start + range->len - 1);
@@ -2838,6 +2856,11 @@ static int f2fs_move_file_range(struct file *file_in, loff_t pos_in,
 
 	if (f2fs_compressed_file(src) || f2fs_compressed_file(dst)) {
 		ret = -EOPNOTSUPP;
+		goto out_unlock;
+	}
+
+	if (f2fs_is_atomic_file(src) || f2fs_is_atomic_file(dst)) {
+		ret = -EINVAL;
 		goto out_unlock;
 	}
 
@@ -3284,6 +3307,11 @@ static int f2fs_ioc_set_pin_file(struct file *filp, unsigned long arg)
 	inode_lock(inode);
 
 	if (f2fs_should_update_outplace(inode, NULL)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (f2fs_is_atomic_file(inode)) {
 		ret = -EINVAL;
 		goto out;
 	}
