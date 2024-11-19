@@ -69,6 +69,9 @@
 #include <net/xfrm.h>
 #include <net/secure_seq.h>
 #include <net/busy_poll.h>
+#ifdef CONFIG_TCP_NATA_URC
+#include <net/nata.h>
+#endif
 
 #include <linux/inet.h>
 #include <linux/ipv6.h>
@@ -279,6 +282,9 @@ int tcp_v4_connect(struct sock *sk, struct sockaddr *uaddr, int addr_len)
 	 * lock select source port, enter ourselves into the hash tables and
 	 * complete initialization after this.
 	 */
+#ifdef CONFIG_TCP_NATA_URC
+	tcp_set_nata_push_urc(sk);
+#endif /* CONFIG_TCP_NATA_URC */
 	tcp_set_state(sk, TCP_SYN_SENT);
 	err = inet_hash_connect(tcp_death_row, sk);
 	if (err)

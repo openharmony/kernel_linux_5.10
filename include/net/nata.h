@@ -11,6 +11,7 @@
 #include <net/inet_sock.h>
 #include <net/sock.h>
 
+#define PUSH_PORT_CNT_MAX	10
 #define NATA_DATA_RETRIES_MAX	50
 #define NATA_SYN_RETRIES_MAX	50
 #define BITS_PRE_BYTE		8
@@ -29,6 +30,7 @@ enum nata_retries_type_t {
 #define NATA_URC_RTO_MS_MAX   120000   // 120s
 #define NATA_URC_RTO_MS_TO_HZ 1000
 int tcp_set_nata_urc(struct sock *sk, sockptr_t optval, int optlen);
+void tcp_set_nata_push_urc(struct sock *sk);
 #endif /* CONFIG_TCP_NATA_URC */
 
 #ifdef CONFIG_TCP_NATA_STL
