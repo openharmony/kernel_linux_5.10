@@ -49,6 +49,7 @@ static int ecdh_set_secret(struct crypto_kpp *tfm, const void *buf,
 
 	ctx->curve_id = params.curve_id;
 	ctx->ndigits = ndigits;
+	memset(ctx->private_key, 0, sizeof(ctx->private_key));
 
 	if (!params.key || !params.key_size)
 		return ecc_gen_privkey(ctx->curve_id, ctx->ndigits,
