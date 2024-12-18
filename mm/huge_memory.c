@@ -2768,17 +2768,29 @@ out:
 	return ret;
 }
 
-void free_transhuge_page(struct page *page)
+void __page_unqueue_deferred_split(struct page *page)
 {
 	struct deferred_split *ds_queue = get_deferred_split_queue(page);
 	unsigned long flags;
 
-	spin_lock_irqsave(&ds_queue->split_queue_lock, flags);
-	if (!list_empty(page_deferred_list(page))) {
-		ds_queue->split_queue_len--;
-		list_del(page_deferred_list(page));
+	/*
+	 * At this point, there is no one trying to add the folio to
+	 * deferred_list. If folio is not in deferred_list, it's safe
+	 * to check without acquiring the split_queue_lock.
+	 */
+	if (data_race(!list_empty(page_deferred_list(page))) {
+		spin_lock_irqsave(&ds_queue->split_queue_lock, flags);
+		if (!list_empty(page_deferred_list(page))) {
+			ds_queue->split_queue_len--;
+			list_del_init(page_deferred_list(page));
+		}
+		spin_unlock_irqrestore(&ds_queue->split_queue_lock, flags);
 	}
-	spin_unlock_irqrestore(&ds_queue->split_queue_lock, flags);
+}
+
+void free_transhuge_page(struct page *page)
+{
+	__page_unqueue_deferred_split(page);
 	free_compound_page(page);
 }
 
