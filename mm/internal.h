@@ -801,4 +801,18 @@ void reclaimacct_collect_data(void);
 void reclaimacct_collect_reclaim_efficiency(void);
 #endif
 
+#ifdef CONFIG_TRANSPARENT_HUGEPAGE
+void __page_unqueue_deferred_split(struct page *page);
+static inline void page_unqueue_deferred_split(struct page *page)
+{
+	if (!PageTransCompound(page))
+		return;
+
+	__page_unqueue_deferred_split(page);
+}
+#else
+static inline void page_unqueue_deferred_split(struct page *page)
+{
+}
+#endif
 #endif	/* __MM_INTERNAL_H */
