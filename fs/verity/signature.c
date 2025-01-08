@@ -55,7 +55,7 @@ static inline int fsverity_verify_certchain(struct fsverity_info *vi,
 	int ret = 0;
 
 	CALL_HCK_LITE_HOOK(code_sign_verify_certchain_lhck,
-		raw_pkcs7, pkcs7_len, &vi->fcs_info, &ret);
+		raw_pkcs7, pkcs7_len, vi, &ret);
 	if (ret > 0) {
 		fsverity_set_cert_type(vi, ret);
 		ret = 0;
