@@ -23,6 +23,7 @@ enum {
 	OPT_NO_OFFLINE_STASH,
 	OPT_NO_DENTRY_CACHE,
 	OPT_USER_ID,
+	OPT_DEVELOPER,
 	OPT_ERR,
 };
 
@@ -37,6 +38,7 @@ static match_table_t hmdfs_tokens = {
 	{ OPT_NO_OFFLINE_STASH, "no_offline_stash" },
 	{ OPT_NO_DENTRY_CACHE, "no_dentry_cache" },
 	{ OPT_USER_ID, "user_id=%s"},
+	{ OPT_DEVELOPER, "developer"},
 	{ OPT_ERR, NULL },
 };
 
@@ -161,6 +163,8 @@ int hmdfs_parse_options(struct hmdfs_sb_info *sbi, const char *data)
 					goto out;
 				sbi->user_id = user_id;
 			}
+			break;
+		case OPT_DEVELOPER:
 			break;
 		default:
 			err = -EINVAL;
