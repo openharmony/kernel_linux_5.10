@@ -12,6 +12,7 @@
 #include <linux/blk-mq.h>
 #include <linux/blk-cgroup.h>
 #include <linux/debugfs.h>
+#include <linux/sched/mm.h>
 
 #include "blk.h"
 #include "blk-mq.h"
@@ -710,6 +711,7 @@ queue_attr_store(struct kobject *kobj, struct attribute *attr,
 {
 	struct queue_sysfs_entry *entry = to_queue(attr);
 	struct request_queue *q;
+	unsigned int noio_flag;
 	ssize_t res;
 
 	if (!entry->store)
@@ -717,7 +719,9 @@ queue_attr_store(struct kobject *kobj, struct attribute *attr,
 
 	q = container_of(kobj, struct request_queue, kobj);
 	mutex_lock(&q->sysfs_lock);
+	noio_flag = memalloc_noio_save();
 	res = entry->store(q, page, length);
+	memalloc_noio_restore(noio_flag);
 	mutex_unlock(&q->sysfs_lock);
 	return res;
 }
