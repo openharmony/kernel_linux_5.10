@@ -1134,6 +1134,7 @@ static void xs_sock_reset_state_flags(struct rpc_xprt *xprt)
 	clear_bit(XPRT_SOCK_WAKE_ERROR, &transport->sock_state);
 	clear_bit(XPRT_SOCK_WAKE_WRITE, &transport->sock_state);
 	clear_bit(XPRT_SOCK_WAKE_DISCONNECT, &transport->sock_state);
+	clear_bit(XPRT_SOCK_UPD_TIMEOUT, &transport->sock_state);
 }
 
 static void xs_run_error_worker(struct sock_xprt *transport, unsigned int nr)
@@ -1837,6 +1838,14 @@ static struct socket *xs_create_sock(struct rpc_xprt *xprt,
 	if (err) {
 		sock_release(sock);
 		goto out;
+	}
+
+	if (protocol == IPPROTO_TCP) {
+		sock->sk->sk_net_refcnt = 1;
+		get_net(xprt->xprt_net);
+#ifdef CONFIG_PROC_FS
+		this_cpu_add(*xprt->xprt_net->core.sock_inuse, 1);
+#endif
 	}
 
 	filp = sock_alloc_file(sock, O_NONBLOCK, NULL);
