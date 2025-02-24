@@ -43,7 +43,7 @@
 
 // 20 digits +'\0', Converted from a u64 integer
 #define HMDFS_ACCOUNT_HASH_MAX_LEN 21
-#define CTRL_PATH_MAX_LEN	   21
+#define CTRL_PATH_MAX_LEN	   11
 
 #define HMDFS_SUPER_MAGIC 0x20200302
 
