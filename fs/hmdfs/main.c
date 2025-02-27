@@ -864,7 +864,6 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 	struct super_block *lower_sb;
 	struct dentry *root_dentry;
 	char ctrl_path[CTRL_PATH_MAX_LEN];
-	uint64_t ctrl_hash;
 
 	if (!raw_data)
 		return -EINVAL;
@@ -901,9 +900,8 @@ static int hmdfs_fill_super(struct super_block *sb, void *data, int silent)
 		goto out_freesbi;
 
 	// add ctrl sysfs node
-	ctrl_hash = path_hash(sbi->local_dst, strlen(sbi->local_dst), true);
-	scnprintf(ctrl_path, CTRL_PATH_MAX_LEN, "%llu", ctrl_hash);
-	hmdfs_debug("hash %llu", ctrl_hash);
+	scnprintf(ctrl_path, CTRL_PATH_MAX_LEN, "%u", sb->s_dev);
+	hmdfs_debug("s_dev %u", sb->s_dev);
 	err = hmdfs_register_sysfs(ctrl_path, sbi);
 	if (err)
 		goto out_freesbi;
