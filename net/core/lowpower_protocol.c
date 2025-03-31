@@ -87,12 +87,16 @@ static int get_dpa_uids(char *buf, size_t size, u32 *uid_list,
 static void dpa_ext_init(void);
 static int dpa_uid_write(struct file *file, char *buf, size_t size)
 {
-	u32 dpa_list[LIST_MAX];
+	u32 *dpa_list = (u32 *)kmalloc(LIST_MAX * sizeof(u32), GFP_KERNEL);
 	u32 index = 0;
 	int ret = -EINVAL;
 	int i;
 
+	if (!dpa_list)
+		return ret;
+
 	if (get_dpa_uids(buf, size, dpa_list, LIST_MAX, &index) != 0) {
+		kfree(dpa_list);
 		pr_err("[dpa-uid-cfg] fail to parse dpa uids\n");
 		return ret;
 	}
@@ -102,7 +106,7 @@ static int dpa_uid_write(struct file *file, char *buf, size_t size)
 		for (i = 0; i < index; i++) {
 			ret = dpa_uid_add(dpa_list[i]);
 			if (ret != 0) {
-				pr_err("[dpa-uid-cfg] add fail, index=%u\n", i);
+				kfree(dpa_list);
 				return ret;
 			}
 		}
@@ -110,13 +114,14 @@ static int dpa_uid_write(struct file *file, char *buf, size_t size)
 		for (i = 0; i < index; i++) {
 			ret = dpa_uid_del(dpa_list[i]);
 			if (ret != 0) {
-				pr_err("[dpa-uid-cfg] del fail, index=%u\n", i);
+				kfree(dpa_list);
 				return ret;
 			}
 		}
 	} else {
 		pr_err("[dpa-uid-cfg] cmd unknown\n");
 	}
+	kfree(dpa_list);
 	return ret;
 }
 
