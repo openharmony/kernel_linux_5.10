@@ -1239,6 +1239,7 @@ int do_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 		    unsigned int flags)
 {
 	int ret = 0;
+	bool is_exist = 0;
 	struct hmdfs_sb_info *sbi = (old_dir->i_sb)->s_fs_info;
 	struct hmdfs_dentry_info_merge *dim = hmdfs_dm(old_dentry);
 	struct hmdfs_dentry_comrade *comrade = NULL, *new_comrade = NULL;
@@ -1289,6 +1290,13 @@ int do_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 
 		snprintf(abs_path_buf, PATH_MAX, "%s%s/%s", sbi->real_dst,
 			 path_name, new_dentry->d_name.name);
+		
+		ret = kern_path(abs_path_buf, 0, &lo_p_new);
+		if (!ret) {
+			lo_d_new = lo_p_new.dentry;
+			is_exist = true;
+			goto lower_exist;
+		}
 		if (S_ISDIR(d_inode(old_dentry)->i_mode))
 			lo_d_new = kern_path_create(AT_FDCWD, abs_path_buf,
 						    &lo_p_new,
@@ -1301,6 +1309,7 @@ int do_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 			goto out;
 		}
 
+lower_exist:
 		lo_d_new_dir = dget_parent(lo_d_new);
 		lo_i_new_dir = d_inode(lo_d_new_dir);
 		lo_d_old_dir = dget_parent(lo_d_old);
@@ -1316,7 +1325,10 @@ int do_rename_merge(struct inode *old_dir, struct dentry *old_dentry,
 
 		link_comrade_unlocked(new_dentry, new_comrade);
 no_comrade:
-		done_path_create(&lo_p_new, lo_d_new);
+		if (is_exist)
+			path_put(&lo_p_new);
+		else
+			done_path_create(&lo_p_new, lo_d_new);
 		dput(lo_d_old_dir);
 		dput(lo_d_new_dir);
 	}
