@@ -1260,11 +1260,11 @@ void hmdfs_server_rmdir(struct hmdfs_peer *con, struct hmdfs_head_cmd *cmd,
 
 	path = rmdir_recv->path;
 	name = rmdir_recv->path + le32_to_cpu(rmdir_recv->path_len) + 1;
-	if (path_contain_dotdot(rmdir_recv->path, rmdir_recv->path_len)) {
+	if (path_contain_dotdot(path, rmdir_recv->path_len)) {
 		err = -EINVAL;
 		goto rmdir_out;
 	}
-	if (path_contain_dotdot(rmdir_recv->path, rmdir_recv->path_len)) {
+	if (path_contain_dotdot(name, rmdir_recv->name_len)) {
 		err = -EINVAL;
 		goto rmdir_out;
 	}
