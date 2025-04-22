@@ -309,6 +309,12 @@ static void dpa_ext_init(void)
 		g_dpa_init_fun();
 }
 
+void __net_exit lowpower_protocol_net_exit(struct net *net)
+{
+	remove_proc_entry("foreground_uid", net->proc_net);
+	remove_proc_entry("dpa_uid", net->proc_net);
+}
+
 // call this fun in net/ipv4/af_inet.c inet_init_net()
 void __net_init lowpower_protocol_net_init(struct net *net)
 {

@@ -1844,6 +1844,13 @@ static int __init init_ipv4_mibs(void)
 	return register_pernet_subsys(&ipv4_mib_ops);
 }
 
+#ifdef CONFIG_LOWPOWER_PROTOCOL
+static __net_exit void inet_exit_net(struct net *net)
+{
+	lowpower_protocol_net_exit(net);
+}
+#endif /* CONFIG_LOWPOWER_PROTOCOL */
+
 static __net_init int inet_init_net(struct net *net)
 {
 	/*
@@ -1890,6 +1897,9 @@ static __net_init int inet_init_net(struct net *net)
 
 static __net_initdata struct pernet_operations af_inet_ops = {
 	.init = inet_init_net,
+#ifdef CONFIG_LOWPOWER_PROTOCOL
+	.exit = inet_exit_net,
+#endif /* CONFIG_LOWPOWER_PROTOCOL */
 };
 
 static int __init init_inet_pernet_ops(void)
