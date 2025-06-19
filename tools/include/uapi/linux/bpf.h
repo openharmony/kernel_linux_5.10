@@ -3925,8 +3925,8 @@ union bpf_attr {
 	FN(per_cpu_ptr),		\
 	FN(this_cpu_ptr),		\
 	FN(redirect_peer),		\
-	FN(sock_tcp_send_reset) = 500,	\
-	FN(bpf_sock_destroy) = 501,		\
+	FN(sock_tcp_send_reset),	\
+	FN(bpf_sock_destroy),		\
 	/* */
 
 /* integer value in 'imm' field of BPF_CALL instruction selects which helper
