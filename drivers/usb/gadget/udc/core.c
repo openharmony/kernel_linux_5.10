@@ -1394,9 +1394,9 @@ void usb_del_gadget(struct usb_gadget *gadget)
 	mutex_unlock(&udc_lock);
 
 	kobject_uevent(&udc->dev.kobj, KOBJ_REMOVE);
-	flush_work(&gadget->work);
 	device_unregister(&udc->dev);
 	device_del(&gadget->dev);
+	flush_work(&gadget->work);
 }
 EXPORT_SYMBOL_GPL(usb_del_gadget);
 

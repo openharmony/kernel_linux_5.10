@@ -1585,23 +1585,24 @@ static void ip6_mc_hdr(struct sock *sk, struct sk_buff *skb,
 
 static struct sk_buff *mld_newpack(struct inet6_dev *idev, unsigned int mtu)
 {
+	u8 ra[8] = { IPPROTO_ICMPV6, 0, IPV6_TLV_ROUTERALERT,
+		     2, 0, 0, IPV6_TLV_PADN, 0 };
 	struct net_device *dev = idev->dev;
-	struct net *net = dev_net(dev);
-	struct sock *sk = net->ipv6.igmp_sk;
-	struct sk_buff *skb;
-	struct mld2_report *pmr;
-	struct in6_addr addr_buf;
-	const struct in6_addr *saddr;
 	int hlen = LL_RESERVED_SPACE(dev);
 	int tlen = dev->needed_tailroom;
-	unsigned int size = mtu + hlen + tlen;
-	int err;
-	u8 ra[8] = { IPPROTO_ICMPV6, 0,
-		     IPV6_TLV_ROUTERALERT, 2, 0, 0,
-		     IPV6_TLV_PADN, 0 };
+	const struct in6_addr *saddr;
+	struct in6_addr addr_buf;
+	struct mld2_report *pmr;
+	struct sk_buff *skb;
+	unsigned int size;
+	struct sock *sk;
+	struct net *net;
 
-	/* we assume size > sizeof(ra) here */
-	skb = sock_alloc_send_skb(sk, size, 1, &err);
+	/* we assume size > sizeof(ra) here
+	 * Also try to not allocate high-order pages for big MTU
+	 */
+	size = min_t(int, mtu, PAGE_SIZE / 2) + hlen + tlen;
+	skb = alloc_skb(size, GFP_KERNEL);
 	if (!skb)
 		return NULL;
 
@@ -1609,7 +1610,13 @@ static struct sk_buff *mld_newpack(struct inet6_dev *idev, unsigned int mtu)
 	skb_reserve(skb, hlen);
 	skb_tailroom_reserve(skb, mtu, tlen);
 
-	if (__ipv6_get_lladdr(idev, &addr_buf, IFA_F_TENTATIVE)) {
+	rcu_read_lock();
+
+	net = dev_net_rcu(dev);
+	sk = net->ipv6.igmp_sk;
+	skb_set_owner_w(skb, sk);
+
+	if (ipv6_get_lladdr(dev, &addr_buf, IFA_F_TENTATIVE)) {
 		/* <draft-ietf-magma-mld-source-05.txt>:
 		 * use unspecified address as the source address
 		 * when a valid link-local address is not available.
@@ -1619,6 +1626,8 @@ static struct sk_buff *mld_newpack(struct inet6_dev *idev, unsigned int mtu)
 		saddr = &addr_buf;
 
 	ip6_mc_hdr(sk, skb, dev, saddr, &mld2_all_mcr, NEXTHDR_HOP, 0);
+
+	rcu_read_unlock();
 
 	skb_put_data(skb, ra, sizeof(ra));
 
