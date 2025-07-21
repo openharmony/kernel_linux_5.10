@@ -7960,7 +7960,7 @@ static void mlxsw_sp_mp_hash_field_set(char *recr2_pl, int field)
 static void mlxsw_sp_mp4_hash_init(struct mlxsw_sp *mlxsw_sp, char *recr2_pl)
 {
 	struct net *net = mlxsw_sp_net(mlxsw_sp);
-	bool only_l3 = !net->ipv4.sysctl_fib_multipath_hash_policy;
+	bool only_l3 = !READ_ONCE(net->ipv4.sysctl_fib_multipath_hash_policy);
 
 	mlxsw_sp_mp_hash_header_set(recr2_pl,
 				    MLXSW_REG_RECR2_IPV4_EN_NOT_TCP_NOT_UDP);
