@@ -37,6 +37,7 @@
 	(UVC_ENTITY_IS_TERM(entity) && \
 	((entity)->type & 0x8000) == UVC_TERM_OUTPUT)
 
+#define UVC_INVALID_ENTITY_ID          0xffff
 
 /* ------------------------------------------------------------------------
  * GUIDs
