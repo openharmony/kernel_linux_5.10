@@ -165,16 +165,21 @@ bpf_trampoline_get_progs(const struct bpf_trampoline *tr, int *total)
 	return tprogs;
 }
 
+static void bpf_tramp_image_free(struct bpf_tramp_image *im)
+{
+	bpf_image_ksym_del(&im->ksym);
+	bpf_jit_free_exec(im->image);
+	bpf_jit_uncharge_modmem(PAGE_SIZE);
+	percpu_ref_exit(&im->pcref);
+	kfree_rcu(im, rcu);
+}
+
 static void __bpf_tramp_image_put_deferred(struct work_struct *work)
 {
 	struct bpf_tramp_image *im;
 
 	im = container_of(work, struct bpf_tramp_image, work);
-	bpf_image_ksym_del(&im->ksym);
-	bpf_jit_free_exec(im->image);
-	bpf_jit_uncharge_modmem(1);
-	percpu_ref_exit(&im->pcref);
-	kfree_rcu(im, rcu);
+	bpf_tramp_image_free(im);
 }
 
 /* callback, fexit step 3 or fentry step 2 */
@@ -269,7 +274,7 @@ static struct bpf_tramp_image *bpf_tramp_image_alloc(u64 key, u32 idx)
 	if (!im)
 		goto out;
 
-	err = bpf_jit_charge_modmem(1);
+	err = bpf_jit_charge_modmem(PAGE_SIZE);
 	if (err)
 		goto out_free_im;
 
@@ -291,7 +296,7 @@ static struct bpf_tramp_image *bpf_tramp_image_alloc(u64 key, u32 idx)
 out_free_image:
 	bpf_jit_free_exec(im->image);
 out_uncharge:
-	bpf_jit_uncharge_modmem(1);
+	bpf_jit_uncharge_modmem(PAGE_SIZE);
 out_free_im:
 	kfree(im);
 out:
@@ -331,7 +336,7 @@ static int bpf_trampoline_update(struct bpf_trampoline *tr)
 					  &tr->func.model, flags, tprogs,
 					  tr->func.addr);
 	if (err < 0)
-		goto out;
+		goto out_free;
 
 	WARN_ON(tr->cur_image && tr->selector == 0);
 	WARN_ON(!tr->cur_image && tr->selector);
@@ -342,7 +347,7 @@ static int bpf_trampoline_update(struct bpf_trampoline *tr)
 		/* first time registering */
 		err = register_fentry(tr, im->image);
 	if (err)
-		goto out;
+		goto out_free;
 	if (tr->cur_image)
 		bpf_tramp_image_put(tr->cur_image);
 	tr->cur_image = im;
@@ -350,6 +355,10 @@ static int bpf_trampoline_update(struct bpf_trampoline *tr)
 out:
 	kfree(tprogs);
 	return err;
+
+out_free:
+	bpf_tramp_image_free(im);
+	goto out;
 }
 
 static enum bpf_tramp_prog_type bpf_attach_type_to_tramp(struct bpf_prog *prog)
