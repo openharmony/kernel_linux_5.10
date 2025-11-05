@@ -412,6 +412,9 @@ struct uvc_entity *uvc_entity_by_id(struct uvc_device *dev, int id)
 {
 	struct uvc_entity *entity;
 
+	if (id == UVC_INVALID_ENTITY_ID)
+		return NULL;
+
 	list_for_each_entry(entity, &dev->entities, list) {
 		if (entity->id == id)
 			return entity;
@@ -1034,13 +1037,13 @@ static struct uvc_entity *uvc_alloc_new_entity(struct uvc_device *dev, u16 type,
 	/* Per UVC 1.1+ spec 3.7.2, the ID should be non-zero. */
 	if (id == 0) {
 		dev_err(&dev->udev->dev, "Found Unit with invalid ID 0.\n");
-		return ERR_PTR(-EINVAL);
+		id = UVC_INVALID_ENTITY_ID;
 	}
 
 	/* Per UVC 1.1+ spec 3.7.2, the ID is unique. */
 	if (uvc_entity_by_id(dev, id)) {
 		dev_err(&dev->udev->dev, "Found multiple Units with ID %u\n", id);
-		return ERR_PTR(-EINVAL);
+		id = UVC_INVALID_ENTITY_ID;
 	}
 
 	extra_size = roundup(extra_size, sizeof(*entity->pads));
