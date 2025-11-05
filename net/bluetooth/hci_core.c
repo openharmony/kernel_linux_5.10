@@ -3564,6 +3564,9 @@ static int hci_suspend_notifier(struct notifier_block *nb, unsigned long action,
 	    hci_dev_test_flag(hdev, HCI_UNREGISTER))
 		goto done;
 
+	/* To avoid a potential race with hci_unregister_dev. */
+	hci_dev_hold(hdev);
+
 	if (action == PM_SUSPEND_PREPARE) {
 		/* Suspend consists of two actions:
 		 *  - First, disconnect everything and make the controller not
@@ -3602,6 +3605,7 @@ done:
 		bt_dev_err(hdev, "Suspend notifier action (%lu) failed: %d",
 			   action, ret);
 
+	hci_dev_put(hdev);
 	return NOTIFY_DONE;
 }
 
