@@ -31,28 +31,30 @@ static struct kset *hmdfs_kset;
 static void ctrl_cmd_update_socket_handler(const char *buf, size_t len,
 					   struct hmdfs_sb_info *sbi)
 {
-	struct update_socket_param cmd;
+	struct update_socket_param_extend cmd;
 	struct hmdfs_peer *node = NULL;
 	struct connection *conn = NULL;
 
-	if (unlikely(!buf || len != sizeof(cmd))) {
-		hmdfs_err("len/buf error");
+	if (unlikely(!buf || (len != sizeof(struct update_socket_param_extend) &&
+		len != sizeof(struct update_socket_param)))) {
+		hmdfs_err("len/buf error.len<%lu> update_socket_param_extend<%zu> update_socket_param<%zu>",
+			len, sizeof(struct update_socket_param_extend), sizeof(struct update_socket_param));
 		goto out;
 	}
-	memcpy(&cmd, buf, sizeof(cmd));
-	if (cmd.status != CONNECT_STAT_WAIT_REQUEST &&
-		cmd.status != CONNECT_STAT_WAIT_RESPONSE) {
+	memcpy(&cmd, buf, len);
+	if (cmd.base.status != CONNECT_STAT_WAIT_REQUEST &&
+		cmd.base.status != CONNECT_STAT_WAIT_RESPONSE) {
 		hmdfs_err("invalid status");
 		goto out;
 	}
 
-	node = hmdfs_get_peer(sbi, cmd.cid, cmd.devsl);
+	node = hmdfs_get_peer(sbi, cmd.base.cid, cmd.base.devsl);
 	if (unlikely(!node)) {
 		hmdfs_err("failed to update ctrl node: cannot get peer");
 		goto out;
 	}
 
-	conn = hmdfs_get_conn_tcp(node, cmd.newfd, cmd.masterkey, cmd.status);
+	conn = hmdfs_get_conn_tcp(node, cmd.base.newfd, cmd.base.masterkey, cmd.base.status);
 	if (unlikely(!conn)) {
 		hmdfs_err("failed to update ctrl node: cannot get conn");
 	} else if (!sbi->system_cred) {
