@@ -18,6 +18,8 @@ enum CTRL_NODE_CMD {
 	CMD_CNT,
 };
 
+#define UPDATE_SOCKET_RESERVERD_SIZE 17
+
 struct update_socket_param {
 	int32_t cmd;
 	int32_t newfd;
@@ -26,6 +28,13 @@ struct update_socket_param {
 	uint8_t masterkey[HMDFS_KEY_SIZE];
 	uint8_t cid[HMDFS_CID_SIZE];
 } __packed;
+
+struct update_socket_param_extend {
+	struct update_socket_param base;
+	uint8_t version;
+	uint8_t security_mode;
+	uint8_t reserved[UPDATE_SOCKET_RESERVERD_SIZE];
+}__attribute__((packed));
 
 struct update_devsl_param {
     int32_t cmd;
