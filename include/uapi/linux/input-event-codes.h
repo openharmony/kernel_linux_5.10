@@ -779,6 +779,9 @@
 #define BTN_TRIGGER_HAPPY39		0x2e6
 #define BTN_TRIGGER_HAPPY40		0x2e7
 
+#define KEY_MOUSE_ASSISTANT		0x2e9 /* Celia AI By Mouse */
+#define KEY_MOUSE_INTELLIGENCE_SELECTION	0x2ea /* Celia AI Selection */
+
 /* We avoid low common keys in module aliases so they don't get huge. */
 #define KEY_MIN_INTERESTING	KEY_MUTE
 #define KEY_MAX			0x2ff
