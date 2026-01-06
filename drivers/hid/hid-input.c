@@ -1069,6 +1069,8 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 		case 0x2cb: map_key_clear(KEY_KBDINPUTASSIST_ACCEPT);	break;
 		case 0x2cc: map_key_clear(KEY_KBDINPUTASSIST_CANCEL);	break;
 
+		case 0x2fa: map_key_clear(KEY_MOUSE_ASSISTANT);	break;
+		case 0x2fb: map_key_clear(KEY_MOUSE_INTELLIGENCE_SELECTION);	break;
 		case 0x29f: map_key_clear(KEY_SCALE);		break;
 
 		default: map_key_clear(KEY_UNKNOWN);
