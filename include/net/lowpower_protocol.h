@@ -17,7 +17,6 @@
 #include <net/tcp.h>
 
 #define FOREGROUND_UID_INIT 0xEFFFFFFF
-#define TCP_RCV_WND_INIT 133120
 #define BIG_DATA_BYTES 200000
 #define TCP_ACK_NUM 30
 
