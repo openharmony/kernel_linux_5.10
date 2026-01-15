@@ -12,6 +12,9 @@
 #include <net/udp.h>
 #include <net/udplite.h>
 #include <linux/sock_diag.h>
+#ifdef CONFIG_DOZE_FILTER
+#include <huawei_platform/power/wifi_filter/wifi_filter.h>
+#endif
 
 static int sk_diag_dump(struct sock *sk, struct sk_buff *skb,
 			struct netlink_callback *cb,
@@ -218,6 +221,10 @@ static int __udp_diag_destroy(struct sk_buff *in_skb,
 	}
 
 	err = sock_diag_destroy(sk, ECONNABORTED);
+
+#ifdef CONFIG_DOZE_FILTER
+	get_pg_app_info(req->id.idiag_sport, IPPROTO_UDP);
+#endif
 
 	sock_put(sk);
 
