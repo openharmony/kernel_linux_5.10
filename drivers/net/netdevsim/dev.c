@@ -1069,6 +1069,7 @@ int nsim_dev_probe(struct nsim_bus_dev *nsim_bus_dev)
 	nsim_dev->test1 = NSIM_DEV_TEST1_DEFAULT;
 	spin_lock_init(&nsim_dev->fa_cookie_lock);
 
+	mutex_init(&nsim_dev->progs_list_lock);
 	dev_set_drvdata(&nsim_bus_dev->dev, nsim_dev);
 
 	err = nsim_dev_resources_register(devlink);
@@ -1172,6 +1173,7 @@ void nsim_dev_remove(struct nsim_bus_dev *nsim_bus_dev)
 	devlink_params_unregister(devlink, nsim_devlink_params,
 				  ARRAY_SIZE(nsim_devlink_params));
 	devlink_unregister(devlink);
+	mutex_destroy(&nsim_dev->progs_list_lock);
 	devlink_resources_unregister(devlink, NULL);
 	devlink_free(devlink);
 }
