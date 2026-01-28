@@ -18,7 +18,6 @@
 #include <net/tcp.h>
 #include <net/lowpower_protocol.h>
 
-static atomic_t g_foreground_uid = ATOMIC_INIT(FOREGROUND_UID_INIT);
 #define OPT_LEN 3
 #define TO_DECIMAL 10
 #define LIST_MAX 500
@@ -31,38 +30,6 @@ struct dpa_node {
 	uid_t uid;
 };
 static ext_init g_dpa_init_fun;
-
-static void foreground_uid_atomic_set(uid_t val)
-{
-	atomic_set(&g_foreground_uid, val);
-}
-
-static uid_t foreground_uid_atomic_read(void)
-{
-	return (uid_t)atomic_read(&g_foreground_uid);
-}
-
-// cat /proc/net/foreground_uid
-static int foreground_uid_show(struct seq_file *seq, void *v)
-{
-	uid_t uid = foreground_uid_atomic_read();
-
-	seq_printf(seq, "%u\n", uid);
-	return 0;
-}
-
-// echo xx > /proc/net/foreground_uid
-static int foreground_uid_write(struct file *file, char *buf, size_t size)
-{
-	char *p = buf;
-	uid_t uid = simple_strtoul(p, &p, TO_DECIMAL);
-
-	if (!p)
-		return -EINVAL;
-
-	foreground_uid_atomic_set(uid);
-	return 0;
-}
 
 // cat /proc/net/dpa_uid
 static int dpa_uid_show(struct seq_file *seq, void *v)
@@ -318,72 +285,12 @@ void __net_exit lowpower_protocol_net_exit(struct net *net)
 // call this fun in net/ipv4/af_inet.c inet_init_net()
 void __net_init lowpower_protocol_net_init(struct net *net)
 {
-	if (!proc_create_net_single_write("foreground_uid", 0644,
-					  net->proc_net,
-					  foreground_uid_show,
-					  foreground_uid_write,
-					  NULL))
-		pr_err("fail to create /proc/net/foreground_uid");
-
 	if (!proc_create_net_single_write("dpa_uid", 0644,
 					  net->proc_net,
 					  dpa_uid_show,
 					  dpa_uid_write,
 					  NULL))
 		pr_err("fail to create /proc/net/dpa_uid");
-}
-
-static bool foreground_uid_match(struct net *net, struct sock *sk)
-{
-	uid_t kuid;
-	uid_t foreground_uid;
-	struct sock *fullsk;
-
-	if (!net || !sk)
-		return false;
-
-	fullsk = sk_to_full_sk(sk);
-	if (!fullsk || !sk_fullsock(fullsk))
-		return false;
-
-	kuid = sock_net_uid(net, fullsk).val;
-	foreground_uid = foreground_uid_atomic_read();
-	if (kuid != foreground_uid)
-		return false;
-
-	return true;
-}
-
-/* 
- * ack optimization is only enable for large data receiving tasks and
- * there is no packet loss scenario
- */
-int tcp_ack_num(struct sock *sk)
-{
-	if (!sk)
-		return 1;
-
-	if (foreground_uid_match(sock_net(sk), sk) == false)
-		return 1;
-
-	if (tcp_sk(sk)->bytes_received >= BIG_DATA_BYTES &&
-	    tcp_sk(sk)->dup_ack_counter < TCP_FASTRETRANS_THRESH)
-		return TCP_ACK_NUM;
-	return 1;
-}
-
-bool netfilter_bypass_enable(struct net *net, struct sk_buff *skb,
-			     int (*fun)(struct net *, struct sock *, struct sk_buff *),
-			     int *ret)
-{
-	if (!net || !skb || !ip_hdr(skb) || ip_hdr(skb)->protocol != IPPROTO_TCP)
-		return false;
-
-	if (foreground_uid_match(net, skb->sk)) {
-		*ret = fun(net, NULL, skb);
-		return true;
-	}
-	return false;
 }
 
 static int __init lowpower_register(void)
