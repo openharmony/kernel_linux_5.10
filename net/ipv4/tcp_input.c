@@ -80,9 +80,6 @@
 #include <linux/jump_label_ratelimit.h>
 #include <net/busy_poll.h>
 #include <net/mptcp.h>
-#ifdef CONFIG_LOWPOWER_PROTOCOL
-#include <net/lowpower_protocol.h>
-#endif /* CONFIG_LOWPOWER_PROTOCOL */
 
 int sysctl_tcp_max_orphans __read_mostly = NR_FILE;
 
@@ -5477,9 +5474,7 @@ static void __tcp_ack_snd_check(struct sock *sk, int ofo_possible)
 	struct tcp_sock *tp = tcp_sk(sk);
 	unsigned long rtt, delay;
 	__u16 rcv_mss = inet_csk(sk)->icsk_ack.rcv_mss;
-#ifdef CONFIG_LOWPOWER_PROTOCOL
-	rcv_mss *= tcp_ack_num(sk);
-#endif /* CONFIG_LOWPOWER_PROTOCOL */
+
 	    /* More than one full frame received... */
 	if (((tp->rcv_nxt - tp->rcv_wup) > rcv_mss &&
 	     /* ... and right edge of window advances far enough.

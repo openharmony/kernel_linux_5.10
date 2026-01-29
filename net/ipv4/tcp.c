@@ -279,9 +279,6 @@
 #include <linux/uaccess.h>
 #include <asm/ioctls.h>
 #include <net/busy_poll.h>
-#ifdef CONFIG_LOWPOWER_PROTOCOL
-#include <net/lowpower_protocol.h>
-#endif /* CONFIG_LOWPOWER_PROTOCOL */
 #if defined(CONFIG_TCP_NATA_URC) || defined(CONFIG_TCP_NATA_STL)
 #include <net/nata.h>
 #endif
@@ -1563,9 +1560,6 @@ void tcp_cleanup_rbuf(struct sock *sk, int copied)
 	if (inet_csk_ack_scheduled(sk)) {
 		const struct inet_connection_sock *icsk = inet_csk(sk);
 		__u16 rcv_mss = icsk->icsk_ack.rcv_mss;
-#ifdef CONFIG_LOWPOWER_PROTOCOL
-		rcv_mss *= tcp_ack_num(sk);
-#endif /* CONFIG_LOWPOWER_PROTOCOL */
 
 		if (/* Once-per-two-segments ACK was not sent by tcp_input.c */
 		    tp->rcv_nxt - tp->rcv_wup > rcv_mss ||
