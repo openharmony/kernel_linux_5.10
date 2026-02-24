@@ -203,7 +203,6 @@ struct fb_pixmap {
 struct fb_deferred_io {
 	/* delay between mkwrite and deferred handler */
 	unsigned long delay;
-	struct mutex lock; /* mutex that protects the page list */
 	struct list_head pagelist; /* list of touched pages */
 	/* callback */
 	void (*first_io)(struct fb_info *info);
@@ -212,6 +211,8 @@ struct fb_deferred_io {
 #endif
 
 /*
+
+struct fb_deferred_io_state;
  * Frame buffer operations
  *
  * LOCKING NOTE: those functions must _ALL_ be called with the console
@@ -468,6 +469,7 @@ struct fb_info {
 #ifdef CONFIG_FB_DEFERRED_IO
 	struct delayed_work deferred_work;
 	struct fb_deferred_io *fbdefio;
+	struct fb_deferred_io_state *fbdefio_state;
 #endif
 
 	const struct fb_ops *fbops;
