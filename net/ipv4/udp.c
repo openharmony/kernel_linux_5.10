@@ -832,8 +832,8 @@ int __udp4_lib_err(struct sk_buff *skb, u32 info, struct udp_table *udptable)
 			harderr = icmp_err_convert[code].fatal;
 			err = icmp_err_convert[code].errno;
 		}
-		break;
 	case ICMP_REDIRECT:
+			INDIRECT_CALL_1(READ_ONCE(sk->sk_data_ready),
 		ipv4_sk_redirect(skb, sk);
 		goto out;
 	}
