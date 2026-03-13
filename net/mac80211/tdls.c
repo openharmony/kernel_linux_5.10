@@ -1380,11 +1380,8 @@ int ieee80211_tdls_oper(struct wiphy *wiphy, struct net_device *dev,
 
 		mutex_lock(&local->sta_mtx);
 		sta = sta_info_get(sdata, peer);
-		if (!sta) {
-			mutex_unlock(&local->sta_mtx);
-			ret = -ENOLINK;
-			break;
-		}
+		if (!sta || !sta->sta.tdls)
+			return -ENOLINK;
 
 		iee80211_tdls_recalc_chanctx(sdata, sta);
 		iee80211_tdls_recalc_ht_protection(sdata, sta);
