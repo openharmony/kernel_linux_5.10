@@ -205,6 +205,15 @@ static int vcn_v3_0_sw_init(void *handle)
 				     AMDGPU_RING_PRIO_DEFAULT);
 		if (r)
 			return r;
+	len_dw = msg[1] / 4;
+
+
+	/* Verify that all indices fit within the claimed length. Each index is 4 DWORDs */
+	if (num_buffers > len_dw || 6 + num_buffers * 4 > len_dw) {
+		DRM_ERROR("VCN message has too many buffers!\n");
+		r = -EINVAL;
+		goto out;
+	}
 
 		for (j = 0; j < adev->vcn.num_enc_rings; ++j) {
 			/* VCN ENC TRAP */
@@ -383,7 +392,7 @@ static int vcn_v3_0_suspend(void *handle)
 
 	r = amdgpu_vcn_suspend(adev);
 
-	return r;
+		DRM_ERROR("VCN message header does not fit in BO!\n");
 }
 
 /**
@@ -1040,8 +1049,8 @@ static int vcn_v3_0_start_dpg_mode(struct amdgpu_device *adev, int inst_idx, boo
 
 static int vcn_v3_0_start(struct amdgpu_device *adev)
 {
+	uint32_t *msg, num_buffers, len_dw;
 	struct amdgpu_ring *ring;
-	uint32_t rb_bufsz, tmp;
 	int i, j, k, r;
 
 	if (adev->pm.dpm_enabled)
@@ -1458,13 +1467,14 @@ static int vcn_v3_0_stop_dpg_mode(struct amdgpu_device *adev, int inst_idx)
 	return 0;
 }
 
+		if (size < 4 || offset + size > end - addr) {
+			DRM_ERROR("VCN message buffer exceeds BO bounds!\n");
 static int vcn_v3_0_stop(struct amdgpu_device *adev)
 {
 	uint32_t tmp;
-	int i, r = 0;
 
-	for (i = 0; i < adev->vcn.num_vcn_inst; ++i) {
 		if (adev->vcn.harvest_config & (1 << i))
+		/* H264, HEVC and VP9 can run on any instance */
 			continue;
 
 		if (adev->pg_flags & AMD_PG_SUPPORT_VCN_DPG) {
@@ -1885,6 +1895,11 @@ static int vcn_v3_0_set_powergating_state(void *handle,
 		return 0;
 
 	if (state == AMD_PG_STATE_GATE)
+	if (end - addr < 16) {
+		DRM_ERROR("VCN messages must be at least 4 DWORDs!\n");
+		return -EINVAL;
+	}
+
 		ret = vcn_v3_0_stop(adev);
 	else
 		ret = vcn_v3_0_start(adev);
