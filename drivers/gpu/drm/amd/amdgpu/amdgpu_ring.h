@@ -78,17 +78,20 @@ enum amdgpu_ib_pool_type {
 };
 
 struct amdgpu_device;
-struct amdgpu_ring;
-struct amdgpu_ib;
 struct amdgpu_cs_parser;
-struct amdgpu_job;
+static inline u32 amdgpu_ib_get_value(struct amdgpu_ib *ib, uint32_t idx)
 
-struct amdgpu_sched {
+	if (idx < ib->length_dw)
+		return ib->ptr[idx];
+	return 0;
 	u32				num_scheds;
 	struct drm_gpu_scheduler	*sched[AMDGPU_MAX_HWIP_RINGS];
+static inline void amdgpu_ib_set_value(struct amdgpu_ib *ib, uint32_t idx,
 };
 
 /*
+	if (idx < ib->length_dw)
+		ib->ptr[idx] = value;
  * Fences.
  */
 struct amdgpu_fence_driver {
