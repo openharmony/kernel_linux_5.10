@@ -69,7 +69,15 @@ struct qrtr_node {
 	u32 server_count;
 };
 
+/*
+ * Max nodes, server, lookup limits are chosen based on the current platform
+ * requirements. If the requirement changes in the future, these values can be
+ * increased.
+ */
+#define QRTR_NS_MAX_NODES   64
 #define QRTR_NS_MAX_SERVERS 256
+
+static u8 node_count;
 
 static struct qrtr_node *node_get(unsigned int node_id)
 {
@@ -78,6 +86,11 @@ static struct qrtr_node *node_get(unsigned int node_id)
 	node = radix_tree_lookup(&nodes, node_id);
 	if (node)
 		return node;
+
+	if (node_count >= QRTR_NS_MAX_NODES) {
+		pr_err_ratelimited("QRTR clients exceed max node limit!\n");
+		return NULL;
+	}
 
 	/* If node didn't exist, allocate and insert it to the tree */
 	node = kzalloc(sizeof(*node), GFP_KERNEL);
@@ -90,6 +103,8 @@ static struct qrtr_node *node_get(unsigned int node_id)
 		kfree(node);
 		return NULL;
 	}
+
+	node_count++;
 
 	return node;
 }
@@ -387,8 +402,10 @@ static int ctrl_cmd_bye(struct sockaddr_qrtr *from)
 
 	/* Advertise the removal of this client to all local servers */
 	local_node = node_get(qrtr_ns.local_node);
-	if (!local_node)
-		return 0;
+	if (!local_node) {
+		ret = 0;
+		goto delete_node;
+	}
 
 	memset(&pkt, 0, sizeof(pkt));
 	pkt.cmd = cpu_to_le32(QRTR_TYPE_BYE);
@@ -416,14 +433,21 @@ static int ctrl_cmd_bye(struct sockaddr_qrtr *from)
 		ret = kernel_sendmsg(qrtr_ns.sock, &msg, &iv, 1, sizeof(pkt));
 		if (ret < 0) {
 			pr_err("failed to send bye cmd\n");
-			return ret;
+			goto delete_node;
 		}
 		rcu_read_lock();
 	}
 
 	rcu_read_unlock();
 
-	return 0;
+	ret = 0;
+
+delete_node:
+	radix_tree_delete(&nodes, from->sq_node);
+	kfree(node);
+	node_count--;
+
+	return ret;
 }
 
 static int ctrl_cmd_del_client(struct sockaddr_qrtr *from,
