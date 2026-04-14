@@ -522,6 +522,8 @@ static int mpc52xx_spi_remove(struct platform_device *op)
 	struct mpc52xx_spi *ms = spi_master_get_devdata(master);
 	int i;
 
+	spi_unregister_controller(host);
+
 	free_irq(ms->irq1, ms);
 
 	cancel_work_sync(&ms->work);
@@ -530,7 +532,6 @@ static int mpc52xx_spi_remove(struct platform_device *op)
 		gpio_free(ms->gpio_cs[i]);
 
 	kfree(ms->gpio_cs);
-	spi_unregister_master(master);
 	iounmap(ms->regs);
 	spi_master_put(master);
 
