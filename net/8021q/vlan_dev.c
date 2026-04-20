@@ -188,6 +188,9 @@ int vlan_dev_set_egress_priority(const struct net_device *dev,
 		mp = mp->next;
 	}
 
+	if (!vlan_qos)
+		return 0;
+
 	/* Create a new mapping then. */
 	mp = vlan->egress_priority_map[skb_prio & 0xF];
 	np = kmalloc(sizeof(struct vlan_priority_tci_mapping), GFP_KERNEL);

@@ -254,13 +254,9 @@ static int vlan_fill_info(struct sk_buff *skb, const struct net_device *dev)
 		nest = nla_nest_start_noflag(skb, IFLA_VLAN_EGRESS_QOS);
 		if (nest == NULL)
 			goto nla_put_failure;
-
 		for (i = 0; i < ARRAY_SIZE(vlan->egress_priority_map); i++) {
 			for (pm = vlan->egress_priority_map[i]; pm;
 			     pm = pm->next) {
-				if (!pm->vlan_qos)
-					continue;
-
 				m.from = pm->priority;
 				m.to   = (pm->vlan_qos >> 13) & 0x7;
 				if (nla_put(skb, IFLA_VLAN_QOS_MAPPING,
