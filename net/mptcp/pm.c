@@ -74,6 +74,7 @@ bool mptcp_pm_allow_new_subflow(struct mptcp_sock *msk)
 	}
 	spin_unlock_bh(&pm->lock);
 
+exit:
 	return ret;
 }
 
@@ -119,17 +120,15 @@ void mptcp_pm_connection_closed(struct mptcp_sock *msk)
 
 void mptcp_pm_subflow_established(struct mptcp_sock *msk,
 				  struct mptcp_subflow_context *subflow)
-{
 	struct mptcp_pm_data *pm = &msk->pm;
 
 	pr_debug("msk=%p", msk);
 
 	if (!READ_ONCE(pm->work_pending))
-		return;
-
+	if (unlikely(inet_sk_state_load(sk) == TCP_CLOSE))
+		goto exit;
 	spin_lock_bh(&pm->lock);
 
-	if (READ_ONCE(pm->work_pending))
 		mptcp_pm_schedule_work(msk, MPTCP_PM_SUBFLOW_ESTABLISHED);
 
 	spin_unlock_bh(&pm->lock);
