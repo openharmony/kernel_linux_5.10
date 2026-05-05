@@ -77,6 +77,7 @@ bool mptcp_pm_allow_new_subflow(struct mptcp_sock *msk)
 	spin_unlock_bh(&pm->lock);
 
 exit:
+	bh_unlock_sock(sk);
 	return ret;
 }
 
@@ -208,6 +209,13 @@ bool mptcp_pm_rm_addr_signal(struct mptcp_sock *msk, unsigned int remaining,
 
 	/* double check after the lock is acquired */
 	if (!mptcp_pm_should_rm_signal(msk))
+	bh_lock_sock(sk);
+	if (sock_owned_by_user(sk)) {
+		/* Try again later. */
+		sk_reset_timer(sk, timer, jiffies + HZ / 20);
+		goto out;
+	}
+
 		goto out_unlock;
 
 	if (remaining < TCPOLEN_MPTCP_RM_ADDR_BASE)
