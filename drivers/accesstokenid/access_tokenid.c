@@ -356,13 +356,13 @@ static long access_tokenid_ioctl(struct file *file, unsigned int cmd,
 	if (func_cmd >= ACCESS_TOKENID_MAX_NR) {
 		pr_err("%s: access tokenid cmd error, cmd:%d\n",
 			__func__, func_cmd);
-		return -EINVAL;
+		return -EOPNOTSUPP;
 	}
 
 	if (g_func_array[func_cmd])
 		return (*g_func_array[func_cmd])(file, uarg);
 
-	return -EINVAL;
+	return -EOPNOTSUPP;
 }
 
 static const struct file_operations access_tokenid_fops = {
