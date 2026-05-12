@@ -9,6 +9,8 @@
 
 #ifdef CONFIG_PSI
 
+struct kernfs_open_file;
+
 /* Tracked task states */
 enum psi_task_count {
 	NR_IOWAIT,
@@ -117,7 +119,7 @@ struct psi_trigger {
 	/* Wait queue for polling */
 	wait_queue_head_t event_wait;
 
-	/* Kernfs file for cgroup triggers */
+	/* Kernfs file for cgroup pressure polling */
 	struct kernfs_open_file *of;
 
 	/* Pending event flag */

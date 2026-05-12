@@ -2536,8 +2536,7 @@ retry:
 			spin_unlock(&nm_i->nid_list_lock);
 			f2fs_err(sbi, "Corrupted nid %u in free_nid_list",
 								i->nid);
-			f2fs_stop_checkpoint(sbi, false,
-					STOP_CP_REASON_CORRUPTED_NID);
+			f2fs_stop_checkpoint(sbi, false);
 			return false;
 		}
 

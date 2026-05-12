@@ -67,7 +67,7 @@ int __cfg80211_leave_ocb(struct cfg80211_registered_device *rdev,
 	if (!rdev->ops->leave_ocb)
 		return -EOPNOTSUPP;
 
-	if (!wdev->u.ocb.chandef.chan)
+	if (!wdev->chandef.chan)
 		return -ENOTCONN;
 
 	err = rdev_leave_ocb(rdev, dev);

@@ -418,7 +418,7 @@ int ext4_ext_migrate(struct inode *inode)
 	unsigned long max_entries;
 	__u32 goal, tmp_csum_seed;
 	uid_t owner[2];
-	int alloc_ctx;
+	unsigned int alloc_ctx;
 
 	/*
 	 * If the filesystem does not support extents, or the inode
@@ -606,7 +606,7 @@ int ext4_ind_migrate(struct inode *inode)
 	ext4_fsblk_t			blk;
 	handle_t			*handle;
 	int				ret, ret2 = 0;
-	int				alloc_ctx;
+	unsigned int			alloc_ctx;
 
 	if (!ext4_has_feature_extents(inode->i_sb) ||
 	    (!ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS)))

@@ -223,16 +223,13 @@ nfs_page_group_lock_subreq(struct nfs_page *head, struct nfs_page *subreq)
  * @head: head request of page group
  *
  * This is a helper function for nfs_lock_and_join_requests which
- * must be called with the head request locked.
+ * must be called with the head request and page group locked.
  */
 int nfs_page_group_lock_subrequests(struct nfs_page *head)
 {
 	struct nfs_page *subreq;
 	int ret;
 
-	ret = nfs_page_group_lock(head);
-	if (ret < 0)
-		return ret;
 	/* lock each request in the page group */
 	for (subreq = head->wb_this_page; subreq != head;
 			subreq = subreq->wb_this_page) {
