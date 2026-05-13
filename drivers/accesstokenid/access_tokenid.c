@@ -122,7 +122,7 @@ int access_tokenid_set_ftokenid(struct file *file, void __user *uarg)
 static bool check_permission_for_set_token_permission()
 {
 	kuid_t uid = current_uid();
-	return uid_eq(uid, ACCESS_TOKEN_UID);
+	return uid_eq(uid, ACCESS_TOKEN_UID) || uid_eq(uid, GLOBAL_ROOT_UID);
 }
 
 static void add_node_to_left_tree_tail(struct token_perm_node *root_node, struct token_perm_node *node)
