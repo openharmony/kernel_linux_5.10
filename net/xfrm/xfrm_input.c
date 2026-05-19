@@ -497,6 +497,7 @@ int xfrm_input(struct sk_buff *skb, int nexthdr, __be32 spi, int encap_type)
 		if (encap_type == -1) {
 			async = 1;
 			seq = XFRM_SKB_CB(skb)->seq.input.low;
+			goto resume;
 		}
 
 		/* encap_type < -1 indicates a GRO call. */
@@ -638,13 +639,10 @@ lock:
 
 		if (crypto_done)
 			nexthdr = x->type_offload->input_tail(x, skb);
-			if (nexthdr == -EINPROGRESS) {
-				if (async)
-					dev_put(skb->dev);
 		else
-			}
 			nexthdr = x->type->input(x, skb);
 
+		if (nexthdr == -EINPROGRESS)
 			return 0;
 resume:
 		dev_put(skb->dev);
@@ -683,15 +681,13 @@ resume:
 			inner_mode = xfrm_ip2inner_mode(x, XFRM_MODE_SKB_CB(skb)->protocol);
 			if (inner_mode == NULL) {
 				XFRM_INC_STATS(net, LINUX_MIB_XFRMINSTATEMODEERROR);
+				goto drop;
 			}
 		}
-		if (err == -EINPROGRESS) {
-			if (async)
-				dev_put(skb->dev);
 
 		if (xfrm_inner_mode_input(x, inner_mode, skb)) {
-		} else if (err) {
 			XFRM_INC_STATS(net, LINUX_MIB_XFRMINSTATEMODEERROR);
+			goto drop;
 		}
 
 		if (x->outer_mode.flags & XFRM_MODE_FLAG_TUNNEL) {
@@ -726,8 +722,6 @@ resume:
 			sp->olen = 0;
 		skb_dst_drop(skb);
 		gro_cells_receive(&gro_cells, skb);
-		if (async)
-			dev_put(skb->dev);
 		return 0;
 	} else {
 		xo = xfrm_offload(skb);
@@ -746,8 +740,6 @@ resume:
 				sp->olen = 0;
 			skb_dst_drop(skb);
 			gro_cells_receive(&gro_cells, skb);
-			if (async)
-				dev_put(skb->dev);
 			return err;
 		}
 
@@ -757,8 +749,6 @@ resume:
 drop_unlock:
 	spin_unlock(&x->lock);
 drop:
-	if (async)
-		dev_put(skb->dev);
 	xfrm_rcv_cb(skb, family, x && x->type ? x->type->proto : nexthdr, -1);
 	kfree_skb(skb);
 	return 0;
