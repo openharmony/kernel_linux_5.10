@@ -45,7 +45,8 @@ static size_t seg6_lwt_headroom(struct seg6_iptunnel_encap *tuninfo)
 }
 
 struct seg6_lwt {
-	struct dst_cache cache;
+	struct dst_cache cache_input;
+	struct dst_cache cache_output;
 	struct seg6_iptunnel_encap tuninfo[];
 };
 
@@ -326,7 +327,7 @@ static int seg6_input(struct sk_buff *skb)
 	slwt = seg6_lwt_lwtunnel(orig_dst->lwtstate);
 
 	preempt_disable();
-	dst = dst_cache_get(&slwt->cache);
+	dst = dst_cache_get(&slwt->cache_input);
 	preempt_enable();
 
 	skb_dst_drop(skb);
@@ -336,7 +337,7 @@ static int seg6_input(struct sk_buff *skb)
 		dst = skb_dst(skb);
 		if (!dst->error) {
 			preempt_disable();
-			dst_cache_set_ip6(&slwt->cache, dst,
+			dst_cache_set_ip6(&slwt->cache_input, dst,
 					  &ipv6_hdr(skb)->saddr);
 			preempt_enable();
 		}
@@ -365,7 +366,7 @@ static int seg6_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 	slwt = seg6_lwt_lwtunnel(orig_dst->lwtstate);
 
 	preempt_disable();
-	dst = dst_cache_get(&slwt->cache);
+	dst = dst_cache_get(&slwt->cache_output);
 	preempt_enable();
 
 	if (unlikely(!dst)) {
@@ -387,7 +388,7 @@ static int seg6_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 		}
 
 		preempt_disable();
-		dst_cache_set_ip6(&slwt->cache, dst, &fl6.saddr);
+		dst_cache_set_ip6(&slwt->cache_output, dst, &fl6.saddr);
 		preempt_enable();
 	}
 
@@ -463,11 +464,13 @@ static int seg6_build_state(struct net *net, struct nlattr *nla,
 
 	slwt = seg6_lwt_lwtunnel(newts);
 
-	err = dst_cache_init(&slwt->cache, GFP_ATOMIC);
-	if (err) {
-		kfree(newts);
-		return err;
-	}
+	err = dst_cache_init(&slwt->cache_input, GFP_ATOMIC);
+	if (err)
+		goto err_free_newts;
+
+	err = dst_cache_init(&slwt->cache_output, GFP_ATOMIC);
+	if (err)
+		goto err_destroy_input;
 
 	memcpy(&slwt->tuninfo, tuninfo, tuninfo_len);
 
@@ -482,11 +485,20 @@ static int seg6_build_state(struct net *net, struct nlattr *nla,
 	*ts = newts;
 
 	return 0;
+
+err_destroy_input:
+	dst_cache_destroy(&slwt->cache_input);
+err_free_newts:
+	kfree(newts);
+	return err;
 }
 
 static void seg6_destroy_state(struct lwtunnel_state *lwt)
 {
-	dst_cache_destroy(&seg6_lwt_lwtunnel(lwt)->cache);
+	struct seg6_lwt *slwt = seg6_lwt_lwtunnel(lwt);
+
+	dst_cache_destroy(&slwt->cache_input);
+	dst_cache_destroy(&slwt->cache_output);
 }
 
 static int seg6_fill_encap_info(struct sk_buff *skb,
