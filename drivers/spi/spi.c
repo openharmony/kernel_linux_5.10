@@ -48,6 +48,7 @@ static void spidev_release(struct device *dev)
 	struct spi_device	*spi = to_spi_device(dev);
 
 	spi_controller_put(spi->controller);
+	kfree(spi->driver_override);
 	kfree(spi);
 }
 
@@ -100,8 +101,13 @@ static ssize_t driver_override_store(struct device *dev,
 static ssize_t driver_override_show(struct device *dev,
 				    struct device_attribute *a, char *buf)
 {
-	guard(spinlock)(&dev->driver_override.lock);
-	return sysfs_emit(buf, "%s\n", dev->driver_override.name ?: "");
+	const struct spi_device *spi = to_spi_device(dev);
+	ssize_t len;
+
+	device_lock(dev);
+	len = snprintf(buf, PAGE_SIZE, "%s\n", spi->driver_override ? : "");
+	device_unlock(dev);
+	return len;
 }
 static DEVICE_ATTR_RW(driver_override);
 
@@ -333,12 +339,10 @@ static int spi_match_device(struct device *dev, struct device_driver *drv)
 {
 	const struct spi_device	*spi = to_spi_device(dev);
 	const struct spi_driver	*sdrv = to_spi_driver(drv);
-	int ret;
 
 	/* Check override first, and if set, only use the named driver */
-	ret = device_match_driver_override(dev, drv);
-	if (ret >= 0)
-		return ret;
+	if (spi->driver_override)
+		return strcmp(spi->driver_override, drv->name) == 0;
 
 	/* Attempt an OF style match */
 	if (of_driver_match_device(dev, drv))
@@ -378,9 +382,10 @@ EXPORT_SYMBOL_GPL(spi_bus_type);
 static int spi_drv_probe(struct device *dev)
 {
 	const struct spi_driver		*sdrv = to_spi_driver(dev->driver);
+	struct spi_device		*spi = to_spi_device(dev);
 	int ret;
 
-	ret = __device_set_driver_override(dev, buf, count);
+	ret = of_clk_set_defaults(dev->of_node, false);
 	if (ret)
 		return ret;
 
