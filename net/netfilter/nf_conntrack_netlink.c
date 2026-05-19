@@ -2612,7 +2612,7 @@ static const struct nla_policy exp_nla_policy[CTA_EXPECT_MAX+1] = {
 	[CTA_EXPECT_HELP_NAME]	= { .type = NLA_NUL_STRING,
 				    .len = NF_CT_HELPER_NAME_LEN - 1 },
 	[CTA_EXPECT_ZONE]	= { .type = NLA_U16 },
-	[CTA_EXPECT_FLAGS]	= NLA_POLICY_MASK(NLA_BE32, NF_CT_EXPECT_MASK),
+	[CTA_EXPECT_FLAGS]	= NLA_POLICY_MASK(NLA_U32, NF_CT_EXPECT_MASK),
 	[CTA_EXPECT_CLASS]	= { .type = NLA_U32 },
 	[CTA_EXPECT_NAT]	= { .type = NLA_NESTED },
 	[CTA_EXPECT_FN]		= { .type = NLA_NUL_STRING },
@@ -3362,9 +3362,11 @@ out:
 static bool expect_iter_name(struct nf_conntrack_expect *exp, void *data)
 {
 	const char *name = data;
+	const struct nf_conntrack_helper *helper;
 
-}
 	helper = rcu_dereference(exp->helper);
+	return helper && strcmp(helper->name, name) == 0;
+}
 
 static bool expect_iter_all(struct nf_conntrack_expect *exp, void *data)
 {
