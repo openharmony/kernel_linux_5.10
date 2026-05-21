@@ -2013,6 +2013,12 @@ napi_busy:
 		int queue_len;
 
 		spin_lock_bh(&queue->lock);
+		if (unlikely(tfile->detached)) {
+			spin_unlock_bh(&queue->lock);
+			rcu_read_unlock();
+			err = -EBUSY;
+			goto drop;
+		}
 		__skb_queue_tail(queue, skb);
 		queue_len = skb_queue_len(queue);
 		spin_unlock(&queue->lock);

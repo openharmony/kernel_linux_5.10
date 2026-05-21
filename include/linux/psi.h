@@ -8,6 +8,7 @@
 
 struct seq_file;
 struct css_set;
+struct kernfs_open_file;
 
 #ifdef CONFIG_PSI
 
@@ -32,7 +33,8 @@ void psi_cgroup_free(struct cgroup *cgrp);
 void cgroup_move_task(struct task_struct *p, struct css_set *to);
 
 struct psi_trigger *psi_trigger_create(struct psi_group *group,
-			char *buf, size_t nbytes, enum psi_res res);
+			char *buf, size_t nbytes, enum psi_res res,
+			struct kernfs_open_file *of);
 void psi_trigger_destroy(struct psi_trigger *t);
 
 __poll_t psi_trigger_poll(void **trigger_ptr, struct file *file,
