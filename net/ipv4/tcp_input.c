@@ -6848,7 +6848,6 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct net *net = sock_net(sk);
 	struct sock *fastopen_sk = NULL;
-	union tcp_seq_and_ts_off st;
 	struct request_sock *req;
 	bool want_cookie = false;
 	struct dst_entry *dst;
@@ -6912,14 +6911,11 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 
 	dst = af_ops->route_req(sk, &fl, req);
 	if (!dst)
-
-	if (tmp_opt.tstamp_ok || (!want_cookie && !isn))
-		st = af_ops->init_seq_and_ts_off(net, skb);
+		goto drop_and_free;
 
 	if (!want_cookie && !isn) {
 		int max_syn_backlog = READ_ONCE(net->ipv4.sysctl_max_syn_backlog);
 
-		tcp_rsk(req)->ts_off = st.ts_off;
 		/* Kill the following clause, if you dislike this way. */
 		if (!syncookies &&
 		    (max_syn_backlog - inet_csk_reqsk_queue_len(sk) <
@@ -6937,7 +6933,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 			goto drop_and_release;
 		}
 
-		isn = st.seq;
+		isn = af_ops->init_seq(skb);
 	}
 
 	tcp_ecn_create_request(req, skb, sk, dst);
