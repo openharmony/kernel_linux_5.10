@@ -1036,8 +1036,8 @@ void sk_psock_start_verdict(struct sock *sk, struct sk_psock *psock)
 		return;
 
 	parser->saved_data_ready = sk->sk_data_ready;
-	WRITE_ONCE(sk->sk_data_ready, sk_psock_verdict_data_ready);
-	WRITE_ONCE(sk->sk_write_space, sk_psock_write_space);
+	sk->sk_data_ready = sk_psock_verdict_data_ready;
+	sk->sk_write_space = sk_psock_write_space;
 	parser->enabled = true;
 }
 
@@ -1049,8 +1049,8 @@ void sk_psock_start_strp(struct sock *sk, struct sk_psock *psock)
 		return;
 
 	parser->saved_data_ready = sk->sk_data_ready;
-	WRITE_ONCE(sk->sk_data_ready, sk_psock_strp_data_ready);
-	WRITE_ONCE(sk->sk_write_space, sk_psock_write_space);
+	sk->sk_data_ready = sk_psock_strp_data_ready;
+	sk->sk_write_space = sk_psock_write_space;
 	parser->enabled = true;
 }
 
@@ -1061,8 +1061,8 @@ void sk_psock_stop_strp(struct sock *sk, struct sk_psock *psock)
 	if (!parser->enabled)
 		return;
 
-	WRITE_ONCE(sk->sk_data_ready, psock->saved_data_ready);
-	WRITE_ONCE(psock->saved_data_ready, NULL);
+	sk->sk_data_ready = parser->saved_data_ready;
+	parser->saved_data_ready = NULL;
 	strp_stop(&parser->strp);
 	parser->enabled = false;
 }
@@ -1074,7 +1074,7 @@ void sk_psock_stop_verdict(struct sock *sk, struct sk_psock *psock)
 	if (!parser->enabled)
 		return;
 
-	WRITE_ONCE(sk->sk_data_ready, parser->saved_data_ready);
+	sk->sk_data_ready = parser->saved_data_ready;
 	parser->saved_data_ready = NULL;
 	parser->enabled = false;
 }

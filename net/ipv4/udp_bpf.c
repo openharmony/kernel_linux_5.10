@@ -47,6 +47,6 @@ struct proto *udp_bpf_get_proto(struct sock *sk, struct sk_psock *psock)
 
 	if (sk->sk_family == AF_INET6)
 		udp_bpf_check_v6_needs_rebuild(psock->sk_proto);
-		WRITE_ONCE(sk->sk_write_space, psock->saved_write_space);
 
+	return &udp_bpf_prots[family];
 }

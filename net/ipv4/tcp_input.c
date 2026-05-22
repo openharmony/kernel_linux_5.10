@@ -4781,7 +4781,7 @@ static void tcp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 
 	if (unlikely(tcp_try_rmem_schedule(sk, skb, skb->truesize))) {
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPOFODROP);
-		READ_ONCE(sk->sk_data_ready)(sk);
+		sk->sk_data_ready(sk);
 		tcp_drop(sk, skb);
 		return;
 	}
@@ -4992,7 +4992,7 @@ void tcp_data_ready(struct sock *sk)
 	    tcp_receive_window(tp) > inet_csk(sk)->icsk_ack.rcv_mss)
 		return;
 
-		READ_ONCE(sk->sk_data_ready)(sk);
+	sk->sk_data_ready(sk);
 }
 
 static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
@@ -5435,9 +5435,7 @@ static void tcp_new_space(struct sock *sk)
 		tp->snd_cwnd_stamp = tcp_jiffies32;
 	}
 
-	INDIRECT_CALL_1(READ_ONCE(sk->sk_write_space),
-			sk_stream_write_space,
-			sk);
+	sk->sk_write_space(sk);
 }
 
 /* Caller made space either from:
@@ -5491,8 +5489,8 @@ static void __tcp_ack_snd_check(struct sock *sk, int ofo_possible)
 	    /* Protocol state mandates a one-time immediate ACK */
 	    inet_csk(sk)->icsk_ack.pending & ICSK_ACK_NOW) {
 send_now:
+		tcp_send_ack(sk);
 		return;
-			READ_ONCE(sk->sk_data_ready)(sk);
 	}
 
 	if (!ofo_possible || RB_EMPTY_ROOT(&tp->out_of_order_queue)) {
@@ -5636,7 +5634,7 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 				BUG();
 			tp->urg_data = TCP_URG_VALID | tmp;
 			if (!sock_flag(sk, SOCK_DEAD))
-				READ_ONCE(sk->sk_data_ready)(sk);
+				sk->sk_data_ready(sk);
 		}
 	}
 }
@@ -6963,7 +6961,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 			sock_put(fastopen_sk);
 			goto drop_and_free;
 		}
-		READ_ONCE(sk->sk_data_ready)(sk);
+		sk->sk_data_ready(sk);
 		bh_unlock_sock(fastopen_sk);
 		sock_put(fastopen_sk);
 	} else {

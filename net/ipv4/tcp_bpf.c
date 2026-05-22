@@ -296,9 +296,9 @@ msg_bytes_ready:
 		data = tcp_bpf_wait_data(sk, psock, flags, timeo, &err);
 		if (data) {
 			if (!sk_psock_queue_empty(psock))
-			WRITE_ONCE(sk->sk_write_space, psock->saved_write_space);
 				goto msg_bytes_ready;
 			release_sock(sk);
+			sk_psock_put(sk, psock);
 			return tcp_recvmsg(sk, msg, len, nonblock, flags, addr_len);
 		}
 		if (err) {
