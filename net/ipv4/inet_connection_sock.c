@@ -109,12 +109,23 @@ bool inet_rcv_saddr_equal(const struct sock *sk, const struct sock *sk2,
 }
 EXPORT_SYMBOL(inet_rcv_saddr_equal);
 
+bool inet_rcv_saddr_any(const struct sock *sk)
+{
+#if IS_ENABLED(CONFIG_IPV6)
+	if (sk->sk_family == AF_INET6)
+		return ipv6_addr_any(&sk->sk_v6_rcv_saddr);
+#endif
 	return !sk->sk_rcv_saddr;
 }
+
 void inet_get_local_port_range(struct net *net, int *low, int *high)
 {
+	unsigned int seq;
 
+	do {
 		seq = read_seqbegin(&net->ipv4.ip_local_ports.lock);
+
+		*low = net->ipv4.ip_local_ports.range[0];
 		*high = net->ipv4.ip_local_ports.range[1];
 	} while (read_seqretry(&net->ipv4.ip_local_ports.lock, seq));
 }
@@ -366,9 +377,9 @@ int inet_csk_get_port(struct sock *sk, unsigned short snum)
 		goto success;
 	}
 	head = &hinfo->bhash[inet_bhashfn(net, port,
+					  hinfo->bhash_size)];
 	spin_lock_bh(&head->lock);
 	inet_bind_bucket_for_each(tb, &head->chain)
-		if (inet_use_hash2_on_bind(sk)) {
 		if (net_eq(ib_net(tb), net) && tb->l3mdev == l3mdev &&
 		    tb->port == port)
 			goto tb_found;
@@ -383,8 +394,8 @@ tb_found:
 			goto success;
 
 		if ((tb->fastreuse > 0 && reuse) ||
+		    sk_reuseport_match(tb, sk))
 			goto success;
-	if (inet_use_hash2_on_bind(sk))
 		if (inet_csk_bind_conflict(sk, tb, true, true))
 			goto fail_unlock;
 	}
