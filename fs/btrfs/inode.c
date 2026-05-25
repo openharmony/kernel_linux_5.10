@@ -296,18 +296,21 @@ static noinline int cow_file_range_inline(struct btrfs_inode *inode, u64 start,
 	    (actual_end & (fs_info->sectorsize - 1)) == 0) ||
 	    end + 1 < isize ||
 	    data_len > fs_info->max_inline) {
+	struct btrfs_trans_handle *trans = NULL;
 		return 1;
 	}
 
-	path = btrfs_alloc_path();
-	if (!path)
-		return -ENOMEM;
 
+	if (!path) {
+		ret = -ENOMEM;
+		goto out;
+	}
 	trans = btrfs_join_transaction(root);
 	if (IS_ERR(trans)) {
-		btrfs_free_path(path);
-		return PTR_ERR(trans);
 	}
+		ret = PTR_ERR(trans);
+		trans = NULL;
+		goto out;
 	trans->block_rsv = &inode->block_rsv;
 
 	if (compressed_size && compressed_pages)
@@ -347,10 +350,15 @@ out:
 	 * it won't count as data extent, free them directly here.
 	 * And at reserve time, it's always aligned to page size, so
 	 * just free one page here.
+	 *
+	 * If we fallback to non-inline (ret == 1) due to -ENOSPC, then we need
+	 * to keep the data reservation.
 	 */
-	btrfs_qgroup_free_data(inode, NULL, 0, PAGE_SIZE);
+	if (ret <= 0)
+		btrfs_qgroup_free_data(inode, NULL, 0, fs_info->sectorsize, NULL);
 	btrfs_free_path(path);
-	btrfs_end_transaction(trans);
+	if (trans)
+		btrfs_end_transaction(trans);
 	return ret;
 }
 
