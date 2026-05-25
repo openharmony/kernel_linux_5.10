@@ -22,7 +22,6 @@
 #include <linux/regulator/consumer.h>
 
 static LIST_HEAD(mfd_of_node_list);
-static DEFINE_MUTEX(mfd_of_node_mutex);
 
 struct mfd_of_node_entry {
 	struct list_head list;
@@ -128,11 +127,9 @@ static int mfd_match_of_node_to_dev(struct platform_device *pdev,
 	u64 of_node_addr;
 
 	/* Skip if OF node has previously been allocated to a device */
-	scoped_guard(mutex, &mfd_of_node_mutex) {
-		list_for_each_entry(of_entry, &mfd_of_node_list, list)
-			if (of_entry->np == np)
-				return -EAGAIN;
-	}
+	list_for_each_entry(of_entry, &mfd_of_node_list, list)
+		if (of_entry->np == np)
+			return -EAGAIN;
 
 	if (!cell->use_of_reg)
 		/* No of_reg defined - allocate first free compatible match */
@@ -157,8 +154,7 @@ allocate_of_node:
 
 	of_entry->dev = &pdev->dev;
 	of_entry->np = np;
-	scoped_guard(mutex, &mfd_of_node_mutex)
-		list_add_tail(&of_entry->list, &mfd_of_node_list);
+	list_add_tail(&of_entry->list, &mfd_of_node_list);
 
 	pdev->dev.of_node = np;
 	pdev->dev.fwnode = &np->fwnode;
@@ -312,13 +308,11 @@ match:
 	return 0;
 
 fail_of_entry:
-	scoped_guard(mutex, &mfd_of_node_mutex) {
-		list_for_each_entry_safe(of_entry, tmp, &mfd_of_node_list, list)
-			if (of_entry->dev == &pdev->dev) {
-				list_del(&of_entry->list);
-				kfree(of_entry);
-			}
-	}
+	list_for_each_entry_safe(of_entry, tmp, &mfd_of_node_list, list)
+		if (of_entry->dev == &pdev->dev) {
+			list_del(&of_entry->list);
+			kfree(of_entry);
+		}
 fail_alias:
 	regulator_bulk_unregister_supply_alias(&pdev->dev,
 					       cell->parent_supplies,
@@ -383,17 +377,6 @@ static int mfd_remove_devices_fn(struct device *dev, void *data)
 
 	if (level && cell->level > *level)
 		return 0;
-
-	if (cell->swnode)
-		device_remove_software_node(&pdev->dev);
-
-	scoped_guard(mutex, &mfd_of_node_mutex) {
-		list_for_each_entry_safe(of_entry, tmp, &mfd_of_node_list, list)
-			if (of_entry->dev == &pdev->dev) {
-				list_del(&of_entry->list);
-				kfree(of_entry);
-			}
-	}
 
 	regulator_bulk_unregister_supply_alias(dev, cell->parent_supplies,
 					       cell->num_parent_supplies);
