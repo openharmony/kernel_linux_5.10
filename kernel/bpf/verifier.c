@@ -12283,10 +12283,6 @@ static int check_non_sleepable_error_inject(u32 btf_id)
 
 BTF_SET_START(btf_id_deny)
 BTF_ID_UNUSED
-#ifdef CONFIG_SMP
-BTF_ID(func, migrate_disable)
-BTF_ID(func, migrate_enable)
-#endif
 #if !defined CONFIG_PREEMPT_RCU && !defined CONFIG_TINY_RCU
 BTF_ID(func, rcu_read_unlock_strict)
 #endif
