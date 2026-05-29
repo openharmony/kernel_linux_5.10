@@ -36,6 +36,7 @@
 #include <net/sock.h>
 #include <net/snmp.h>
 #include <net/ip.h>
+#include <net/secure_seq.h>
 #include <net/tcp_states.h>
 #include <net/inet_ecn.h>
 #include <net/dst.h>
@@ -2067,6 +2068,9 @@ struct tcp_request_sock_ops {
 				       const struct request_sock *req);
 	u32 (*init_seq)(const struct sk_buff *skb);
 	u32 (*init_ts_off)(const struct net *net, const struct sk_buff *skb);
+	union tcp_seq_and_ts_off (*init_seq_and_ts_off)(
+		const struct net *net,
+		const struct sk_buff *skb);
 	int (*send_synack)(const struct sock *sk, struct dst_entry *dst,
 			   struct flowi *fl, struct request_sock *req,
 			   struct tcp_fastopen_cookie *foc,
