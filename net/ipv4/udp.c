@@ -162,6 +162,29 @@ static int udp_lib_lport_inuse(struct net *net, __u16 num,
 }
 
 /*
+ * udp_use_hash2_on_bind - Check if the hash2 table can be used for bind conflict detection.
+ *
+ * When binding to a wildcard address (0.0.0.0, ::, or ::ffff:0.0.0.0),
+ * the hash2 table cannot be used because it is keyed by local address + port.
+ * A wildcard bind must conflict with all specific-address binds on the same port,
+ * but hash2 only contains entries for specific addresses.
+ * Without this check, a wildcard bind can succeed when it should return -EADDRINUSE.
+ * See CVE-2026-31503 and upstream commit e537dd15d0d4ad989d56a1021290f0c674dd8b28.
+ */
+static bool udp_use_hash2_on_bind(const struct sock *sk)
+{
+#if IS_ENABLED(CONFIG_IPV6)
+	if (sk->sk_family == AF_INET6) {
+		if (ipv6_addr_any(&sk->sk_v6_rcv_saddr))
+			return false;
+		if (!ipv6_addr_v4mapped(&sk->sk_v6_rcv_saddr))
+			return true;
+	}
+#endif
+	return sk->sk_rcv_saddr != htonl(INADDR_ANY);
+}
+
+/*
  * Note: we still hold spinlock of primary hash chain, so no other writer
  * can insert/delete a socket with local_port == num
  */
@@ -278,7 +301,7 @@ int udp_lib_get_port(struct sock *sk, unsigned short snum,
 	} else {
 		hslot = udp_hashslot(udptable, net, snum);
 		spin_lock_bh(&hslot->lock);
-		if (hslot->count > 10) {
+		if (udp_use_hash2_on_bind(sk) && hslot->count > 10) {
 			int exist;
 			unsigned int slot2 = udp_sk(sk)->udp_portaddr_hash ^ snum;
 
