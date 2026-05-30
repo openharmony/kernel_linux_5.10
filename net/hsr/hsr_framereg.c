@@ -44,10 +44,8 @@ bool hsr_addr_is_self(struct hsr_priv *hsr, unsigned char *addr)
 
 	node = list_first_or_null_rcu(&hsr->self_node_db, struct hsr_node,
 				      mac_list);
-	if (!node) {
-		WARN_ONCE(1, "HSR: No self node\n");
+	if (!node)
 		return false;
-	}
 
 	if (ether_addr_equal(addr, node->macaddress_A))
 		return true;
