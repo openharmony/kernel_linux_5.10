@@ -4781,7 +4781,7 @@ static void tcp_data_queue_ofo(struct sock *sk, struct sk_buff *skb)
 
 	if (unlikely(tcp_try_rmem_schedule(sk, skb, skb->truesize))) {
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPOFODROP);
-		sk->sk_data_ready(sk);
+		READ_ONCE(sk->sk_data_ready)(sk);
 		tcp_drop(sk, skb);
 		return;
 	}
@@ -4992,7 +4992,7 @@ void tcp_data_ready(struct sock *sk)
 	    tcp_receive_window(tp) > inet_csk(sk)->icsk_ack.rcv_mss)
 		return;
 
-	sk->sk_data_ready(sk);
+	READ_ONCE(sk->sk_data_ready)(sk);
 }
 
 static void tcp_data_queue(struct sock *sk, struct sk_buff *skb)
@@ -5029,7 +5029,7 @@ queue_and_out:
 			sk_forced_mem_schedule(sk, skb->truesize);
 		else if (tcp_try_rmem_schedule(sk, skb, skb->truesize)) {
 			NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPRCVQDROP);
-			sk->sk_data_ready(sk);
+			READ_ONCE(sk->sk_data_ready)(sk);
 			goto drop;
 		}
 
@@ -5435,7 +5435,7 @@ static void tcp_new_space(struct sock *sk)
 		tp->snd_cwnd_stamp = tcp_jiffies32;
 	}
 
-	sk->sk_write_space(sk);
+	READ_ONCE(sk->sk_write_space)(sk);
 }
 
 /* Caller made space either from:
@@ -5634,7 +5634,7 @@ static void tcp_urg(struct sock *sk, struct sk_buff *skb, const struct tcphdr *t
 				BUG();
 			tp->urg_data = TCP_URG_VALID | tmp;
 			if (!sock_flag(sk, SOCK_DEAD))
-				sk->sk_data_ready(sk);
+				READ_ONCE(sk->sk_data_ready)(sk);
 		}
 	}
 }
@@ -6846,6 +6846,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct net *net = sock_net(sk);
 	struct sock *fastopen_sk = NULL;
+	union tcp_seq_and_ts_off st;
 	struct request_sock *req;
 	bool want_cookie = false;
 	struct dst_entry *dst;
@@ -6904,12 +6905,15 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 	if (security_inet_conn_request(sk, skb, req))
 		goto drop_and_free;
 
-	if (tmp_opt.tstamp_ok)
-		tcp_rsk(req)->ts_off = af_ops->init_ts_off(net, skb);
-
 	dst = af_ops->route_req(sk, &fl, req);
 	if (!dst)
 		goto drop_and_free;
+
+	if (tmp_opt.tstamp_ok || (!want_cookie && !isn))
+		st = af_ops->init_seq_and_ts_off(net, skb);
+
+	if (tmp_opt.tstamp_ok)
+		tcp_rsk(req)->ts_off = st.ts_off;
 
 	if (!want_cookie && !isn) {
 		int max_syn_backlog = READ_ONCE(net->ipv4.sysctl_max_syn_backlog);
@@ -6931,7 +6935,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 			goto drop_and_release;
 		}
 
-		isn = af_ops->init_seq(skb);
+		isn = st.seq;
 	}
 
 	tcp_ecn_create_request(req, skb, sk, dst);
@@ -6961,7 +6965,7 @@ int tcp_conn_request(struct request_sock_ops *rsk_ops,
 			sock_put(fastopen_sk);
 			goto drop_and_free;
 		}
-		sk->sk_data_ready(sk);
+		READ_ONCE(sk->sk_data_ready)(sk);
 		bh_unlock_sock(fastopen_sk);
 		sock_put(fastopen_sk);
 	} else {
