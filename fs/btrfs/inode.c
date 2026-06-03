@@ -355,7 +355,7 @@ out:
 	 * to keep the data reservation.
 	 */
 	if (ret <= 0)
-		btrfs_qgroup_free_data(inode, NULL, 0, fs_info->sectorsize, NULL);
+		btrfs_qgroup_free_data(inode, NULL, 0, fs_info->sectorsize);
 	btrfs_free_path(path);
 	if (trans)
 		btrfs_end_transaction(trans);

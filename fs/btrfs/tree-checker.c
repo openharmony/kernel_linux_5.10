@@ -1157,7 +1157,7 @@ static int check_root_item(struct extent_buffer *leaf, struct btrfs_key *key,
 	 * merge_reloc_root() and btrfs_drop_snapshot() at mount time.
 	 */
 	if (unlikely(btrfs_disk_key_objectid(&ri.drop_progress) != 0 &&
-		     btrfs_root_drop_level(&ri) == 0)) {
+		     ri.drop_level == 0)) {
 		generic_err(leaf, slot,
 			    "invalid root drop_level 0 with non-zero drop_progress objectid %llu",
 			    btrfs_disk_key_objectid(&ri.drop_progress));
