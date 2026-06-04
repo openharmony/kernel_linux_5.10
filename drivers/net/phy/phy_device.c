@@ -1275,6 +1275,9 @@ int phy_sfp_probe(struct phy_device *phydev,
 
 		ret = sfp_bus_add_upstream(bus, phydev, ops);
 		sfp_bus_put(bus);
+
+		if (ret)
+			phydev->sfp_bus = NULL;
 	}
 	return ret;
 }
@@ -2914,6 +2917,9 @@ static int phy_remove(struct device *dev)
 	struct phy_device *phydev = to_phy_device(dev);
 
 	cancel_delayed_work_sync(&phydev->state_queue);
+	sfp_bus_del_upstream(phydev->sfp_bus);
+	phydev->sfp_bus = NULL;
+
 
 	phy_led_triggers_unregister(phydev);
 
