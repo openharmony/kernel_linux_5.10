@@ -2070,7 +2070,7 @@ static bool fault_in_fiemap(struct fiemap_extent_info *fi)
 	struct fiemap_extent __user *dest = fi->fi_extents_start;
 	size_t size = sizeof(*dest) * fi->fi_extents_max;
 
-	return fault_in_safe_writeable((char __user *)dest, size) == 0;
+	return fault_in_pages_writeable((char __user *)dest, size) == 0;
 }
 
 static int gfs2_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,

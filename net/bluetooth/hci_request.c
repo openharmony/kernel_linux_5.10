@@ -48,7 +48,7 @@ void hci_req_purge(struct hci_request *req)
 
 bool hci_req_status_pend(struct hci_dev *hdev)
 {
-	return hdev->req_status == HCI_REQ_PEND;
+	return READ_ONCE(hdev->req_status) == HCI_REQ_PEND;
 }
 
 static int req_run(struct hci_request *req, hci_req_complete_t complete,
@@ -104,9 +104,9 @@ static void hci_req_sync_complete(struct hci_dev *hdev, u8 result, u16 opcode,
 {
 	BT_DBG("%s result 0x%2.2x", hdev->name, result);
 
-	if (hdev->req_status == HCI_REQ_PEND) {
+	if (READ_ONCE(hdev->req_status) == HCI_REQ_PEND) {
 		hdev->req_result = result;
-		hdev->req_status = HCI_REQ_DONE;
+		WRITE_ONCE(hdev->req_status, HCI_REQ_DONE);
 		if (skb) {
 			kfree_skb(hdev->req_skb);
 			hdev->req_skb = skb_get(skb);
@@ -119,9 +119,9 @@ void hci_req_sync_cancel(struct hci_dev *hdev, int err)
 {
 	BT_DBG("%s err 0x%2.2x", hdev->name, err);
 
-	if (hdev->req_status == HCI_REQ_PEND) {
+	if (READ_ONCE(hdev->req_status) == HCI_REQ_PEND) {
 		hdev->req_result = err;
-		hdev->req_status = HCI_REQ_CANCELED;
+		WRITE_ONCE(hdev->req_status, HCI_REQ_CANCELED);
 		wake_up_interruptible(&hdev->req_wait_q);
 	}
 }
@@ -139,19 +139,19 @@ struct sk_buff *__hci_cmd_sync_ev(struct hci_dev *hdev, u16 opcode, u32 plen,
 
 	hci_req_add_ev(&req, opcode, plen, param, event);
 
-	hdev->req_status = HCI_REQ_PEND;
+	WRITE_ONCE(hdev->req_status, HCI_REQ_PEND);
 
 	err = hci_req_run_skb(&req, hci_req_sync_complete);
 	if (err < 0)
 		return ERR_PTR(err);
 
 	err = wait_event_interruptible_timeout(hdev->req_wait_q,
-			hdev->req_status != HCI_REQ_PEND, timeout);
+			READ_ONCE(hdev->req_status) != HCI_REQ_PEND, timeout);
 
 	if (err == -ERESTARTSYS)
 		return ERR_PTR(-EINTR);
 
-	switch (hdev->req_status) {
+	switch (READ_ONCE(hdev->req_status)) {
 	case HCI_REQ_DONE:
 		err = -bt_to_errno(hdev->req_result);
 		break;
@@ -165,7 +165,8 @@ struct sk_buff *__hci_cmd_sync_ev(struct hci_dev *hdev, u16 opcode, u32 plen,
 		break;
 	}
 
-	hdev->req_status = hdev->req_result = 0;
+	WRITE_ONCE(hdev->req_status, 0);
+	hdev->req_result = 0;
 	skb = hdev->req_skb;
 	hdev->req_skb = NULL;
 
@@ -202,7 +203,7 @@ int __hci_req_sync(struct hci_dev *hdev, int (*func)(struct hci_request *req,
 
 	hci_req_init(&req, hdev);
 
-	hdev->req_status = HCI_REQ_PEND;
+	WRITE_ONCE(hdev->req_status, HCI_REQ_PEND);
 
 	err = func(&req, opt);
 	if (err) {
@@ -213,7 +214,7 @@ int __hci_req_sync(struct hci_dev *hdev, int (*func)(struct hci_request *req,
 
 	err = hci_req_run_skb(&req, hci_req_sync_complete);
 	if (err < 0) {
-		hdev->req_status = 0;
+		WRITE_ONCE(hdev->req_status, 0);
 
 		/* ENODATA means the HCI request command queue is empty.
 		 * This can happen when a request with conditionals doesn't
@@ -233,12 +234,12 @@ int __hci_req_sync(struct hci_dev *hdev, int (*func)(struct hci_request *req,
 	}
 
 	err = wait_event_interruptible_timeout(hdev->req_wait_q,
-			hdev->req_status != HCI_REQ_PEND, timeout);
+			READ_ONCE(hdev->req_status) != HCI_REQ_PEND, timeout);
 
 	if (err == -ERESTARTSYS)
 		return -EINTR;
 
-	switch (hdev->req_status) {
+	switch (READ_ONCE(hdev->req_status)) {
 	case HCI_REQ_DONE:
 		err = -bt_to_errno(hdev->req_result);
 		if (hci_status)
@@ -260,7 +261,8 @@ int __hci_req_sync(struct hci_dev *hdev, int (*func)(struct hci_request *req,
 
 	kfree_skb(hdev->req_skb);
 	hdev->req_skb = NULL;
-	hdev->req_status = hdev->req_result = 0;
+	WRITE_ONCE(hdev->req_status, 0);
+	hdev->req_result = 0;
 
 	BT_DBG("%s end: err %d", hdev->name, err);
 

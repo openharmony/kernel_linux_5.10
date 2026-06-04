@@ -618,7 +618,7 @@ void af_alg_pull_tsgl(struct sock *sk, size_t used, struct scatterlist *dst,
 			 * Assumption: caller created af_alg_count_tsgl(len)
 			 * SG entries in dst.
 			 */
-			if (dst) {
+			if (dst && plen) {
 				if (dst_offset >= plen) {
 					/* discard page before offset */
 					dst_offset -= plen;
