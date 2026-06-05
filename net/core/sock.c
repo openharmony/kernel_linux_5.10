@@ -1064,6 +1064,11 @@ set_sndbuf:
 	case SO_ATTACH_FILTER: {
 		struct sock_fprog fprog;
 
+		if (sk->sk_type == SOCK_STREAM && sk->sk_protocol == IPPROTO_TCP &&
+		    !ns_capable(sock_net(sk)->user_ns, CAP_NET_ADMIN)) {
+			ret = -EPERM;
+			break;
+		}
 		ret = copy_bpf_fprog_from_user(&fprog, optval, optlen);
 		if (!ret)
 			ret = sk_attach_filter(&fprog, sk);
