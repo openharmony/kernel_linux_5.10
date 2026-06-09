@@ -2069,6 +2069,8 @@ void amdgpu_ttm_set_buffer_funcs_status(struct amdgpu_device *adev, bool enable)
 		struct drm_gpu_scheduler *sched;
 
 		ring = adev->mman.buffer_funcs_ring;
+		if (!ring)
+			return;
 		sched = &ring->sched;
 		r = drm_sched_entity_init(&adev->mman.entity,
 					  DRM_SCHED_PRIORITY_KERNEL, &sched,

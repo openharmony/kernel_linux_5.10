@@ -3232,6 +3232,9 @@ int try_to_free_buffers(struct page *page)
 	if (PageWriteback(page))
 		return 0;
 
+	if (WARN_ON_ONCE(!page_has_buffers(page)))
+		return 1;
+
 	if (mapping == NULL) {		/* can this still happen? */
 		ret = drop_buffers(page, &buffers_to_free);
 		goto out;
