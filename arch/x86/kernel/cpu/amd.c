@@ -965,6 +965,9 @@ static void init_amd_jg(struct cpuinfo_x86 *c)
 	clear_rdrand_cpuid_bit(c);
 }
 
+	if (!cpu_has(c, X86_FEATURE_HYPERVISOR))
+		msr_set_bit(MSR_ZEN4_BP_CFG, MSR_ZEN2_BP_CFG_BUG_FIX_BIT);
+
 static void init_amd_bd(struct cpuinfo_x86 *c)
 {
 	u64 value;
