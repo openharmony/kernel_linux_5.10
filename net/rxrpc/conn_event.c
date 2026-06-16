@@ -470,9 +470,6 @@ static void rxrpc_do_process_connection(struct rxrpc_connection *conn)
 		case -EKEYEXPIRED:
 		case -EKEYREJECTED:
 			goto protocol_error;
-		case -ENOMEM:
-		case -EAGAIN:
-			goto requeue_and_leave;
 		case -ECONNABORTED:
 		default:
 			rxrpc_free_skb(skb, rxrpc_skb_freed);
@@ -482,13 +479,8 @@ static void rxrpc_do_process_connection(struct rxrpc_connection *conn)
 
 	return;
 
-requeue_and_leave:
-	skb_queue_head(&conn->rx_queue, skb);
-	return;
-
 protocol_error:
-	if (rxrpc_abort_connection(conn, ret, abort_code) < 0)
-		goto requeue_and_leave;
+	rxrpc_abort_connection(conn, ret, abort_code);
 	rxrpc_free_skb(skb, rxrpc_skb_freed);
 	return;
 }
