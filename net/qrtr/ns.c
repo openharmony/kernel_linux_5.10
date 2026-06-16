@@ -66,7 +66,10 @@ struct qrtr_server {
 struct qrtr_node {
 	unsigned int id;
 	struct radix_tree_root servers;
+	u32 server_count;
 };
+
+#define QRTR_NS_MAX_SERVERS 256
 
 static struct qrtr_node *node_get(unsigned int node_id)
 {
@@ -241,6 +244,17 @@ static struct qrtr_server *server_add(unsigned int service,
 	if (!service || !port)
 		return NULL;
 
+	node = node_get(node_id);
+	if (!node)
+		return NULL;
+
+	/* Make sure the new servers per port are capped at the maximum value */
+	old = radix_tree_lookup(&node->servers, port);
+	if (!old && node->server_count >= QRTR_NS_MAX_SERVERS) {
+		pr_err_ratelimited("QRTR client node %u exceeds max server limit!\n", node_id);
+		return NULL;
+	}
+
 	srv = kzalloc(sizeof(*srv), GFP_KERNEL);
 	if (!srv)
 		return NULL;
@@ -250,27 +264,20 @@ static struct qrtr_server *server_add(unsigned int service,
 	srv->node = node_id;
 	srv->port = port;
 
-	node = node_get(node_id);
-	if (!node)
-		goto err;
-
 	/* Delete the old server on the same port */
-	old = radix_tree_lookup(&node->servers, port);
 	if (old) {
 		radix_tree_delete(&node->servers, port);
 		kfree(old);
 	}
 
 	radix_tree_insert(&node->servers, port, srv);
+	if (!old)
+		node->server_count++;
 
 	trace_qrtr_ns_server_add(srv->service, srv->instance,
 				 srv->node, srv->port);
 
 	return srv;
-
-err:
-	kfree(srv);
-	return NULL;
 }
 
 static int server_del(struct qrtr_node *node, unsigned int port, bool bcast)
@@ -284,6 +291,7 @@ static int server_del(struct qrtr_node *node, unsigned int port, bool bcast)
 		return -ENOENT;
 
 	radix_tree_delete(&node->servers, port);
+	node->server_count--;
 
 	/* Broadcast the removal of local servers */
 	if (srv->node == qrtr_ns.local_node && bcast)
@@ -759,7 +767,7 @@ static void qrtr_ns_worker(struct work_struct *work)
 		}
 
 		if (ret < 0)
-			pr_err("failed while handling packet from %d:%d",
+			pr_err_ratelimited("failed while handling packet from %d:%d",
 			       sq.sq_node, sq.sq_port);
 	}
 
