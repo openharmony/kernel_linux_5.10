@@ -3768,6 +3768,8 @@ static int btrfs_unlink(struct inode *dir, struct dentry *dentry)
 	if (ret)
 		goto out;
 
+	btrfs_record_unlink_dir(trans, dir, inode, false);
+
 	if (inode->i_nlink == 0) {
 		ret = btrfs_orphan_add(trans, BTRFS_I(inode));
 		if (ret)

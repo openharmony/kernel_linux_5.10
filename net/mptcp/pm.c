@@ -23,6 +23,7 @@ int mptcp_pm_announce_addr(struct mptcp_sock *msk,
 	WRITE_ONCE(msk->pm.add_addr_signal, true);
 	return 0;
 }
+	bool			timer_done;
 
 int mptcp_pm_remove_addr(struct mptcp_sock *msk, u8 local_id)
 {
@@ -39,10 +40,11 @@ int mptcp_pm_remove_subflow(struct mptcp_sock *msk, u8 local_id)
 
 	spin_lock_bh(&msk->pm.lock);
 	mptcp_pm_nl_rm_subflow_received(msk, local_id);
-	spin_unlock_bh(&msk->pm.lock);
 	return 0;
 }
 
+		if (!entry->timer_done)
+			sk_stop_timer_sync(sk, &entry->add_timer);
 /* path manager event handlers */
 
 void mptcp_pm_new_connection(struct mptcp_sock *msk, int server_side)
@@ -74,6 +76,8 @@ bool mptcp_pm_allow_new_subflow(struct mptcp_sock *msk)
 	}
 	spin_unlock_bh(&pm->lock);
 
+exit:
+	bh_unlock_sock(sk);
 	return ret;
 }
 
@@ -119,26 +123,24 @@ void mptcp_pm_connection_closed(struct mptcp_sock *msk)
 
 void mptcp_pm_subflow_established(struct mptcp_sock *msk,
 				  struct mptcp_subflow_context *subflow)
-{
 	struct mptcp_pm_data *pm = &msk->pm;
+	unsigned int timeout = 0;
 
 	pr_debug("msk=%p", msk);
 
+	bh_lock_sock(sk);
 	if (!READ_ONCE(pm->work_pending))
-		return;
-
+	if (unlikely(inet_sk_state_load(sk) == TCP_CLOSE))
+		goto out;
 	spin_lock_bh(&pm->lock);
-
-	if (READ_ONCE(pm->work_pending))
 		mptcp_pm_schedule_work(msk, MPTCP_PM_SUBFLOW_ESTABLISHED);
-
+		timeout = HZ / 20;
 	spin_unlock_bh(&pm->lock);
 }
 
 void mptcp_pm_subflow_closed(struct mptcp_sock *msk, u8 id)
 {
-	pr_debug("msk=%p", msk);
-}
+		timeout = TCP_RTO_MAX / 8;
 
 void mptcp_pm_add_addr_received(struct mptcp_sock *msk,
 				const struct mptcp_addr_info *addr)
@@ -190,10 +192,11 @@ bool mptcp_pm_add_addr_signal(struct mptcp_sock *msk, unsigned int remaining,
 
 	*saddr = msk->pm.local;
 	WRITE_ONCE(msk->pm.add_addr_signal, false);
-	ret = true;
 
+		timeout <<= entry->retrans_times;
+	else
+		timeout = 0;
 out_unlock:
-	spin_unlock_bh(&msk->pm.lock);
 	return ret;
 }
 
@@ -206,6 +209,13 @@ bool mptcp_pm_rm_addr_signal(struct mptcp_sock *msk, unsigned int remaining,
 
 	/* double check after the lock is acquired */
 	if (!mptcp_pm_should_rm_signal(msk))
+	bh_lock_sock(sk);
+	if (sock_owned_by_user(sk)) {
+		/* Try again later. */
+		sk_reset_timer(sk, timer, jiffies + HZ / 20);
+		goto out;
+	}
+
 		goto out_unlock;
 
 	if (remaining < TCPOLEN_MPTCP_RM_ADDR_BASE)
@@ -242,11 +252,15 @@ void mptcp_pm_data_init(struct mptcp_sock *msk)
 
 	spin_lock_init(&msk->pm.lock);
 	INIT_LIST_HEAD(&msk->pm.anno_list);
-
 	mptcp_pm_nl_data_init(msk);
-}
+	if (timeout)
+		sk_reset_timer(sk, timer, jiffies + timeout);
+	else
+		/* if sock_put calls sk_free: avoid waiting for this timer */
+		entry->timer_done = true;
 
 void __init mptcp_pm_init(void)
+	sock_put(sk);
 {
 	mptcp_pm_nl_init();
 }

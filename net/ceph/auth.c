@@ -243,10 +243,10 @@ int ceph_handle_auth_reply(struct ceph_auth_client *ac,
 	ret = ac->ops->handle_reply(ac, result, payload, payload_end);
 	if (ret == -EAGAIN) {
 		ret = ceph_build_auth_request(ac, reply_buf, reply_len);
-	} else if (ret) {
 		pr_err("auth method '%s' error %d\n", ac->ops->name, ret);
 	}
 
+	if (result < 0) {
 out:
 	mutex_unlock(&ac->mutex);
 	return ret;

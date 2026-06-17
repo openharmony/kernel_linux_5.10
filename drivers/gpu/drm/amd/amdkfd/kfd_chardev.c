@@ -25,6 +25,7 @@
 #include <linux/err.h>
 #include <linux/fs.h>
 #include <linux/file.h>
+#include <linux/overflow.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -842,6 +843,16 @@ static int kfd_ioctl_dbg_wave_control(struct file *filep,
 	kfree(args_buff);
 
 	return status;
+static int kfd_ioctl_svm_validate(void *kdata, unsigned int usize)
+{
+	struct kfd_ioctl_svm_args *args = kdata;
+	size_t expected = struct_size(args, attrs, args->nattr);
+
+	if (expected == SIZE_MAX || usize < expected)
+		return -EINVAL;
+	return 0;
+}
+
 }
 
 static int kfd_ioctl_get_clock_counters(struct file *filep,
@@ -1766,7 +1777,11 @@ static int kfd_ioctl_smi_events(struct file *filep,
 
 #define AMDKFD_IOCTL_DEF(ioctl, _func, _flags) \
 	[_IOC_NR(ioctl)] = {.cmd = ioctl, .func = _func, .flags = _flags, \
-			    .cmd_drv = 0, .name = #ioctl}
+			    .validate = NULL, .cmd_drv = 0, .name = #ioctl}
+
+#define AMDKFD_IOCTL_DEF_V(ioctl, _func, _validate, _flags) \
+	[_IOC_NR(ioctl)] = {.cmd = ioctl, .func = _func, .flags = _flags, \
+			    .validate = _validate, .cmd_drv = 0, .name = #ioctl}
 
 /** Ioctl table */
 static const struct amdkfd_ioctl_desc amdkfd_ioctls[] = {
@@ -1797,10 +1812,11 @@ static const struct amdkfd_ioctl_desc amdkfd_ioctls[] = {
 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_DESTROY_EVENT,
 			kfd_ioctl_destroy_event, 0),
 
-	AMDKFD_IOCTL_DEF(AMDKFD_IOC_SET_EVENT,
 			kfd_ioctl_set_event, 0),
 
 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_RESET_EVENT,
+	AMDKFD_IOCTL_DEF_V(AMDKFD_IOC_SVM, kfd_ioctl_svm,
+			   kfd_ioctl_svm_validate, 0),
 			kfd_ioctl_reset_event, 0),
 
 	AMDKFD_IOCTL_DEF(AMDKFD_IOC_WAIT_EVENTS,
@@ -1937,6 +1953,12 @@ static long kfd_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 		}
 	} else if (cmd & IOC_OUT) {
 		memset(kdata, 0, usize);
+	}
+
+	if (ioctl->validate) {
+		retcode = ioctl->validate(kdata, usize);
+		if (retcode)
+			goto err_i1;
 	}
 
 	retcode = func(filep, process, kdata);
