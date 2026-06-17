@@ -286,6 +286,40 @@ static void rxrpc_call_is_secure(struct rxrpc_call *call)
 }
 
 /*
+ * verify a RESPONSE packet, unsharing it when cloned, to avoid
+ * in-place decryption being visible to a packet sniffer.
+ *
+ * OH 5.10 backport note: adapted from upstream
+ * 24481a7f573305706054c59e275371f8d0fe919f. Uses OH 5.10's 3-parameter
+ * verify_response() signature and the available skb trace enums
+ * (rxrpc_skb_new / rxrpc_skb_freed / rxrpc_skb_unshared_nomem) as
+ * semantic equivalents for upstream-only enum names.
+ */
+static int rxrpc_verify_response(struct rxrpc_connection *conn,
+				 struct sk_buff *skb, u32 *_abort_code)
+{
+	int ret;
+
+	if (skb_cloned(skb)) {
+		struct sk_buff *nskb = skb_copy(skb, GFP_NOFS);
+
+		if (nskb) {
+			rxrpc_new_skb(nskb, rxrpc_skb_new);
+			ret = conn->security->verify_response(conn, nskb,
+							      _abort_code);
+			rxrpc_free_skb(nskb, rxrpc_skb_freed);
+		} else {
+			rxrpc_see_skb(skb, rxrpc_skb_unshared_nomem);
+			ret = -ENOMEM;
+		}
+	} else {
+		ret = conn->security->verify_response(conn, skb, _abort_code);
+	}
+
+	return ret;
+}
+
+/*
  * connection-level Rx packet processor
  */
 static int rxrpc_process_event(struct rxrpc_connection *conn,
@@ -337,7 +371,7 @@ static int rxrpc_process_event(struct rxrpc_connection *conn,
 							    _abort_code);
 
 	case RXRPC_PACKET_TYPE_RESPONSE:
-		ret = conn->security->verify_response(conn, skb, _abort_code);
+		ret = rxrpc_verify_response(conn, skb, _abort_code);
 		if (ret < 0)
 			return ret;
 
@@ -470,9 +504,6 @@ static void rxrpc_do_process_connection(struct rxrpc_connection *conn)
 		case -EKEYEXPIRED:
 		case -EKEYREJECTED:
 			goto protocol_error;
-		case -ENOMEM:
-		case -EAGAIN:
-			goto requeue_and_leave;
 		case -ECONNABORTED:
 		default:
 			rxrpc_free_skb(skb, rxrpc_skb_freed);
@@ -482,13 +513,8 @@ static void rxrpc_do_process_connection(struct rxrpc_connection *conn)
 
 	return;
 
-requeue_and_leave:
-	skb_queue_head(&conn->rx_queue, skb);
-	return;
-
 protocol_error:
-	if (rxrpc_abort_connection(conn, ret, abort_code) < 0)
-		goto requeue_and_leave;
+	rxrpc_abort_connection(conn, ret, abort_code);
 	rxrpc_free_skb(skb, rxrpc_skb_freed);
 	return;
 }
