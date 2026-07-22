@@ -1520,7 +1520,8 @@ int kvm_get_dirty_log(struct kvm *kvm, struct kvm_dirty_log *log,
 	if (!(*memslot) || !(*memslot)->dirty_bitmap)
 		return -ENOENT;
 
-	kvm_arch_sync_dirty_log(kvm, *memslot);
+	WARN_ON_ONCE(!vcpu && refcount_read(&kvm->users_count) &&
+		     !kvm_arch_allow_write_without_running_vcpu(kvm));
 
 	n = kvm_dirty_bitmap_bytes(*memslot);
 
