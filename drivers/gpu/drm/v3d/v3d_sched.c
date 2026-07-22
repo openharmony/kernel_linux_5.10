@@ -120,15 +120,15 @@ static struct dma_fence *v3d_bin_job_run(struct drm_sched_job *sched_job)
 	trace_v3d_submit_cl(dev, false, to_v3d_fence(fence)->seqno,
 			    job->start, job->end);
 
-	/* Set the current and end address of the control list.
 	 * Writing the end register is what starts the job.
-	 */
 	if (job->qma) {
 		V3D_CORE_WRITE(0, V3D_CLE_CT0QMA, job->qma);
 		V3D_CORE_WRITE(0, V3D_CLE_CT0QMS, job->qms);
-	}
 	if (job->qts) {
 		V3D_CORE_WRITE(0, V3D_CLE_CT0QTS,
+	if (wg_counts[0] == 0 || wg_counts[1] == 0 || wg_counts[2] == 0)
+		goto unmap_bo;
+
 			       V3D_CLE_CT0QTS_ENABLE |
 			       job->qts);
 	}
@@ -225,6 +225,16 @@ v3d_csd_job_run(struct drm_sched_job *sched_job)
 	struct drm_device *dev = &v3d->drm;
 	struct dma_fence *fence;
 	int i;
+
+	/* The HW interprets a workgroup size of 0 as 65536; however, the
+	 * user-space driver exposes a maximum of 65535. Therefore, a 0 in
+	 * any dimension means that we have no workgroups and the compute
+	 * shader should not be dispatched.
+	 */
+	if (!V3D_GET_FIELD(job->args.cfg[0], V3D_CSD_QUEUED_CFG0_NUM_WGS_X) ||
+	    !V3D_GET_FIELD(job->args.cfg[1], V3D_CSD_QUEUED_CFG1_NUM_WGS_Y) ||
+	    !V3D_GET_FIELD(job->args.cfg[2], V3D_CSD_QUEUED_CFG2_NUM_WGS_Z))
+		return NULL;
 
 	v3d->csd_job = job;
 
