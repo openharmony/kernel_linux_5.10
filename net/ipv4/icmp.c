@@ -567,6 +567,14 @@ static struct rtable *icmp_route_lookup(struct net *net,
 	if (err)
 		goto relookup_failed;
 
+	if (rt2 && rt2->rt_type == RTN_LOCAL) {
+		net_warn_ratelimited("detected local route for %pI4 during ICMP sending, src %pI4\n",
+				     &fl4_dec.daddr, &fl4_dec.saddr);
+		dst_release(&rt2->dst);
+		err = -EINVAL;
+		goto relookup_failed;
+	}
+
 	rt2 = (struct rtable *) xfrm_lookup(net, &rt2->dst,
 					    flowi4_to_flowi(&fl4_dec), NULL,
 					    XFRM_LOOKUP_ICMP);
