@@ -1681,7 +1681,7 @@ void ata_scsi_requeue_deferred_qc(struct ata_port *ap)
 	ap->deferred_qc = NULL;
 	ata_qc_free(qc);
 	scmd->result = (DID_SOFT_ERROR << 16);
-	scsi_done(scmd);
+	scmd->scsi_done(scmd);
 }
 
 static void ata_scsi_schedule_deferred_qc(struct ata_port *ap)
