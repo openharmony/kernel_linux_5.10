@@ -853,6 +853,12 @@ static void icmp_socket_deliver(struct sk_buff *skb, u32 info)
 		return;
 	}
 
+	/* IPPROTO_RAW sockets are not supposed to receive anything. */
+	if (protocol == IPPROTO_RAW) {
+		__ICMP_INC_STATS(dev_net(skb->dev), ICMP_MIB_INERRORS);
+		return;
+	}
+
 	raw_icmp_error(skb, protocol, info);
 
 	ipprot = rcu_dereference(inet_protos[protocol]);
