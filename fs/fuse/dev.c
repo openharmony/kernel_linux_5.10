@@ -1728,8 +1728,8 @@ static int fuse_retrieve(struct fuse_mount *fm, struct inode *inode,
 		page = find_get_page(mapping, index);
 		if (!page)
 			break;
-		if (!folio_test_uptodate(folio)) {
-			folio_put(folio);
+		if (!PageUptodate(page)) {
+			put_page(page);
 			break;
 		}
 
