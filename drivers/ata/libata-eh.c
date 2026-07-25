@@ -988,6 +988,12 @@ void ata_port_schedule_eh(struct ata_port *ap)
 }
 EXPORT_SYMBOL_GPL(ata_port_schedule_eh);
 
+bool ata_port_eh_scheduled(struct ata_port *ap)
+{
+	return ap->pflags & (ATA_PFLAG_EH_PENDING | ATA_PFLAG_EH_IN_PROGRESS);
+}
+EXPORT_SYMBOL_GPL(ata_port_eh_scheduled);
+
 static int ata_do_link_abort(struct ata_port *ap, struct ata_link *link)
 {
 	struct ata_queued_cmd *qc;
