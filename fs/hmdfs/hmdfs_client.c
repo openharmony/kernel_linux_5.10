@@ -844,9 +844,20 @@ int hmdfs_send_syncfs(struct hmdfs_peer *con, int syncfs_timeout)
 }
 
 static void hmdfs_update_getxattr_ret(struct getxattr_response *resp,
+				     size_t resp_len,
 				     void *value, size_t o_size, int *ret)
 {
 	ssize_t size = le32_to_cpu(resp->size);
+
+	if (size < 0) {
+		*ret = size;
+		return;
+	}
+
+	if (size > (ssize_t)(resp_len - sizeof(struct getxattr_response))) {
+		*ret = -EINVAL;
+		return;
+	}
 
 	if (o_size && o_size < size) {
 		*ret = -ERANGE;
@@ -890,7 +901,7 @@ int hmdfs_send_getxattr(struct hmdfs_peer *con, const char *send_buf,
 	if (ret)
 		goto out;
 
-	hmdfs_update_getxattr_ret(sm.out_buf, value, size, &ret);
+	hmdfs_update_getxattr_ret(sm.out_buf, sm.out_len, value, size, &ret);
 
 out:
 	kfree(req);
@@ -935,9 +946,20 @@ int hmdfs_send_setxattr(struct hmdfs_peer *con, const char *send_buf,
 }
 
 static void hmdfs_update_listxattr_ret(struct listxattr_response *resp,
+				       size_t resp_len,
 				       char *list, size_t o_size, ssize_t *ret)
 {
 	ssize_t size = le32_to_cpu(resp->size);
+
+	if (size < 0) {
+		*ret = size;
+		return;
+	}
+
+	if (size > (ssize_t)(resp_len - sizeof(struct listxattr_response))) {
+		*ret = -EINVAL;
+		return;
+	}
 
 	if (o_size && o_size < size) {
 		*ret = -ERANGE;
@@ -978,7 +1000,7 @@ ssize_t hmdfs_send_listxattr(struct hmdfs_peer *con, const char *send_buf,
 	if (ret)
 		goto out;
 
-	hmdfs_update_listxattr_ret(sm.out_buf, list, size, &ret);
+	hmdfs_update_listxattr_ret(sm.out_buf, sm.out_len, list, size, &ret);
 
 out:
 	kfree(req);
