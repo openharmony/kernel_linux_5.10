@@ -709,8 +709,8 @@ config ARM64_ERRATUM_3194386
 	  * ARM Cortex-A78 erratum 3324344
 	  * ARM Cortex-A78C erratum 3324346
 	  * ARM Cortex-A78C erratum 3324347
-	  * ARM Cortex-A710 erratam 3324338
-	  * ARM Cortex-A715 errartum 3456084
+	  * ARM Cortex-A710 erratum 3324338
+	  * ARM Cortex-A715 erratum 3456084
 	  * ARM Cortex-A720 erratum 3456091
 	  * ARM Cortex-A725 erratum 3456106
 	  * ARM Cortex-X1 erratum 3324344
