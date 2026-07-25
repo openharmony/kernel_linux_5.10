@@ -2185,8 +2185,6 @@ static void link_shadow_page(struct kvm_vcpu *vcpu, u64 *sptep,
 
 	spte = make_nonleaf_spte(sp->spt, sp_ad_disabled(sp));
 
-
-	if (sp->unsync_children || sp->unsync)
 	if (is_shadow_present_pte(*sptep)) {
 		struct kvm_mmu_page *parent_sp;
 		LIST_HEAD(invalid_list);
@@ -2194,17 +2192,23 @@ static void link_shadow_page(struct kvm_vcpu *vcpu, u64 *sptep,
 		parent_sp = sptep_to_sp(sptep);
 		WARN_ON_ONCE(parent_sp->role.level == PG_LEVEL_4K);
 
-		mmu_page_zap_pte(kvm, parent_sp, sptep, &invalid_list);
-		kvm_mmu_remote_flush_or_zap(kvm, &invalid_list, true);
+		mmu_page_zap_pte(vcpu->kvm, parent_sp, sptep, &invalid_list);
+		kvm_mmu_remote_flush_or_zap(vcpu->kvm, &invalid_list, true);
 	}
+
+	mmu_spte_set(sptep, spte);
+
+	mmu_page_add_parent_pte(vcpu, sp, sptep);
+
+	if (sp->unsync_children || sp->unsync)
 		mark_unsync(sptep);
+}
 
 static void validate_direct_spte(struct kvm_vcpu *vcpu, u64 *sptep,
 				   unsigned direct_access)
 {
+	if (is_shadow_present_pte(*sptep) && !is_large_pte(*sptep)) {
 		struct kvm_mmu_page *child;
-	if (is_shadow_present_pte(*sptep) && !is_large_pte(*sptep) &&
-	    spte_to_child_sp(*sptep) && spte_to_child_sp(*sptep)->gfn == gfn)
 
 		/*
 		 * For the direct sp, if the guest pte's dirty bit

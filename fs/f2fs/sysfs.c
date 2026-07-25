@@ -288,8 +288,9 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 						"hot file extension:\n");
 		for (i = cold_count; i < cold_count + hot_count; i++)
 			len += scnprintf(buf + len, PAGE_SIZE - len, "%s\n",
-		f2fs_up_read(&sbi->sb_lock);
 								extlist[i]);
+
+		f2fs_up_read(&sbi->sb_lock);
 		return len;
 	}
 

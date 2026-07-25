@@ -120,15 +120,15 @@ static struct dma_fence *v3d_bin_job_run(struct drm_sched_job *sched_job)
 	trace_v3d_submit_cl(dev, false, to_v3d_fence(fence)->seqno,
 			    job->start, job->end);
 
+	/* Set the current and end address of the control list.
 	 * Writing the end register is what starts the job.
+	 */
 	if (job->qma) {
 		V3D_CORE_WRITE(0, V3D_CLE_CT0QMA, job->qma);
 		V3D_CORE_WRITE(0, V3D_CLE_CT0QMS, job->qms);
+	}
 	if (job->qts) {
 		V3D_CORE_WRITE(0, V3D_CLE_CT0QTS,
-	if (wg_counts[0] == 0 || wg_counts[1] == 0 || wg_counts[2] == 0)
-		goto unmap_bo;
-
 			       V3D_CLE_CT0QTS_ENABLE |
 			       job->qts);
 	}
