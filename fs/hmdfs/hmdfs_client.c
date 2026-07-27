@@ -847,14 +847,9 @@ static void hmdfs_update_getxattr_ret(struct getxattr_response *resp,
 				     size_t resp_len,
 				     void *value, size_t o_size, int *ret)
 {
-	ssize_t size = le32_to_cpu(resp->size);
+	u32 size = le32_to_cpu(resp->size);
 
-	if (size < 0) {
-		*ret = size;
-		return;
-	}
-
-	if (size > (ssize_t)(resp_len - sizeof(struct getxattr_response))) {
+	if (size > (u32)(resp_len - sizeof(struct getxattr_response))) {
 		*ret = -EINVAL;
 		return;
 	}
@@ -949,14 +944,9 @@ static void hmdfs_update_listxattr_ret(struct listxattr_response *resp,
 				       size_t resp_len,
 				       char *list, size_t o_size, ssize_t *ret)
 {
-	ssize_t size = le32_to_cpu(resp->size);
+	u32 size = le32_to_cpu(resp->size);
 
-	if (size < 0) {
-		*ret = size;
-		return;
-	}
-
-	if (size > (ssize_t)(resp_len - sizeof(struct listxattr_response))) {
+	if (size > (u32)(resp_len - sizeof(struct listxattr_response))) {
 		*ret = -EINVAL;
 		return;
 	}
