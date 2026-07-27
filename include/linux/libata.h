@@ -849,6 +849,9 @@ struct ata_port {
 	int			nr_active_links; /* #links with active qcs */
 	unsigned int		sas_last_tag;	/* track next tag hw expects */
 
+	struct work_struct	deferred_qc_work;
+	struct ata_queued_cmd	*deferred_qc;
+
 	struct ata_link		link;		/* host default link */
 	struct ata_link		*slave_link;	/* see ata_slave_link_init() */
 
@@ -1345,6 +1348,7 @@ static inline int ata_acpi_cbl_80wire(struct ata_port *ap,
  * EH - drivers/ata/libata-eh.c
  */
 extern void ata_port_schedule_eh(struct ata_port *ap);
+extern bool ata_port_eh_scheduled(struct ata_port *ap);
 extern void ata_port_wait_eh(struct ata_port *ap);
 extern int ata_link_abort(struct ata_link *link);
 extern int ata_port_abort(struct ata_port *ap);

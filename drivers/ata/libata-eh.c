@@ -881,6 +881,12 @@ static void ata_eh_set_pending(struct ata_port *ap, int fastdrain)
 
 	ap->pflags |= ATA_PFLAG_EH_PENDING;
 
+	/*
+	 * If we have a deferred qc, requeue it so that it is retried once EH
+	 * completes.
+	 */
+	ata_scsi_requeue_deferred_qc(ap);
+
 	if (!fastdrain)
 		return;
 
@@ -981,6 +987,12 @@ void ata_port_schedule_eh(struct ata_port *ap)
 	ap->ops->sched_eh(ap);
 }
 EXPORT_SYMBOL_GPL(ata_port_schedule_eh);
+
+bool ata_port_eh_scheduled(struct ata_port *ap)
+{
+	return ap->pflags & (ATA_PFLAG_EH_PENDING | ATA_PFLAG_EH_IN_PROGRESS);
+}
+EXPORT_SYMBOL_GPL(ata_port_eh_scheduled);
 
 static int ata_do_link_abort(struct ata_port *ap, struct ata_link *link)
 {
