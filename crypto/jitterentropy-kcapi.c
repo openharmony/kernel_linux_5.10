@@ -39,6 +39,7 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/slab.h>
 #include <linux/fips.h>
 #include <linux/time.h>
@@ -106,7 +107,7 @@ void jent_get_nstime(__u64 *out)
  ***************************************************************************/
 
 struct jitterentropy {
-	spinlock_t jent_lock;
+	struct mutex jent_lock;
 	struct rand_data *entropy_collector;
 	unsigned int reset_cnt;
 };
@@ -120,7 +121,7 @@ static int jent_kcapi_init(struct crypto_tfm *tfm)
 	if (!rng->entropy_collector)
 		ret = -ENOMEM;
 
-	spin_lock_init(&rng->jent_lock);
+	mutex_init(&rng->jent_lock);
 	return ret;
 }
 
@@ -128,11 +129,11 @@ static void jent_kcapi_cleanup(struct crypto_tfm *tfm)
 {
 	struct jitterentropy *rng = crypto_tfm_ctx(tfm);
 
-	spin_lock(&rng->jent_lock);
+	mutex_lock(&rng->jent_lock);
 	if (rng->entropy_collector)
 		jent_entropy_collector_free(rng->entropy_collector);
 	rng->entropy_collector = NULL;
-	spin_unlock(&rng->jent_lock);
+	mutex_unlock(&rng->jent_lock);
 }
 
 static int jent_kcapi_random(struct crypto_rng *tfm,
@@ -142,7 +143,7 @@ static int jent_kcapi_random(struct crypto_rng *tfm,
 	struct jitterentropy *rng = crypto_rng_ctx(tfm);
 	int ret = 0;
 
-	spin_lock(&rng->jent_lock);
+	mutex_lock(&rng->jent_lock);
 
 	/* Return a permanent error in case we had too many resets in a row. */
 	if (rng->reset_cnt > (1<<10)) {
@@ -170,7 +171,7 @@ static int jent_kcapi_random(struct crypto_rng *tfm,
 	}
 
 out:
-	spin_unlock(&rng->jent_lock);
+	mutex_unlock(&rng->jent_lock);
 
 	return ret;
 }

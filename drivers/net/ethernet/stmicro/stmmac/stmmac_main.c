@@ -3813,8 +3813,11 @@ static unsigned int stmmac_rx_buf2_len(struct stmmac_priv *priv,
 	if (!priv->sph)
 		return 0;
 
-	/* Not last descriptor */
-	if (status & rx_not_ls)
+	/* For GMAC4, when split header is enabled, buf2 of the first
+	 * descriptor may not be filled. Use plen - len for correct length.
+	 * Not GMAC4 and not last descriptor uses full buffer size.
+	 */
+	if (!priv->plat->has_gmac4 && (status & rx_not_ls))
 		return priv->dma_buf_sz;
 
 	plen = stmmac_get_rx_frame_len(priv, p, coe);

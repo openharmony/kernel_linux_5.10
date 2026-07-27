@@ -605,6 +605,7 @@ int spi_add_device(struct spi_device *spi)
 	if (status < 0) {
 		dev_err(dev, "can't setup %s, status %d\n",
 				dev_name(&spi->dev), status);
+		spi_cleanup(spi);
 		goto done;
 	}
 

@@ -723,9 +723,8 @@ int nested_svm_vmexit(struct vcpu_svm *svm)
 
 	nested_svm_uninit_mmu_context(&svm->vcpu);
 
-	rc = nested_svm_load_cr3(&svm->vcpu, hsave->save.cr3, false);
-	if (rc)
-		return 1;
+	if (nested_svm_load_cr3(&svm->vcpu, hsave->save.cr3, false))
+		kvm_make_request(KVM_REQ_TRIPLE_FAULT, &svm->vcpu);
 
 	if (npt_enabled)
 		svm->vmcb->save.cr3 = hsave->save.cr3;

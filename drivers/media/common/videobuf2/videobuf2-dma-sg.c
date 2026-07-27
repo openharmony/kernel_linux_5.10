@@ -337,6 +337,7 @@ static int vb2_dma_sg_mmap(void *buf_priv, struct vm_area_struct *vma)
 	 */
 	vma->vm_private_data	= &buf->handler;
 	vma->vm_ops		= &vb2_common_vm_ops;
+	vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
 
 	vma->vm_ops->open(vma);
 
