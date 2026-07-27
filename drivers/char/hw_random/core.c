@@ -592,6 +592,7 @@ void hwrng_unregister(struct hwrng *rng)
 	}
 
 	wait_for_completion(&rng->cleanup_done);
+	cancel_work_sync(&rng->cleanup_work);
 }
 EXPORT_SYMBOL_GPL(hwrng_unregister);
 
