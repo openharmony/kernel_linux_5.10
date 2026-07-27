@@ -114,8 +114,15 @@ mlx5e_xmit_xdp_buff(struct mlx5e_xdpsq *sq, struct mlx5e_rq *rq,
 		xdpi.page.di    = *di;
 	}
 
-	return INDIRECT_CALL_2(sq->xmit_xdp_frame, mlx5e_xmit_xdp_frame_mpwqe,
-			       mlx5e_xmit_xdp_frame, sq, &xdptxd, &xdpi, 0);
+	if (unlikely(!INDIRECT_CALL_2(sq->xmit_xdp_frame, mlx5e_xmit_xdp_frame_mpwqe,
+				       mlx5e_xmit_xdp_frame, sq, &xdptxd, &xdpi, 0))) {
+		dma_unmap_single(sq->pdev, dma_addr, xdptxd.len,
+				 DMA_TO_DEVICE);
+		xdp_return_frame(xdpf);
+		return false;
+	}
+
+	return true;
 }
 
 /* returns true if packet was consumed by xdp */

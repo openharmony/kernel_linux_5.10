@@ -67,8 +67,6 @@ struct vkms_output {
 	struct drm_encoder encoder;
 	struct drm_connector connector;
 	struct drm_writeback_connector wb_connector;
-	struct hrtimer vblank_hrtimer;
-	ktime_t period_ns;
 	struct drm_pending_vblank_event *event;
 	/* ordered wq for composer_work */
 	struct workqueue_struct *composer_workq;
