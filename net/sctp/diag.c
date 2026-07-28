@@ -300,7 +300,7 @@ static int sctp_sock_dump(struct sctp_endpoint *ep, struct sctp_transport *tsp, 
 	int err = 0;
 
 	lock_sock(sk);
-	if (ep != tsp->asoc->ep)
+	if (ep != tsp->asoc->ep || tsp->asoc->base.dead)
 		goto release;
 	list_for_each_entry(assoc, &ep->asocs, asocs) {
 		if (cb->args[4] < cb->args[1])

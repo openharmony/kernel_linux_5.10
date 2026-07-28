@@ -2163,6 +2163,9 @@ static int invlpga_interception(struct vcpu_svm *svm)
 {
 	struct kvm_vcpu *vcpu = &svm->vcpu;
 
+	if (nested_svm_check_permissions(svm))
+		return 1;
+
 	trace_kvm_invlpga(svm->vmcb->save.rip, kvm_rcx_read(&svm->vcpu),
 			  kvm_rax_read(&svm->vcpu));
 

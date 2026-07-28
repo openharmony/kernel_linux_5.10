@@ -1454,29 +1454,74 @@ error_bdev_put:
 	return device;
 }
 
-/*
- * Try to find a chunk that intersects [start, start + len] range and when one
- * such is found, record the end of it in *start
- */
-static bool contains_pending_extent(struct btrfs_device *device, u64 *start,
-				    u64 len)
+static bool first_pending_extent(struct btrfs_device *device, u64 start, u64 len,
+				 u64 *pending_start, u64 *pending_end)
 {
-	u64 physical_start, physical_end;
-
 	lockdep_assert_held(&device->fs_info->chunk_mutex);
 
-	if (!find_first_extent_bit(&device->alloc_state, *start,
-				   &physical_start, &physical_end,
+	if (!find_first_extent_bit(&device->alloc_state, start,
+				   pending_start, pending_end,
 				   CHUNK_ALLOCATED, NULL)) {
 
-		if (in_range(physical_start, *start, len) ||
-		    in_range(*start, physical_start,
-			     physical_end - physical_start)) {
-			*start = physical_end + 1;
+		if (in_range(*pending_start, start, len) ||
+		    in_range(start, *pending_start,
+			     *pending_end + 1 - *pending_start)) {
 			return true;
 		}
 	}
 	return false;
+}
+
+static bool find_hole_in_pending_extents(struct btrfs_device *device, u64 *start,
+					 u64 *len, u64 min_hole_size)
+{
+	u64 pending_start, pending_end;
+	u64 end;
+	u64 max_hole_start = 0;
+	u64 max_hole_len = 0;
+
+	lockdep_assert_held(&device->fs_info->chunk_mutex);
+
+	if (*len == 0)
+		return false;
+
+	end = *start + *len - 1;
+
+	while (true) {
+		if (first_pending_extent(device, *start, *len, &pending_start, &pending_end)) {
+			if (pending_start <= *start) {
+				*start = pending_end + 1;
+				goto next;
+			}
+			*len = pending_start - *start;
+			if (*len > max_hole_len) {
+				max_hole_start = *start;
+				max_hole_len = *len;
+			}
+			if (*len >= min_hole_size)
+				break;
+			*start = pending_end + 1;
+			goto next;
+		} else {
+			if (*len > max_hole_len) {
+				max_hole_start = *start;
+				max_hole_len = *len;
+			}
+			break;
+		}
+next:
+		if (*start > end)
+			break;
+		*len = end - *start + 1;
+	}
+	if (max_hole_len) {
+		*start = max_hole_start;
+		*len = max_hole_len;
+	} else {
+		*start = end + 1;
+		*len = 0;
+	}
+	return max_hole_len >= min_hole_size;
 }
 
 static u64 dev_extent_search_start(struct btrfs_device *device, u64 start)
@@ -1494,43 +1539,18 @@ static u64 dev_extent_search_start(struct btrfs_device *device, u64 start)
 	}
 }
 
-/**
- * dev_extent_hole_check - check if specified hole is suitable for allocation
- * @device:	the device which we have the hole
- * @hole_start: starting position of the hole
- * @hole_size:	the size of the hole
- * @num_bytes:	the size of the free space that we need
- *
- * This function may modify @hole_start and @hole_end to reflect the suitable
- * position for allocation. Returns 1 if hole position is updated, 0 otherwise.
- */
 static bool dev_extent_hole_check(struct btrfs_device *device, u64 *hole_start,
 				  u64 *hole_size, u64 num_bytes)
 {
-	bool changed = false;
-	u64 hole_end = *hole_start + *hole_size;
+	bool found = false;
+	const u64 hole_end = *hole_start + *hole_size - 1;
 
-	/*
-	 * Check before we set max_hole_start, otherwise we could end up
-	 * sending back this offset anyway.
-	 */
-	if (contains_pending_extent(device, hole_start, *hole_size)) {
-		if (hole_end >= *hole_start)
-			*hole_size = hole_end - *hole_start;
-		else
-			*hole_size = 0;
-		changed = true;
-	}
+	ASSERT(*hole_size > 0);
 
-	switch (device->fs_devices->chunk_alloc_policy) {
-	case BTRFS_CHUNK_ALLOC_REGULAR:
-		/* No extra check */
-		break;
-	default:
-		BUG();
-	}
+	*hole_size = hole_end - *hole_start + 1;
+	found = find_hole_in_pending_extents(device, hole_start, hole_size, num_bytes);
 
-	return changed;
+	return found;
 }
 
 /*
@@ -1587,7 +1607,6 @@ static int find_free_dev_extent_start(struct btrfs_device *device,
 	max_hole_start = search_start;
 	max_hole_size = 0;
 
-again:
 	if (search_start >= search_end ||
 		test_bit(BTRFS_DEV_STATE_REPLACE_TGT, &device->dev_state)) {
 		ret = -ENOSPC;
@@ -1679,11 +1698,7 @@ next:
 	 */
 	if (search_end > search_start) {
 		hole_size = search_end - search_start;
-		if (dev_extent_hole_check(device, &search_start, &hole_size,
-					  num_bytes)) {
-			btrfs_release_path(path);
-			goto again;
-		}
+		dev_extent_hole_check(device, &search_start, &hole_size, num_bytes);
 
 		if (hole_size > max_hole_size) {
 			max_hole_start = search_start;
@@ -4677,6 +4692,7 @@ int btrfs_shrink_device(struct btrfs_device *device, u64 new_size)
 	u64 old_size = btrfs_device_get_total_bytes(device);
 	u64 diff;
 	u64 start;
+	u64 pending_start, pending_end;
 
 	new_size = round_down(new_size, fs_info->sectorsize);
 	start = new_size;
@@ -4710,7 +4726,7 @@ int btrfs_shrink_device(struct btrfs_device *device, u64 new_size)
 	 * in-memory chunks are synced to disk so that the loop below sees them
 	 * and relocates them accordingly.
 	 */
-	if (contains_pending_extent(device, &start, diff)) {
+	if (first_pending_extent(device, start, diff, &pending_start, &pending_end)) {
 		mutex_unlock(&fs_info->chunk_mutex);
 		ret = btrfs_commit_transaction(trans);
 		if (ret)
