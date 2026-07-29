@@ -1840,7 +1840,7 @@ enum compat_mwt {
 
 static bool match_size_ok(const struct xt_match *match, unsigned int match_size)
 {
-	unsigned int csize;
+	u16 csize;
 
 	if (match->matchsize == -1) /* cannot validate ebt_among */
 		return true;
@@ -1852,7 +1852,7 @@ static bool match_size_ok(const struct xt_match *match, unsigned int match_size)
 
 static bool tgt_size_ok(const struct xt_target *tgt, unsigned int tgt_size)
 {
-	unsigned int csize = tgt->compatsize ? : tgt->targetsize;
+	u16 csize = tgt->compatsize ? : tgt->targetsize;
 
 	return tgt_size >= csize;
 }

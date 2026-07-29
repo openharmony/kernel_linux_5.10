@@ -798,7 +798,7 @@ static int catc_probe(struct usb_interface *intf, const struct usb_device_id *id
 			intf->altsetting->desc.bInterfaceNumber, 1)) {
 		dev_err(dev, "Can't set altsetting 1.\n");
 		ret = -EIO;
-		goto fail_mem;
+		goto fail_mem;;
 	}
 
 	/* Verify that all required endpoints are present */

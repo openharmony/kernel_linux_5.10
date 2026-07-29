@@ -93,9 +93,6 @@ void crush_destroy_bucket(struct crush_bucket *b)
 	case CRUSH_BUCKET_STRAW2:
 		crush_destroy_bucket_straw2((struct crush_bucket_straw2 *)b);
 		break;
-	default:
-		pr_warn("crush: unknown bucket algorithm %d\n", b->alg);
-		break;
 	}
 	kfree(b);
 }
