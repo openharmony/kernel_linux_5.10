@@ -343,4 +343,9 @@ static inline int l2tp_v3_ensure_opt_in_linear(struct l2tp_session *session, str
 #define MODULE_ALIAS_L2TP_PWTYPE(type) \
 	MODULE_ALIAS("net-l2tp-type-" __stringify(type))
 
+static inline void l2tp_session_put(struct l2tp_session *session)
+{
+	l2tp_session_dec_refcount(session);
+}
+
 #endif /* _L2TP_CORE_H_ */

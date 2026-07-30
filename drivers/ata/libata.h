@@ -259,4 +259,9 @@ static inline void zpodd_disable_run_wake(struct ata_device *dev) {}
 static inline void zpodd_post_poweron(struct ata_device *dev) {}
 #endif /* CONFIG_SATA_ZPODD */
 
+static inline bool ata_port_eh_scheduled(struct ata_port *ap)
+{
+	return ap->pflags & (ATA_PFLAG_EH_PENDING | ATA_PFLAG_EH_IN_PROGRESS);
+}
+
 #endif /* __LIBATA_H__ */
