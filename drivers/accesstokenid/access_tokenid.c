@@ -322,47 +322,47 @@ int access_tokenid_get_permission(struct file *file, void __user *uarg)
 	return ret;
 }
 
-typedef int (*access_token_id_func)(struct file *file, void __user *arg);
-
-static access_token_id_func g_func_array[ACCESS_TOKENID_MAX_NR] = {
-	NULL, /* reserved */
-	access_tokenid_get_tokenid,
-	access_tokenid_set_tokenid,
-	access_tokenid_get_ftokenid,
-	access_tokenid_set_ftokenid,
-	access_tokenid_add_permission,
-	access_tokenid_remove_permission,
-	access_tokenid_get_permission,
-	access_tokenid_set_permission,
-};
-
 static long access_tokenid_ioctl(struct file *file, unsigned int cmd,
 				 unsigned long arg)
 {
 	void __user *uarg = (void __user *)arg;
-	unsigned int func_cmd = _IOC_NR(cmd);
 
 	if (uarg == NULL) {
 		pr_err("%s: invalid user uarg\n", __func__);
 		return -EINVAL;
 	}
-
-	if (_IOC_TYPE(cmd) != ACCESS_TOKEN_ID_IOCTL_BASE) {
-		pr_err("%s: access tokenid magic fail, TYPE=%d\n",
-		       __func__, _IOC_TYPE(cmd));
-		return -EINVAL;
+	long ret;
+	switch (cmd) {
+		case ACCESS_TOKENID_GET_TOKENID:
+			ret = access_tokenid_get_tokenid(file, uarg);
+			break;
+		case ACCESS_TOKENID_SET_TOKENID:
+			ret = access_tokenid_set_tokenid(file, uarg);
+			break;
+		case ACCESS_TOKENID_GET_FTOKENID:
+			ret = access_tokenid_get_ftokenid(file, uarg);
+			break;
+		case ACCESS_TOKENID_SET_FTOKENID:
+			ret = access_tokenid_set_ftokenid(file, uarg);
+			break;
+		case ACCESS_TOKENID_ADD_PERMISSIONS:
+			ret = access_tokenid_add_permission(file, uarg);
+			break;
+		case ACCESS_TOKENID_REMOVE_PERMISSIONS:
+			ret = access_tokenid_remove_permission(file, uarg);
+			break;
+		case ACCESS_TOKENID_GET_PERMISSION:
+			ret = access_tokenid_get_permission(file, uarg);
+			break;
+		case ACCESS_TOKENID_SET_PERMISSION:
+			ret = access_tokenid_set_permission(file, uarg);
+			break;
+		default:
+			pr_err("%s: access tokenid cmd error, cmd:%u\n", __func__, cmd);
+			ret = -EOPNOTSUPP;
 	}
 
-	if (func_cmd >= ACCESS_TOKENID_MAX_NR) {
-		pr_err("%s: access tokenid cmd error, cmd:%d\n",
-			__func__, func_cmd);
-		return -EOPNOTSUPP;
-	}
-
-	if (g_func_array[func_cmd])
-		return (*g_func_array[func_cmd])(file, uarg);
-
-	return -EOPNOTSUPP;
+	return ret;
 }
 
 static const struct file_operations access_tokenid_fops = {
