@@ -8,6 +8,9 @@
 #ifndef _LINUX_F2FS_H
 #define _LINUX_F2FS_H
 
+static inline void f2fs_down_read(struct rw_semaphore *sem) { down_read(sem); }
+static inline void f2fs_up_read(struct rw_semaphore *sem) { up_read(sem); }
+
 #include <linux/uio.h>
 #include <linux/types.h>
 #include <linux/page-flags.h>

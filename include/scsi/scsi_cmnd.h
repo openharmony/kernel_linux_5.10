@@ -340,4 +340,9 @@ static inline unsigned scsi_transfer_length(struct scsi_cmnd *scmd)
 	return xfer_len;
 }
 
+static inline void scsi_done(struct scsi_cmnd *cmd)
+{
+	cmd->scsi_done(cmd);
+}
+
 #endif /* _SCSI_SCSI_CMND_H */
