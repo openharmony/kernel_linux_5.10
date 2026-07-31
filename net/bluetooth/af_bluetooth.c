@@ -138,36 +138,6 @@ static int bt_sock_create(struct net *net, struct socket *sock, int proto,
 	return err;
 }
 
-struct sock *bt_sock_alloc(struct net *net, struct socket *sock,
-			   struct proto *prot, int proto, gfp_t prio, int kern)
-{
-	struct sock *sk;
-
-	sk = sk_alloc(net, PF_BLUETOOTH, prio, prot, kern);
-	if (!sk)
-		return NULL;
-
-	sock_init_data(sock, sk);
-	INIT_LIST_HEAD(&bt_sk(sk)->accept_q);
-	spin_lock_init(&bt_sk(sk)->accept_q_lock);
-
-	sock_reset_flag(sk, SOCK_ZAPPED);
-
-	sk->sk_protocol = proto;
-	sk->sk_state    = BT_OPEN;
-
-	/* Init peer information so it can be properly monitored */
-	if (!kern) {
-		spin_lock(&sk->sk_peer_lock);
-		sk->sk_peer_pid  = get_pid(task_tgid(current));
-		sk->sk_peer_cred = get_current_cred();
-		spin_unlock(&sk->sk_peer_lock);
-	}
-
-	return sk;
-}
-EXPORT_SYMBOL(bt_sock_alloc);
-
 void bt_sock_link(struct bt_sock_list *l, struct sock *sk)
 {
 	write_lock(&l->lock);
@@ -186,8 +156,6 @@ EXPORT_SYMBOL(bt_sock_unlink);
 
 void bt_accept_enqueue(struct sock *parent, struct sock *sk, bool bh)
 {
-	const struct cred *old_cred;
-	struct pid *old_pid;
 	struct bt_sock *par = bt_sk(parent);
 
 	BT_DBG("parent %p, sk %p", parent, sk);
@@ -205,19 +173,6 @@ void bt_accept_enqueue(struct sock *parent, struct sock *sk, bool bh)
 	list_add_tail(&bt_sk(sk)->accept_q, &par->accept_q);
 	sk_acceptq_added(parent);
 	spin_unlock_bh(&par->accept_q_lock);
-
-	/* Copy credentials from parent since for incoming connections the
-	 * socket is allocated by the kernel.
-	 */
-	spin_lock(&sk->sk_peer_lock);
-	old_pid = sk->sk_peer_pid;
-	old_cred = sk->sk_peer_cred;
-	sk->sk_peer_pid = get_pid(parent->sk_peer_pid);
-	sk->sk_peer_cred = get_cred(parent->sk_peer_cred);
-	spin_unlock(&sk->sk_peer_lock);
-
-	put_pid(old_pid);
-	put_cred(old_cred);
 
 	if (bh)
 		bh_unlock_sock(sk);
@@ -249,9 +204,6 @@ static struct sock *bt_accept_get(struct sock *parent, struct sock *sk)
 	struct bt_sock *bt = bt_sk(parent);
 	struct sock *next = NULL;
 
-	/* accept_q is modified from child teardown paths too, so take a
-	 * temporary reference before dropping the queue lock.
-	 */
 	spin_lock_bh(&bt->accept_q_lock);
 
 	if (sk) {
@@ -282,6 +234,7 @@ struct sock *bt_accept_dequeue(struct sock *parent, struct socket *newsock)
 restart:
 	for (sk = bt_accept_get(parent, NULL); sk; sk = next) {
 		/* Prevent early freeing of sk due to unlink and sock_kill */
+		sock_hold(sk);
 		lock_sock(sk);
 
 		/* Check sk has not already been unlinked via
@@ -304,6 +257,7 @@ restart:
 		if (sk->sk_state == BT_CLOSED) {
 			bt_accept_unlink(sk);
 			release_sock(sk);
+			sock_put(sk);
 			continue;
 		}
 
@@ -313,16 +267,6 @@ restart:
 			if (newsock)
 				sock_graft(sk, newsock);
 
-			/* Hand the caller a reference taken while sk is
-			 * still locked.  bt_accept_unlink() just dropped
-			 * the accept-queue reference; without this hold a
-			 * concurrent teardown (e.g. l2cap_conn_del() ->
-			 * l2cap_sock_kill()) could free sk between
-			 * release_sock() and the caller using it.  Every
-			 * caller drops this with sock_put() when done.
-			 */
-			sock_hold(sk);
-
 			release_sock(sk);
 			if (next)
 				sock_put(next);
@@ -330,6 +274,7 @@ restart:
 		}
 
 		release_sock(sk);
+		sock_put(sk);
 	}
 
 	return NULL;
@@ -618,11 +563,12 @@ int bt_sock_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 		if (sk->sk_state == BT_LISTEN)
 			return -EINVAL;
 
-		lock_sock(sk);
+		spin_lock(&sk->sk_receive_queue.lock);
 		skb = skb_peek(&sk->sk_receive_queue);
 		amount = skb ? skb->len : 0;
-		release_sock(sk);
-		err = put_user(amount, (int __user *) arg);
+		spin_unlock(&sk->sk_receive_queue.lock);
+
+		err = put_user(amount, (int __user *)arg);
 		break;
 
 	default:
@@ -877,7 +823,6 @@ cleanup_sysfs:
 	bt_sysfs_cleanup();
 cleanup_led:
 	bt_leds_cleanup();
-	debugfs_remove_recursive(bt_debugfs);
 	return err;
 }
 
