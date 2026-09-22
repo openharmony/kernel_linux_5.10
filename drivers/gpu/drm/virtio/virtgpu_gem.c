@@ -226,7 +226,7 @@ int virtio_gpu_lock_one_resv_uninterruptible(struct virtio_gpu_object_array *obj
 
 	dma_resv_lock(objs->objs[0]->resv, NULL);
 
-	ret = dma_resv_reserve_fences(objs->objs[0]->resv, 1);
+	ret = dma_resv_reserve_shared(objs->objs[0]->resv, 1);
 	if (ret) {
 		virtio_gpu_array_unlock_resv(objs);
 		return ret;
