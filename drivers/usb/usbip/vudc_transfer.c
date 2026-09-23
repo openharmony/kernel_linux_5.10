@@ -492,6 +492,6 @@ void v_stop_timer(struct vudc *udc)
 
 	/* Delete the timer synchronously before teardown frees udc. */
 	dev_dbg(&udc->pdev->dev, "timer stop");
-	timer_delete_sync(&t->timer);
+	del_timer_sync(&t->timer);
 	t->state = VUDC_TR_STOPPED;
 }
