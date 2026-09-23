@@ -1263,15 +1263,15 @@ static void batadv_bla_purge_backbone_gw(struct batadv_priv *bat_priv, int now)
 				   __func__, backbone_gw->orig);
 
 purge_now:
-			/* don't wait for the pending request anymore */
-				spin_lock_bh(&bat_priv->bla.num_requests_lock);
-				if (backbone_gw->state == BATADV_BLA_BACKBONE_GW_UNSYNCED)
-				atomic_dec(&bat_priv->bla.num_requests);
+		/* don't wait for the pending request anymore */
+		spin_lock_bh(&bat_priv->bla.num_requests_lock);
+		if (backbone_gw->state == BATADV_BLA_BACKBONE_GW_UNSYNCED)
+			atomic_dec(&bat_priv->bla.num_requests);
 
-				backbone_gw->state = BATADV_BLA_BACKBONE_GW_STOPPED;
-				spin_unlock_bh(&bat_priv->bla.num_requests_lock);
+		backbone_gw->state = BATADV_BLA_BACKBONE_GW_STOPPED;
+		spin_unlock_bh(&bat_priv->bla.num_requests_lock);
 
-			batadv_bla_del_backbone_claims(backbone_gw);
+		batadv_bla_del_backbone_claims(backbone_gw);
 
 			hlist_del_rcu(&backbone_gw->hash_entry);
 			batadv_backbone_gw_put(backbone_gw);

@@ -2656,7 +2656,7 @@ BPF_CALL_4(bpf_msg_pull_data, struct sk_msg *, msg, u32, start,
 	 * account for the headroom.
 	 */
 	bytes_sg_total = start - offset + bytes;
-	if (!test_bit(i, &msg->sg.copy) && bytes_sg_total <= len)
+	if (!test_bit(i, msg->sg.copy) && bytes_sg_total <= len)
 		goto out;
 
 	/* At this point we need to linearize multiple scatterlist
@@ -2844,35 +2844,35 @@ BPF_CALL_4(bpf_msg_push_data, struct sk_msg *, msg, u32, start,
 
 	/* Shift one or two slots as needed */
 	if (!copy) {
-	sge_copy = test_bit(new, msg->sg.copy);
 		sge = sk_msg_elem_cpy(msg, i);
+		sge_copy = test_bit(i, msg->sg.copy);
 
 		sk_msg_iter_var_next(i);
-	nsge_copy = test_bit(i, msg->sg.copy);
 		sg_unmark_end(&sge);
 		sk_msg_iter_next(msg, end);
 
-		nnsge_copy = test_bit(i, msg->sg.copy);
 		nsge = sk_msg_elem_cpy(msg, i);
+		nsge_copy = test_bit(i, msg->sg.copy);
 		if (rsge.length) {
 			sk_msg_iter_var_next(i);
 			nnsge = sk_msg_elem_cpy(msg, i);
+			nnsge_copy = test_bit(i, msg->sg.copy);
 		}
-		__assign_bit(i, msg->sg.copy, sge_copy);
 
-		sge_copy = nsge_copy;
 		while (i != msg->sg.end) {
 			msg->sg.data[i] = sge;
+			__assign_bit(i, msg->sg.copy, sge_copy);
 			sge = nsge;
-			nsge_copy = nnsge_copy;
+			sge_copy = nsge_copy;
 			sk_msg_iter_var_next(i);
-			nnsge_copy = test_bit(i, msg->sg.copy);
 			if (rsge.length) {
 				nsge = nnsge;
-			nsge_copy = test_bit(i, msg->sg.copy);
+				nsge_copy = nnsge_copy;
 				nnsge = sk_msg_elem_cpy(msg, i);
+				nnsge_copy = test_bit(i, msg->sg.copy);
 			} else {
 				nsge = sk_msg_elem_cpy(msg, i);
+				nsge_copy = test_bit(i, msg->sg.copy);
 			}
 		}
 	}
@@ -2880,7 +2880,7 @@ BPF_CALL_4(bpf_msg_push_data, struct sk_msg *, msg, u32, start,
 	/* Place newly allocated data buffer */
 	sk_mem_charge(msg->sk, len);
 	msg->sg.size += len;
-	__clear_bit(new, &msg->sg.copy);
+	__clear_bit(new, msg->sg.copy);
 	sg_set_page(&msg->sg.data[new], page, len + copy, 0);
 	if (rsge.length) {
 		get_page(sg_page(&rsge));
