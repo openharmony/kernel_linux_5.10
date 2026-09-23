@@ -16,6 +16,7 @@
 #include <linux/err.h>
 #include <linux/kref.h>
 
+#include <asm/unaligned.h>
 #include "include/lib.h"
 #include "include/match.h"
 
