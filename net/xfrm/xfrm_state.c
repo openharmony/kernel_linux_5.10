@@ -673,8 +673,6 @@ int __xfrm_state_delete(struct xfrm_state *x)
 		list_del(&x->km.all);
 		hlist_del_init_rcu(&x->bydst);
 		hlist_del_init_rcu(&x->bysrc);
-		if (!hlist_unhashed(&x->byseq))
-			hlist_del_init_rcu(&x->byseq);
 		net->xfrm.state_num--;
 		spin_unlock(&net->xfrm.xfrm_state_lock);
 
