@@ -472,8 +472,9 @@ err_generic:
 static int pdc_intc_remove(struct platform_device *pdev)
 {
 	struct pdc_intc_priv *priv = platform_get_drvdata(pdev);
+	unsigned int i;
 
-	for (unsigned int i = 0; i < priv->nr_perips; ++i)
+	for (i = 0; i < priv->nr_perips; ++i)
 		irq_set_chained_handler_and_data(priv->perip_irqs[i], NULL, NULL);
 
 	irq_set_chained_handler_and_data(priv->syswake_irq, NULL, NULL);
