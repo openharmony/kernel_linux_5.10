@@ -275,7 +275,7 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 		int cold_count, hot_count;
 		int len = 0, i;
 
-		f2fs_down_read(&sbi->sb_lock);
+		down_read(&sbi->sb_lock);
 		cold_count = le32_to_cpu(sbi->raw_super->extension_count);
 		hot_count = sbi->raw_super->hot_ext_count;
 		len += scnprintf(buf + len, PAGE_SIZE - len,
@@ -290,7 +290,7 @@ static ssize_t f2fs_sbi_show(struct f2fs_attr *a,
 			len += scnprintf(buf + len, PAGE_SIZE - len, "%s\n",
 								extlist[i]);
 
-		f2fs_up_read(&sbi->sb_lock);
+		up_read(&sbi->sb_lock);
 		return len;
 	}
 

@@ -1066,9 +1066,10 @@ static int pppol2tp_ioctl(struct socket *sock, unsigned int cmd,
 {
 	struct pppol2tp_ioc_stats stats;
 	struct l2tp_session *session;
+	struct sock *sk = sock->sk;
 	int err = 0;
 
-	session = pppol2tp_sock_to_session(sock->sk);
+	session = pppol2tp_sock_to_session(sk);
 
 	/* Validate session presence and magic integrity ONLY for commands
 	 * that belong to L2TP and require a valid session.
@@ -1083,7 +1084,7 @@ static int pppol2tp_ioctl(struct socket *sock, unsigned int cmd,
 			return -ENOTCONN;
 
 		if (session->magic != L2TP_SESSION_MAGIC) {
-			l2tp_session_put(session);
+			sock_put(sk);
 			return -EBADF;
 		}
 		break;
@@ -1157,7 +1158,7 @@ static int pppol2tp_ioctl(struct socket *sock, unsigned int cmd,
 	}
 
 	if (session)
-		l2tp_session_put(session);
+		sock_put(sk);
 
 	return err;
 }
