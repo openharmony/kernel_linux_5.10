@@ -1158,6 +1158,12 @@ int __irq_alloc_domain_generic_chips(struct irq_domain *d, int irqs_per_chip,
 					 handler, clr, set, flags);	\
 })
 
+#ifdef CONFIG_GENERIC_IRQ_CHIP
+void irq_domain_remove_generic_chips(struct irq_domain *d);
+#else
+static inline void irq_domain_remove_generic_chips(struct irq_domain *d) { }
+#endif
+
 static inline void irq_free_generic_chip(struct irq_chip_generic *gc)
 {
 	kfree(gc);
