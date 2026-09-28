@@ -266,6 +266,9 @@ void irq_domain_remove(struct irq_domain *domain)
 
 	mutex_unlock(&irq_domain_mutex);
 
+	if (domain->flags & IRQ_DOMAIN_FLAG_DESTROY_GC)
+		irq_domain_remove_generic_chips(domain);
+
 	pr_debug("Removed domain %s\n", domain->name);
 
 	fwnode_handle_put(domain->fwnode);
